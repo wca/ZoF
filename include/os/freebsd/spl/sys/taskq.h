@@ -21,6 +21,8 @@
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ *
+ * Copyright (c) 2012 Spectra Logic Corporation.  All rights reserved.
  */
 
 #ifndef	_SYS_TASKQ_H
@@ -80,6 +82,9 @@ struct proc;
 #ifdef _KERNEL
 
 #define taskq_init_ent(x)
+
+typedef void (*taskq_callback_fn)(void *);
+
 extern taskq_t *system_taskq;
 /* Global dynamic task queue for long delay */
 extern taskq_t *system_delay_taskq;
@@ -96,7 +101,7 @@ extern int taskq_empty_ent(taskq_ent_t *);
 taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
 taskq_t	*taskq_create_instance(const char *, int, int, pri_t, int, int, uint_t);
 taskq_t	*taskq_create_proc(const char *, int, pri_t, int, int,
-    struct proc *, uint_t);
+    struct proc *, uint_t, taskq_callback_fn, taskq_callback_fn);
 taskq_t	*taskq_create_sysdc(const char *, int, int, int,
     struct proc *, uint_t, uint_t);
 void	nulltask(void *);
