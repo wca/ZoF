@@ -217,6 +217,7 @@ usage(void)
 	    "dump all read blocks into specified directory\n");
 	(void) fprintf(stderr, "        -X attempt extreme rewind (does not "
 	    "work with dataset)\n");
+	(void) fprintf(stderr, "        -Z ztest mode\n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
@@ -5839,6 +5840,8 @@ zdb_embedded_block(char *thing)
 	free(buf);
 }
 
+extern int zfs_reconstruct_indirect_combinations_max;
+
 int
 main(int argc, char **argv)
 {
@@ -5875,7 +5878,7 @@ main(int argc, char **argv)
 		spa_config_path = spa_config_path_env;
 
 	while ((c = getopt(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:X")) != -1) {
+	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XZ")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -5962,6 +5965,12 @@ main(int argc, char **argv)
 			break;
 		case 'x':
 			vn_dumpdir = optarg;
+			break;
+		case 'Z':
+			dump_opt['b']++;
+			dump_opt['c']++;
+			dump_opt['c']++;
+			zfs_reconstruct_indirect_combinations_max = 65536;
 			break;
 		default:
 			usage();

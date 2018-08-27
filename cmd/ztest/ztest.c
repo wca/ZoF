@@ -221,6 +221,8 @@ extern unsigned long zfs_reconstruct_indirect_damage_fraction;
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
 static char *ztest_wkeydata = "abcdefghijklmnopqrstuvwxyz012345";
+const char *ztest_path;
+char ztest_realpath[PATH_MAX];
 
 typedef struct ztest_shared_ds {
 	uint64_t	zd_seq;
@@ -904,7 +906,7 @@ process_options(int argc, char **argv)
 		cmd = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 		realaltdir = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
-		VERIFY(NULL != realpath(getexecname(), cmd));
+		strcpy(cmd, ztest_realpath);
 		if (0 != access(altdir, F_OK)) {
 			ztest_dump_core = B_FALSE;
 			fatal(B_TRUE, "invalid alternate ztest path: %s",
@@ -6333,7 +6335,6 @@ ztest_get_zdb_bin(char *bin, int len)
 		return;
 	}
 
-	VERIFY(realpath(getexecname(), bin) != NULL);
 	if (strstr(bin, "/ztest/")) {
 		strstr(bin, "/ztest/")[0] = '\0'; /* In-tree */
 		strcat(bin, "/zdb/zdb");
@@ -6362,9 +6363,7 @@ ztest_run_zdb(char *pool)
 
 	ztest_get_zdb_bin(bin, len);
 
-	(void) sprintf(zdb,
-	    "%s -bcc%s%s -G -d -U %s "
-	    "-o zfs_reconstruct_indirect_combinations_max=65536 %s",
+	(void) sprintf(zdb, "%s -Z%s%s -U %s %s",
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
@@ -6372,7 +6371,7 @@ ztest_run_zdb(char *pool)
 	    pool);
 
 	if (ztest_opts.zo_verbose >= 5)
-		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
+		(void) printf("Executing %s\n", zdb);
 
 	fp = popen(zdb, "r");
 
@@ -7355,15 +7354,11 @@ exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 {
 	pid_t pid;
 	int status;
-	char *cmdbuf = NULL;
 
 	pid = fork();
 
-	if (cmd == NULL) {
-		cmdbuf = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
-		(void) strlcpy(cmdbuf, getexecname(), MAXPATHLEN);
-		cmd = cmdbuf;
-	}
+	if (cmd == NULL)
+		cmd = ztest_realpath;
 
 	if (pid == -1)
 		fatal(1, "fork failed");
@@ -7382,14 +7377,10 @@ exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 		(void) enable_extended_FILE_stdio(-1, -1);
 		if (libpath != NULL)
 			VERIFY(0 == setenv("LD_LIBRARY_PATH", libpath, 1));
+		fprintf(stderr, "Executing: %s\n", cmd);
 		(void) execv(cmd, emptyargv);
 		ztest_dump_core = B_FALSE;
 		fatal(B_TRUE, "exec failed: %s", cmd);
-	}
-
-	if (cmdbuf != NULL) {
-		umem_free(cmdbuf, MAXPATHLEN);
-		cmd = NULL;
 	}
 
 	while (waitpid(pid, &status, 0) != pid)
@@ -7470,6 +7461,9 @@ main(int argc, char **argv)
 	struct sigaction action;
 
 	(void) setvbuf(stdout, NULL, _IOLBF, 0);
+
+	ztest_path = argv[0];
+	VERIFY(realpath(ztest_path, ztest_realpath) != NULL);
 
 	dprintf_setup(&argc, argv);
 	zfs_deadman_synctime_ms = 300000;
@@ -7564,7 +7558,7 @@ main(int argc, char **argv)
 	}
 
 	cmd = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
-	(void) strlcpy(cmd, getexecname(), MAXNAMELEN);
+	(void) strlcpy(cmd, ztest_path, MAXNAMELEN);
 
 	zs->zs_do_init = B_TRUE;
 	if (strlen(ztest_opts.zo_alt_ztest) != 0) {
