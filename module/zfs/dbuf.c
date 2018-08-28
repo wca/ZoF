@@ -1962,6 +1962,86 @@ dbuf_redirty(dbuf_dirty_record_t *dr)
 }
 
 static void
+dbuf_new_dirty_record_accounting(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx)
+{
+	objset_t *os = dn->dn_objset;
+
+	/*
+	 * Only valid if not already dirty in this transaction group.
+	 */
+	ASSERT(dn->dn_object == 0 ||
+	    dn->dn_dirtyctx == DN_UNDIRTIED || dn->dn_dirtyctx ==
+	    (dmu_tx_is_syncing(tx) ? DN_DIRTY_SYNC : DN_DIRTY_OPEN));
+
+	ASSERT3U(dn->dn_nlevels, >, db->db_level);
+
+	/*
+	 * We should only be dirtying in syncing context if it's the
+	 * mos or we're initializing the os or it's a special object.
+	 * However, we are allowed to dirty in syncing context provided
+	 * we already dirtied it in open context.  Hence we must make
+	 * this assertion only if we're not already dirty.
+	 */
+	os = dn->dn_objset;
+	VERIFY3U(tx->tx_txg, <=, spa_final_dirty_txg(os->os_spa));
+#ifdef DEBUG
+	if (dn->dn_objset->os_dsl_dataset != NULL)
+		rrw_enter(&os->os_dsl_dataset->ds_bp_rwlock, RW_READER, FTAG);
+	ASSERT(!dmu_tx_is_syncing(tx) || DMU_OBJECT_IS_SPECIAL(dn->dn_object) ||
+	    os->os_dsl_dataset == NULL || BP_IS_HOLE(os->os_rootbp));
+	if (dn->dn_objset->os_dsl_dataset != NULL)
+		rrw_exit(&os->os_dsl_dataset->ds_bp_rwlock, FTAG);
+#endif
+	ASSERT(db->db.db_size != 0);
+
+	dprintf_dbuf(db, "size=%llx\n", (u_longlong_t)db->db.db_size);
+
+	if (db->db_blkid != DMU_BONUS_BLKID) {
+		dmu_objset_willuse_space(os, db->db.db_size, tx);
+	}
+}
+
+static void
+dbuf_dirty_verify(dmu_buf_impl_t *db, dnode_t *dn, dmu_tx_t *tx)
+{
+#ifdef ZFS_DEBUG
+	dbuf_dirty_record_t *dr;
+
+	/* Ensure that this dbuf has a transaction group and a hold */
+	ASSERT3U(tx->tx_txg, !=, 0);
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	DMU_TX_VERIFY_DIRTY_BUF(tx, db);
+
+	dr = list_head(&db->db_dirty_records);
+	ASSERT(dr == NULL || dr->dr_txg <= tx->tx_txg ||
+	    db->db.db_object == DMU_META_DNODE_OBJECT);
+
+	/*
+	 * Shouldn't dirty a regular buffer in syncing context.  Private
+	 * objects may be dirtied in syncing context, but only if they
+	 * were already pre-dirtied in open context.
+	 */
+	if (dn->dn_objset->os_dsl_dataset != NULL) {
+		rrw_enter(&dn->dn_objset->os_dsl_dataset->ds_bp_rwlock,
+		    RW_READER, FTAG);
+	}
+	ASSERT(!dmu_tx_is_syncing(tx) ||
+	    BP_IS_HOLE(dn->dn_objset->os_rootbp) ||
+	    DMU_OBJECT_IS_SPECIAL(dn->dn_object) ||
+	    dn->dn_objset->os_dsl_dataset == NULL);
+	if (dn->dn_objset->os_dsl_dataset != NULL)
+		rrw_exit(&dn->dn_objset->os_dsl_dataset->ds_bp_rwlock, FTAG);
+
+	/*
+	 * We make this assert for private objects as well, but after we
+	 * check if we're already dirty.  They are allowed to re-dirty
+	 * in syncing context.
+	 */
+	DNODE_VERIFY_DIRTYCTX(dn, tx);
+#endif
+}
+
+static void
 dbuf_dirty_parent(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx,
     dbuf_dirty_record_t *dr)
 {
@@ -2073,37 +2153,10 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	dbuf_dirty_record_t *dr, *dr_next;
 	int txgoff = tx->tx_txg & TXG_MASK;
 
-	ASSERT(tx->tx_txg != 0);
-	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
-	DMU_TX_VERIFY_DIRTY_BUF(tx, db);
-
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	/*
-	 * Shouldn't dirty a regular buffer in syncing context.  Private
-	 * objects may be dirtied in syncing context, but only if they
-	 * were already pre-dirtied in open context.
-	 */
-#ifdef DEBUG
-	if (dn->dn_objset->os_dsl_dataset != NULL) {
-		rrw_enter(&dn->dn_objset->os_dsl_dataset->ds_bp_rwlock,
-		    RW_READER, FTAG);
-	}
-	ASSERT(!dmu_tx_is_syncing(tx) ||
-	    BP_IS_HOLE(dn->dn_objset->os_rootbp) ||
-	    DMU_OBJECT_IS_SPECIAL(dn->dn_object) ||
-	    dn->dn_objset->os_dsl_dataset == NULL);
-	if (dn->dn_objset->os_dsl_dataset != NULL)
-		rrw_exit(&dn->dn_objset->os_dsl_dataset->ds_bp_rwlock, FTAG);
-#endif
-	/*
-	 * We make this assert for private objects as well, but after we
-	 * check if we're already dirty.  They are allowed to re-dirty
-	 * in syncing context.
-	 */
-	ASSERT(dn->dn_object == DMU_META_DNODE_OBJECT ||
-	    dn->dn_dirtyctx == DN_UNDIRTIED || dn->dn_dirtyctx ==
-	    (dmu_tx_is_syncing(tx) ? DN_DIRTY_SYNC : DN_DIRTY_OPEN));
+
+	dbuf_dirty_verify(db, dn, tx);
 
 	mutex_enter(&db->db_mtx);
 	/*
