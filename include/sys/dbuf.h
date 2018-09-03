@@ -169,13 +169,6 @@ typedef struct dbuf_dirty_indirect_record {
 	list_t dr_children;	/* List of our dirty children. */
 } dbuf_dirty_indirect_record_t;
 
-typedef struct dbuf_dirty_range {
-	list_node_t write_range_link;
-	int start;
-	int end;
-	int size;
-} dbuf_dirty_range_t;
-
 typedef struct dbuf_dirty_leaf_record {
 	/*
 	 * dr_data is set when we dirty the buffer so that we can retain the
@@ -183,12 +176,6 @@ typedef struct dbuf_dirty_leaf_record {
 	 */
 	arc_buf_t *dr_data;
 
-	/*
-	 * List of the ranges that dr_data's contents are valid for.
-	 * Used when not all of dr_data is valid, as it may be if writes
-	 * only cover part of it, and no read has filled in the gaps yet.
-	 */
-	list_t write_ranges;
 	blkptr_t dr_overridden_by;
 	override_states_t dr_override_state;
 	uint8_t dr_copies;

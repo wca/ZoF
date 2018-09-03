@@ -2079,8 +2079,6 @@ dbuf_dirty_record_register_as_leaf(dbuf_dirty_state_t *dds)
 
 	dbuf_dirty_record_update_leaf(dds);
 	dprintf_dbuf(db, "%s: dr_data=%p\n", __func__, dr->dt.dl.dr_data);
-	list_create(&dr->dt.dl.write_ranges, sizeof (dbuf_dirty_range_t),
-	    offsetof(dbuf_dirty_range_t, write_range_link));
 	dbuf_dirty_record_register(dds);
 }
 
