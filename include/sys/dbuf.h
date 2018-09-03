@@ -75,12 +75,43 @@ extern "C" {
  * dbuf_states_t (see comment on dn_dbufs in dnode.h).
  */
 typedef enum dbuf_states {
+	/*
+	 * Invalid state for a dbuf. Used by dbuf_free_range to find all
+	 * dbufs in a range of a dnode and must be less than any other state
+	 * in dbuf_states_t (see comment on dn_dbufs in dnode.h).
+	 */
 	DB_SEARCH = -1,
+
+	/*
+	 * Dbuf has no valid data.
+	 */
 	DB_UNCACHED,
+
+	/*
+	 * The Dbuf's contents are being modified by an active thread.
+	 * The entire buffer's contents are being supplied by the writer.
+	 */
 	DB_FILL,
+
+	/*
+	 * A NULL DBuf associated with swap backing store.
+	 */
 	DB_NOFILL,
+
+	/*
+	 * A read has been issued for an uncached buffer.
+	 */
 	DB_READ,
+
+	/*
+	 * The entire contents of this dbuf are valid.  The buffer
+	 * contents may still be dirty.
+	 */
 	DB_CACHED,
+
+	/*
+	 * The Dbuf is in the process of being freed.
+	 */
 	DB_EVICTING
 } dbuf_states_t;
 
@@ -103,11 +134,36 @@ struct dmu_tx;
 struct dmu_buf_impl;
 
 typedef enum override_states {
+	/*
+	 * The data for this dirty record must be written to media in
+	 * order to complete the TXG.
+	 */
 	DR_NOT_OVERRIDDEN,
+
+	/*
+	 * dmu_sync() has issued an I/O to commit the data for this block
+	 * in advance of the TXG being retired.  This write has yet to
+	 * complete.
+	 */
 	DR_IN_DMU_SYNC,
+
+	/*
+	 * dmu_sync() has successfully written the data for this dirty
+	 * record to an alternate block.  When the TXG is retired, the
+	 * block pointer for this block must refer to the block used by
+	 * dmu_sync().
+	 */
 	DR_OVERRIDDEN
 } override_states_t;
 
+/*
+ * The structure of dirty records (DR) mirror the dbufs they belong to.  That
+ * is, a dnode, its indirect blocks, and its data (leaf) blocks all have
+ * their own DRs.  Each can only have one for each in-flight TXG.  Each can
+ * have a parent DR, which is associated with its parent dbuf.  Indirects can
+ * have child DRs, each associated with its child dbufs.  Finally, the leaf
+ * DRs contain the ARC buffer containing the data to be written.
+ */
 typedef struct dbuf_dirty_indirect_record {
 	kmutex_t dr_mtx;	/* Protects the children. */
 	list_t dr_children;	/* List of our dirty children. */
