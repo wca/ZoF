@@ -270,11 +270,22 @@ enum zio_wait_type {
  * We'll take the unused errnos, 'EBADE' and 'EBADR' (from the Convergent
  * graveyard) to indicate checksum errors and fragmentation.
  */
+#ifdef __linux__
 #define	ECKSUM	EBADE
 #define	EFRAGS	EBADR
 
 /* Similar for ENOACTIVE */
 #define	ENOTACTIVE	ENOANO
+#elif __FreeBSD__
+	/* XXX change us */
+#define	ECKSUM	EILSEQ
+#define	EFRAGS	EFTYPE
+
+/* Similar for ENOACTIVE */
+#define	ENOTACTIVE	ECANCELED
+#else
+#error "OS not defined"
+#endif
 
 typedef void zio_done_func_t(zio_t *zio);
 

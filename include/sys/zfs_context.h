@@ -62,9 +62,27 @@
 #include <sys/ctype.h>
 #include <sys/disp.h>
 #include <sys/trace.h>
+#ifdef __linux__
 #include <sys/procfs_list.h>
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
+#else
+#include <sys/kcondvar.h>
+#include <sys/rwlock.h>
+#include <sys/sig.h>
+#include_next <sys/sdt.h>
+/* XXX move us */
+extern int hz;
+extern int tick;
+typedef int fstrans_cookie_t;
+typedef struct timespec inode_timespec_t;
+typedef off_t loff_t;
+#define spl_fstrans_mark() (0)
+#define spl_fstrans_unmark(x)
+#define signal_pending(x) SIGPENDING(x)
+#define current curthread
+#endif
+
 
 #else /* _KERNEL */
 

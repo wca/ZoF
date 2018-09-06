@@ -86,9 +86,9 @@ zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	void *scanstamp;
 	int i;
 
-	xvap->xva_vattr.va_mask |= ATTR_XVATTR;
+	xvap->xva_vattr.va_mask |= AT_XVATTR;
 	if ((xoap = xva_getxoptattr(xvap)) == NULL) {
-		xvap->xva_vattr.va_mask &= ~ATTR_XVATTR; /* shouldn't happen */
+		xvap->xva_vattr.va_mask &= ~AT_XVATTR; /* shouldn't happen */
 		return;
 	}
 
@@ -356,7 +356,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 		if (name == NULL) {
 			lrattr = (lr_attr_t *)(caddr_t)(lracl + 1);
 			xvatlen = ZIL_XVAT_SIZE(lrattr->lr_attr_masksize);
-			xva.xva_vattr.va_mask |= ATTR_XVATTR;
+			xva.xva_vattr.va_mask |= AT_XVATTR;
 			zfs_replay_xvattr(lrattr, &xva);
 		}
 		vsec.vsa_mask = VSA_ACE | VSA_ACE_ACLFLAGS;
@@ -819,7 +819,7 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	if (byteswap) {
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-		if ((lr->lr_mask & ATTR_XVATTR) &&
+		if ((lr->lr_mask & AT_XVATTR) &&
 		    zfsvfs->z_version >= ZPL_VERSION_INITIAL)
 			zfs_replay_swap_attrs((lr_attr_t *)(lr + 1));
 	}
@@ -841,12 +841,12 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	 */
 
 	start = (lr_setattr_t *)(lr + 1);
-	if (vap->va_mask & ATTR_XVATTR) {
+	if (vap->va_mask & AT_XVATTR) {
 		zfs_replay_xvattr((lr_attr_t *)start, &xva);
 		start = (caddr_t)start +
 		    ZIL_XVAT_SIZE(((lr_attr_t *)start)->lr_attr_masksize);
 	} else
-		xva.xva_vattr.va_mask &= ~ATTR_XVATTR;
+		xva.xva_vattr.va_mask &= ~AT_XVATTR;
 
 	zfsvfs->z_fuid_replay = zfs_replay_fuid_domain(start, &start,
 	    lr->lr_uid, lr->lr_gid);

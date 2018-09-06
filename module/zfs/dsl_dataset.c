@@ -2140,7 +2140,7 @@ get_receive_resume_stats_impl(dsl_dataset_t *ds)
 		kmem_free(compressed, packed_size);
 		return (propval);
 	}
-	return (strdup(""));
+	return (spl_strdup(""));
 }
 
 /*
@@ -2163,7 +2163,7 @@ get_child_receive_stats(dsl_dataset_t *ds)
 		dsl_dataset_rele(recv_ds, FTAG);
 		return (propval);
 	}
-	return (strdup(""));
+	return (spl_strdup(""));
 }
 
 static void
