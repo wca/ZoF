@@ -46,6 +46,8 @@ typedef	int64_t		clock_t;
 
 typedef	struct timespec	timestruc_t;
 typedef	struct timespec	timespec_t;
+typedef struct timespec inode_timespec_t;
+typedef off_t loff_t;
 typedef u_int		uint_t;
 typedef u_char		uchar_t;
 typedef u_short		ushort_t;

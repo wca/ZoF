@@ -129,6 +129,7 @@ extern "C" {
 #define noinline __attribute__((noinline))
 #define MODULE_PARM_DESC(a, b)
 #define likely(x)       __builtin_expect((x), 1)
+#define unlikely(x)       __builtin_expect((x), 0)
 	
 #ifdef	__cplusplus
 }

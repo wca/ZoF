@@ -31,15 +31,17 @@
 #define	_OPENSOLARIS_SYS_CONDVAR_H_
 
 #include <sys/param.h>
-#include <sys/proc.h>
 
 #ifdef _KERNEL
 
+#include_next <sys/condvar.h>
 #include <sys/mutex.h>
-#include <sys/condvar.h>
 #include <sys/time.h>
+#include <sys/kmem.h>
 
 typedef struct cv	kcondvar_t;
+/* XXX */
+#define CALLOUT_FLAG_ABSOLUTE 0
 
 typedef enum {
 	CV_DEFAULT,
@@ -66,7 +68,12 @@ cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 
 	return (cv_timedwait_sbt(cvp, mp, nstosbt(tim), nstosbt(res), 0));
 }
-
+extern clock_t
+cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
+    hrtime_t res, int flag)
+{
+	return (cv_timedwait_sig_sbt(cvp, mp, nstosbt(tim), nstosbt(res), 0));
+}
 #endif	/* _KERNEL */
 
 #endif	/* _OPENSOLARIS_SYS_CONDVAR_H_ */

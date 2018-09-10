@@ -31,8 +31,6 @@
 
 #ifdef _KERNEL
 
-#include <sys/jail.h>
-
 /*
  * Macros to help with zone visibility restrictions.
  */
@@ -42,7 +40,10 @@
 /*
  * Is thread in the global zone?
  */
-#define	INGLOBALZONE(p)	(!jailed(FIRST_THREAD_IN_PROC((p))->td_ucred))
+#define	INGLOBALZONE(p)	in_globalzone((p))
+
+
+extern boolean_t in_globalzone(struct proc *);
 
 /*
  * Attach the given dataset to the given jail.
