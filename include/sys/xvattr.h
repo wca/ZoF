@@ -285,7 +285,7 @@ xva_init(xvattr_t *xvap)
 	bzero(xvap, sizeof (xvattr_t));
 	xvap->xva_mapsize = XVA_MAPSIZE;
 	xvap->xva_magic = XVA_MAGIC;
-	xvap->xva_vattr.va_mask = ATTR_XVATTR;
+	xvap->xva_vattr.va_mask = AT_XVATTR;
 	xvap->xva_rtnattrmapp = &(xvap->xva_rtnattrmap)[0];
 }
 
