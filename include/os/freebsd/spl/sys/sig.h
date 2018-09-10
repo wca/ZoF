@@ -31,6 +31,7 @@
 
 #ifdef _KERNEL
 
+#include_next <sys/signal.h>
 #include <sys/param.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>

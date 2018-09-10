@@ -33,8 +33,8 @@
 
 #ifdef _KERNEL
 
+#include <sys/xvattr.h>
 #include <sys/vnode.h>
-
 struct mount;
 struct vattr;
 

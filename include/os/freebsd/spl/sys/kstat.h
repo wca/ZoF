@@ -52,6 +52,7 @@
 typedef struct kstat {
 	void	*ks_data;
 	u_int	 ks_ndata;
+	kmutex_t *ks_lock;
 #ifdef _KERNEL
 	struct sysctl_ctx_list ks_sysctl_ctx;
 	struct sysctl_oid *ks_sysctl_root;
@@ -68,14 +69,33 @@ typedef struct kstat_named {
 #define	KSTAT_DATA_UINT32	2
 #define	KSTAT_DATA_INT64	3
 #define	KSTAT_DATA_UINT64	4
+#define	KSTAT_DATA_LONG		5
+#define	KSTAT_DATA_ULONG	6
+#define	KSTAT_DATA_STRING	7
+#define	KSTAT_NUM_DATAS		8
 	uchar_t	data_type;
 #define	KSTAT_DESCLEN		128
 	char	desc[KSTAT_DESCLEN];
 	union {
-		uint64_t	ui64;
+		char c[16];	/* 128-bit int */
+		int32_t	i32;	/* 32-bit signed int */
+		uint32_t ui32;	/* 32-bit unsigned int */
+		int64_t i64;	/* 64-bit signed int */
+		uint64_t ui64;	/* 64-bit unsigned int */
+		long l;		/* native signed long */
+		ulong_t ul;	/* native unsigned long */
+		struct {
+			union {
+				char *ptr;	/* NULL-term string */
+				char __pad[8];	/* 64-bit padding */
+			} addr;
+			uint32_t len;		/* # bytes for strlen + '\0' */
+		} string;
 	} value;
 } kstat_named_t;
 
+#define	KSTAT_NAMED_STR_PTR(knptr) ((knptr)->value.string.addr.ptr)
+#define	KSTAT_NAMED_STR_BUFLEN(knptr) ((knptr)->value.string.len)
 kstat_t *kstat_create(char *module, int instance, char *name, char *cls,
     uchar_t type, ulong_t ndata, uchar_t flags);
 void kstat_install(kstat_t *ksp);

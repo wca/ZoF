@@ -33,19 +33,36 @@
 
 struct vnode;
 struct vattr;
+struct xucred;
 
 typedef	struct vnode	vnode_t;
 typedef	struct vattr	vattr_t;
 typedef enum vtype vtype_t;
 
+#include <sys/types.h>
 #include <sys/namei.h>
 enum symfollow { NO_FOLLOW = NOFOLLOW };
 
+#define	XU_NGROUPS	16
+#define        NOCRED  ((struct ucred *)0)     /* no credential available */
+
+/*
+ * This is the external representation of struct ucred.
+ */
+struct xucred {
+	u_int	cr_version;		/* structure layout version */
+	uid_t	cr_uid;			/* effective user id */
+	short	cr_ngroups;		/* number of groups */
+	gid_t	cr_groups[XU_NGROUPS];	/* groups */
+	void	*_cr_unused1;		/* compatibility with old ucred */
+};
+
 #include <sys/proc.h>
-#include_next <sys/vnode.h>
+#include <sys/vnode_impl.h>
 #include <sys/mount.h>
 #include <sys/cred.h>
 #include <sys/fcntl.h>
+#include_next <sys/refcount.h>
 #include <sys/file.h>
 #include <sys/filedesc.h>
 #include <sys/syscallsubr.h>
@@ -59,8 +76,6 @@ typedef	struct vop_vector	vnodeops_t;
 #define	IS_XATTRDIR(dvp)	(0)
 
 #define	v_count	v_usecount
-
-#define	V_APPEND	VAPPEND
 
 #define	rootvfs		(rootvnode == NULL ? NULL : rootvnode->v_mount)
 
@@ -115,10 +130,6 @@ vn_is_readonly(vnode_t *vp)
 
 #define	MAXOFFSET_T	OFF_MAX
 #define	EXCL		0
-
-#define	ACCESSED		(AT_ATIME)
-#define	STATE_CHANGED		(AT_CTIME)
-#define	CONTENT_MODIFIED	(AT_MTIME | AT_CTIME)
 
 static __inline void
 vattr_init_mask(vattr_t *vap)

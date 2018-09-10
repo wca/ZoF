@@ -29,22 +29,22 @@
 #ifndef _OPENSOLARIS_SYS_UIO_H_
 #define	_OPENSOLARIS_SYS_UIO_H_
 
-#include_next <sys/uio.h>
+//#include_next <sys/uio.h>
+#include <sys/_uio.h>
 #include <sys/debug.h>
 
-#ifndef _KERNEL
 #define	FOF_OFFSET	1	/* Use the offset in uio argument */
 
 struct uio {
 	struct	iovec *uio_iov;
 	int	uio_iovcnt;
 	off_t	uio_offset;
-	int	uio_resid;
+	ssize_t	uio_resid;
 	enum	uio_seg uio_segflg;
 	enum	uio_rw uio_rw;
 	void	*uio_td;
 };
-#endif
+
 
 #define	uio_loffset	uio_offset
 

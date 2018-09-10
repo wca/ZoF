@@ -37,10 +37,12 @@
  * Macros to help with zone visibility restrictions.
  */
 
+#define	GLOBAL_ZONEID	0
+
 /*
  * Is thread in the global zone?
  */
-#define	INGLOBALZONE(thread)	(!jailed((thread)->td_ucred))
+#define	INGLOBALZONE(p)	(!jailed(FIRST_THREAD_IN_PROC((p))->td_ucred))
 
 /*
  * Attach the given dataset to the given jail.

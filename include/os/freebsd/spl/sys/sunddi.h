@@ -34,6 +34,7 @@
 #include <sys/kmem.h>
 #include <sys/libkern.h>
 #include <sys/sysevent.h>
+#include <sys/u8_textprep.h>
 
 #define	ddi_driver_major(zfs_dip)		(0)
 #define	ddi_copyin(from, to, size, flag)				\
@@ -56,13 +57,6 @@ void ddi_soft_state_fini(void **statep);
 void *ddi_get_soft_state(void *state, int item);
 int ddi_soft_state_zalloc(void *state, int item);
 void ddi_soft_state_free(void *state, int item);
-
-int _ddi_log_sysevent(char *vendor, char *class_name, char *subclass_name,
-    nvlist_t *attr_list, sysevent_id_t *eidp, int flag);
-#define	ddi_log_sysevent(dip, vendor, class_name, subclass_name,	\
-	    attr_list, eidp, flag)					\
-	_ddi_log_sysevent((vendor), (class_name), (subclass_name),	\
-	    (attr_list), (eidp), (flag))
 
 #endif	/* _KERNEL */
 

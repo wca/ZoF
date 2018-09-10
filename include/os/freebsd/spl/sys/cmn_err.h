@@ -1,36 +1,41 @@
-/*-
- * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
- * All rights reserved.
+/*
+ * CDDL HEADER START
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHORS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
  *
- * $FreeBSD$
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
+/*	  All Rights Reserved  	*/
+
+
+/*
+ * Copyright 2004 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#ifndef _OPENSOLARIS_SYS_CMN_ERR_H_
-#define	_OPENSOLARIS_SYS_CMN_ERR_H_
+#ifndef _SYS_CMN_ERR_H
+#define	_SYS_CMN_ERR_H
 
-#include <sys/systm.h>
-#include <machine/stdarg.h>
+#pragma ident	"%Z%%M%	%I%	%E% SMI"
+
+#if defined(_KERNEL) && !defined(_ASM)
+#include <sys/va_list.h>
+#endif
 
 #ifdef	__cplusplus
 extern "C" {
@@ -44,11 +49,85 @@ extern "C" {
 #define	CE_PANIC	3	/* panic		*/
 #define	CE_IGNORE	4	/* print nothing	*/
 
-void cmn_err(int, const char *, ...);
-void vcmn_err(int, const char *, va_list);
+#ifndef _ASM
+
+#ifdef _KERNEL
+
+/*PRINTFLIKE2*/
+extern void cmn_err(int, const char *, ...)
+    __KPRINTFLIKE(2);
+#pragma rarely_called(cmn_err)
+
+extern void vzcmn_err(zoneid_t, int, const char *, __va_list)
+    __KVPRINTFLIKE(3);
+#pragma rarely_called(vzcmn_err)
+
+extern void vcmn_err(int, const char *, __va_list)
+    __KVPRINTFLIKE(2);
+#pragma rarely_called(vcmn_err)
+
+/*PRINTFLIKE3*/
+extern void zcmn_err(zoneid_t, int, const char *, ...)
+    __KPRINTFLIKE(3);
+#pragma rarely_called(zcmn_err)
+
+#ifndef __FreeBSD__	
+/*PRINTFLIKE1*/
+extern void printf(const char *, ...)
+    __KPRINTFLIKE(1);
+#pragma	rarely_called(printf)
+#endif	
+
+extern void vzprintf(zoneid_t, const char *, __va_list)
+    __KVPRINTFLIKE(2);
+#pragma rarely_called(vzprintf)
+
+/*PRINTFLIKE2*/
+extern void zprintf(zoneid_t, const char *, ...)
+    __KPRINTFLIKE(2);
+#pragma rarely_called(zprintf)
+
+#ifndef __FreeBSD__
+extern void vprintf(const char *, __va_list)
+    __KVPRINTFLIKE(1);
+#pragma	rarely_called(vprintf)
+	
+/*PRINTFLIKE1*/
+extern void uprintf(const char *, ...)
+    __KPRINTFLIKE(1);
+#pragma rarely_called(uprintf)
+#endif
+
+extern void vuprintf(const char *, __va_list)
+    __KVPRINTFLIKE(1);
+#pragma rarely_called(vuprintf)
+
+#ifndef __FreeBSD__
+/*PRINTFLIKE3*/
+extern size_t snprintf(char *, size_t, const char *, ...)
+    __KPRINTFLIKE(3);
+extern size_t vsnprintf(char *, size_t, const char *, __va_list)
+    __KVPRINTFLIKE(3);
+/*PRINTFLIKE2*/
+extern char *sprintf(char *, const char *, ...)
+    __KPRINTFLIKE(2);
+extern char *vsprintf(char *, const char *, __va_list)
+    __KVPRINTFLIKE(2);
+#endif
+/*PRINTFLIKE1*/
+extern void panic(const char *, ...)
+    __KPRINTFLIKE(1) __NORETURN;
+#pragma rarely_called(panic)
+
+extern void vpanic(const char *, __va_list)
+    __KVPRINTFLIKE(1) __NORETURN;
+#pragma rarely_called(vpanic)
+
+#endif /* _KERNEL */
+#endif /* !_ASM */
 
 #ifdef	__cplusplus
 }
 #endif
 
-#endif	/* _OPENSOLARIS_SYS_CMN_ERR_H_ */
+#endif	/* _SYS_CMN_ERR_H */

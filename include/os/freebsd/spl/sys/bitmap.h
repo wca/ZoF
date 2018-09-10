@@ -17,23 +17,34 @@
  * information: Portions Copyright [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
- *
- * $FreeBSD$
  */
 
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ */
+
+/*
+ * Copyright (c) 2014 by Delphix. All rights reserved.
+ * Copyright 2017 RackTop Systems.
  */
 
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
 /*	  All Rights Reserved  	*/
 
 
-#ifndef _COMPAT_OPENSOLARIS_SYS_BITMAP_H
-#define	_COMPAT_OPENSOLARIS_SYS_BITMAP_H
+#ifndef _SYS_BITMAP_H
+#define	_SYS_BITMAP_H
 
-#include <sys/atomic.h>
+#ifdef	__cplusplus
+extern "C" {
+#endif
+
+#include <sys/feature_tests.h>
+#if defined(__GNUC__) && defined(_ASM_INLINES) && \
+	(defined(__i386) || defined(__amd64))
+#include <asm/bitmap.h>
+#endif
 
 /*
  * Operations on bitmaps of arbitrary size
@@ -115,4 +126,73 @@
 	{ BT_WIM32((bitmap), (bitindex)) &= ~BT_BIW32(bitindex); }
 #endif /* _LP64 */
 
-#endif	/* _COMPAT_OPENSOLARIS_SYS_BITMAP_H */
+
+/*
+ * BIT_ONLYONESET is a private macro not designed for bitmaps of
+ * arbitrary size.  u must be an unsigned integer/long.  It returns
+ * true if one and only one bit is set in u.
+ */
+#define	BIT_ONLYONESET(u) \
+	((((u) == 0) ? 0 : ((u) & ((u) - 1)) == 0))
+
+#if (defined(_KERNEL) || defined(_FAKE_KERNEL)) && !defined(_ASM)
+#include <sys/atomic.h>
+
+/*
+ * return next available bit index from map with specified number of bits
+ */
+extern index_t	bt_availbit(ulong_t *bitmap, size_t nbits);
+/*
+ * find the highest order bit that is on, and is within or below
+ * the word specified by wx
+ */
+extern int	bt_gethighbit(ulong_t *mapp, int wx);
+extern int	bt_range(ulong_t *bitmap, size_t *pos1, size_t *pos2,
+			size_t end_pos);
+/*
+ * Find highest and lowest one bit set.
+ *	Returns bit number + 1 of bit that is set, otherwise returns 0.
+ * Low order bit is 0, high order bit is 31.
+ */
+extern int	highbit(ulong_t);
+extern int	highbit64(uint64_t);
+extern int	lowbit(ulong_t);
+extern int	bt_getlowbit(ulong_t *bitmap, size_t start, size_t stop);
+extern void	bt_copy(ulong_t *, ulong_t *, ulong_t);
+
+/*
+ * find the parity
+ */
+extern int	odd_parity(ulong_t);
+
+/*
+ * Atomically set/clear bits
+ * Atomic exclusive operations will set "result" to "-1"
+ * if the bit is already set/cleared. "result" will be set
+ * to 0 otherwise.
+ */
+#define	BT_ATOMIC_SET(bitmap, bitindex) \
+	{ atomic_or_ulong(&(BT_WIM(bitmap, bitindex)), BT_BIW(bitindex)); }
+#define	BT_ATOMIC_CLEAR(bitmap, bitindex) \
+	{ atomic_and_ulong(&(BT_WIM(bitmap, bitindex)), ~BT_BIW(bitindex)); }
+
+#define	BT_ATOMIC_SET_EXCL(bitmap, bitindex, result) \
+	{ result = atomic_set_long_excl(&(BT_WIM(bitmap, bitindex)),	\
+	    (bitindex) % BT_NBIPUL); }
+#define	BT_ATOMIC_CLEAR_EXCL(bitmap, bitindex, result) \
+	{ result = atomic_clear_long_excl(&(BT_WIM(bitmap, bitindex)),	\
+	    (bitindex) % BT_NBIPUL); }
+
+/*
+ * Extracts bits between index h (high, inclusive) and l (low, exclusive) from
+ * u, which must be an unsigned integer.
+ */
+#define	BITX(u, h, l)	(((u) >> (l)) & ((1LU << ((h) - (l) + 1LU)) - 1LU))
+
+#endif	/* (_KERNEL || _FAKE_KERNEL) && !_ASM */
+
+#ifdef	__cplusplus
+}
+#endif
+
+#endif	/* _SYS_BITMAP_H */
