@@ -68,7 +68,7 @@
 int
 zfs_log_create_txtype(zil_create_t type, vsecattr_t *vsecp, vattr_t *vap)
 {
-	int isxvattr = (vap->va_mask & ATTR_XVATTR);
+	int isxvattr = (vap->va_mask & AT_XVATTR);
 	switch (type) {
 	case Z_FILE:
 		if (vsecp == NULL && !isxvattr)
@@ -298,7 +298,7 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 		fuidsz += fuidp->z_fuid_cnt * sizeof (uint64_t);
 	}
 
-	if (vap->va_mask & ATTR_XVATTR)
+	if (vap->va_mask & AT_XVATTR)
 		xvatsize = ZIL_XVAT_SIZE(xvap->xva_mapsize);
 
 	if ((int)txtype == TX_CREATE_ATTR || (int)txtype == TX_MKDIR_ATTR ||
@@ -343,7 +343,7 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	/*
 	 * Fill in xvattr info if any
 	 */
-	if (vap->va_mask & ATTR_XVATTR) {
+	if (vap->va_mask & AT_XVATTR) {
 		zfs_log_xvattr((lr_attr_t *)((caddr_t)lr + lrsize), xvap);
 		end = (caddr_t)lr + lrsize + xvatsize;
 	} else {
@@ -611,7 +611,7 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	 * for lr_attr_t + xvattr mask, mapsize and create time
 	 * plus actual attribute values
 	 */
-	if (vap->va_mask & ATTR_XVATTR)
+	if (vap->va_mask & AT_XVATTR)
 		recsize = sizeof (*lr) + ZIL_XVAT_SIZE(xvap->xva_mapsize);
 
 	if (fuidp)
@@ -636,7 +636,7 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	ZFS_TIME_ENCODE(&vap->va_atime, lr->lr_atime);
 	ZFS_TIME_ENCODE(&vap->va_mtime, lr->lr_mtime);
 	start = (lr_setattr_t *)(lr + 1);
-	if (vap->va_mask & ATTR_XVATTR) {
+	if (vap->va_mask & AT_XVATTR) {
 		zfs_log_xvattr((lr_attr_t *)start, xvap);
 		start = (caddr_t)start + ZIL_XVAT_SIZE(xvap->xva_mapsize);
 	}
