@@ -16,7 +16,6 @@ endif
 # Suppress unused but set variable warnings often due to ASSERTs
 ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
 
-$(MODULE)-objs += abd.o
 $(MODULE)-objs += aggsum.o
 $(MODULE)-objs += arc.o
 $(MODULE)-objs += blkptr.o
@@ -113,16 +112,12 @@ $(MODULE)-objs += zfs_debug.o
 $(MODULE)-objs += zfs_dir.o
 $(MODULE)-objs += zfs_fm.o
 $(MODULE)-objs += zfs_fuid.o
-$(MODULE)-objs += zfs_ioctl.o
 $(MODULE)-objs += zfs_log.o
 $(MODULE)-objs += zfs_onexit.o
 $(MODULE)-objs += zfs_ratelimit.o
 $(MODULE)-objs += zfs_replay.o
 $(MODULE)-objs += zfs_rlock.o
 $(MODULE)-objs += zfs_sa.o
-$(MODULE)-objs += zfs_sysfs.o
-$(MODULE)-objs += zfs_vfsops.o
-$(MODULE)-objs += zfs_vnops.o
 $(MODULE)-objs += zfs_znode.o
 $(MODULE)-objs += zil.o
 $(MODULE)-objs += zio.o
@@ -130,21 +125,11 @@ $(MODULE)-objs += zio_checksum.o
 $(MODULE)-objs += zio_compress.o
 $(MODULE)-objs += zio_crypt.o
 $(MODULE)-objs += zio_inject.o
-$(MODULE)-objs += zle.o
-$(MODULE)-objs += zpl_ctldir.o
-$(MODULE)-objs += zpl_export.o
-$(MODULE)-objs += zpl_file.o
-$(MODULE)-objs += zpl_inode.o
-$(MODULE)-objs += zpl_super.o
-$(MODULE)-objs += zpl_xattr.o
 $(MODULE)-objs += zrlock.o
 $(MODULE)-objs += zthr.o
 $(MODULE)-objs += zvol.o
 $(MODULE)-objs += dsl_destroy.o
 $(MODULE)-objs += dsl_userhold.o
-$(MODULE)-objs += qat.o
-$(MODULE)-objs += qat_compress.o
-$(MODULE)-objs += qat_crypt.o
 
 # Suppress incorrect warnings from versions of objtool which are not
 # aware of x86 EVEX prefix instructions used for AVX512.
