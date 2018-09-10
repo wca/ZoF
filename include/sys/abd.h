@@ -30,14 +30,18 @@
 #include <sys/debug.h>
 #include <sys/refcount.h>
 #ifdef _KERNEL
+#ifdef __linux__
 #include <linux/mm.h>
 #include <linux/bio.h>
+#endif
 #include <sys/uio.h>
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct bio;
 
 typedef enum abd_flags {
 	ABD_FLAG_LINEAR	= 1 << 0,	/* is buffer linear (or scattered)? */
