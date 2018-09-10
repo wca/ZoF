@@ -1,0 +1,16 @@
+
+$(MODULE)-objs += abd.o
+$(MODULE)-objs += zfs_ioctl.o
+$(MODULE)-objs += zfs_sysfs.o
+$(MODULE)-objs += zfs_vfsops.o
+$(MODULE)-objs += zfs_vnops.o
+$(MODULE)-objs += zle.o
+$(MODULE)-objs += zpl_ctldir.o
+$(MODULE)-objs += zpl_export.o
+$(MODULE)-objs += zpl_file.o
+$(MODULE)-objs += zpl_inode.o
+$(MODULE)-objs += zpl_super.o
+$(MODULE)-objs += zpl_xattr.o
+$(MODULE)-objs += qat.o
+$(MODULE)-objs += qat_compress.o
+$(MODULE)-objs += qat_crypt.o
