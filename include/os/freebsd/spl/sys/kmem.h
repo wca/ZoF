@@ -52,6 +52,11 @@ MALLOC_DECLARE(M_SOLARIS);
 #define	KMC_NODEBUG		UMA_ZONE_NODUMP
 #define	KMC_NOTOUCH		0
 
+typedef struct vmem vmem_t;
+
+extern char	*kmem_asprintf(const char *, ...);
+extern char *kmem_vasprintf(const char *fmt, va_list ap);
+
 typedef struct kmem_cache {
 	char		kc_name[32];
 #if defined(_KERNEL) && !defined(KMEM_DEBUG)
@@ -79,6 +84,10 @@ void kmem_reap(void);
 int kmem_debugging(void);
 void *calloc(size_t n, size_t s);
 
+/*
+ * XXX
+ */
+#define kmem_cache_reap_now kmem_cache_reap_soon
 #define	freemem				vm_free_count()
 #define	minfree				vm_cnt.v_free_min
 #define	heap_arena			kernel_arena
@@ -86,6 +95,7 @@ void *calloc(size_t n, size_t s);
 #define	kmem_alloc(size, kmflags)	zfs_kmem_alloc((size), (kmflags))
 #define	kmem_zalloc(size, kmflags)	zfs_kmem_alloc((size), (kmflags) | M_ZERO)
 #define	kmem_free(buf, size)		zfs_kmem_free((buf), (size))
+#define	vmem_qcache_reap(ptr)	((void)0)
 
 #define	kmem_cache_set_move(cache, movefunc)	do { } while (0)
 

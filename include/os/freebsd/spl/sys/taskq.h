@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <sys/proc.h>
 #include <sys/taskqueue.h>
+#include <sys/thread.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -90,6 +91,7 @@ extern taskqid_t taskq_dispatch_delay(taskq_t *, task_func_t, void *,
     uint_t, clock_t);
 extern void taskq_dispatch_ent(taskq_t *, task_func_t, void *, uint_t,
     taskq_ent_t *);
+extern int taskq_empty_ent(taskq_ent_t *);
 extern void taskq_init_ent(taskq_ent_t *);
 taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
 taskq_t	*taskq_create_instance(const char *, int, int, pri_t, int, int, uint_t);

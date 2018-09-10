@@ -33,7 +33,6 @@
 
 char	*strpbrk(const char *, const char *);
 void	 strident_canon(char *, size_t);
-char	*kmem_asprintf(const char *, ...);
 void	 strfree(char *);
 char	*spl_strdup(const char *s);
 

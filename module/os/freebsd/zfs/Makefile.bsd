@@ -1,0 +1,47 @@
+src = @abs_top_srcdir@/module/zfs
+obj = @abs_builddir@
+target_cpu = @target_cpu@
+
+MODULE := zfs
+
+obj-$(CONFIG_ZFS) := $(MODULE).o
+
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+# Suppress unused-value warnings in sparc64 architecture headers
+ifeq ($(target_cpu),sparc64)
+ccflags-y += -Wno-unused-value
+endif
+
+# Suppress unused but set variable warnings often due to ASSERTs
+ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
+
+$(MODULE)-objs += abd.o
+$(MODULE)-objs += freebsd_crypto.o
+$(MODULE)-objs += freebsd_spa.o
+$(MODULE)-objs += vdev_file.o
+$(MODULE)-objs += zfs_acl.o
+$(MODULE)-objs += zfs_ctldir.o
+$(MODULE)-objs += zfs_dir.o
+$(MODULE)-objs += zfs_log.o
+$(MODULE)-objs += zfs_replay.o
+$(MODULE)-objs += zfs_vfsops.o
+$(MODULE)-objs += zfs_vnops.o
+$(MODULE)-objs += zvol.o
+
+objs = $($(MODULE)-objs)
+all: $(objs)
+
+CFLAGS = -D_KERNEL -D__KERNEL__  -D_SYS_VMEM_H_
+CFLAGS+= -DKLD_MODULE -DKLD_TIED -DHAVE_UIO_ZEROCOPY
+CFLAGS+= -Werror
+CFLAGS+= -Wall -Wno-unknown-pragmas
+CFLAGS+= -nostdinc -fno-common -fno-builtin
+CFLAGS+= -I$(ZFSBASE)/include
+CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/spl
+CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/zfs
+CFLAGS+= -include $(ZFSBASE)/include/os/freebsd/spl/sys/ccompile.h
+CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/internal
+CFLAGS+= -I$(KERNBASE)/sys
+$(objs): %.o: %.c
+	$(CC) -c $(CFLAGS) $< -o $@

@@ -59,7 +59,6 @@ $(MODULE)-objs += metaslab.o
 $(MODULE)-objs += mmp.o
 $(MODULE)-objs += multilist.o
 $(MODULE)-objs += pathname.o
-$(MODULE)-objs += policy.o
 $(MODULE)-objs += range_tree.o
 $(MODULE)-objs += refcount.o
 $(MODULE)-objs += rrwlock.o
@@ -82,8 +81,6 @@ $(MODULE)-objs += uberblock.o
 $(MODULE)-objs += unique.o
 $(MODULE)-objs += vdev.o
 $(MODULE)-objs += vdev_cache.o
-$(MODULE)-objs += vdev_disk.o
-$(MODULE)-objs += vdev_file.o
 $(MODULE)-objs += vdev_indirect.o
 $(MODULE)-objs += vdev_indirect_births.o
 $(MODULE)-objs += vdev_indirect_mapping.o
@@ -105,29 +102,22 @@ $(MODULE)-objs += zcp_global.o
 $(MODULE)-objs += zcp_iter.o
 $(MODULE)-objs += zcp_synctask.o
 $(MODULE)-objs += zfeature.o
-$(MODULE)-objs += zfs_acl.o
 $(MODULE)-objs += zfs_byteswap.o
-$(MODULE)-objs += zfs_ctldir.o
 $(MODULE)-objs += zfs_debug.o
-$(MODULE)-objs += zfs_dir.o
 $(MODULE)-objs += zfs_fm.o
 $(MODULE)-objs += zfs_fuid.o
-$(MODULE)-objs += zfs_log.o
+$(MODULE)-objs += zfs_ioctl.o
 $(MODULE)-objs += zfs_onexit.o
 $(MODULE)-objs += zfs_ratelimit.o
-$(MODULE)-objs += zfs_replay.o
 $(MODULE)-objs += zfs_rlock.o
 $(MODULE)-objs += zfs_sa.o
-$(MODULE)-objs += zfs_znode.o
 $(MODULE)-objs += zil.o
 $(MODULE)-objs += zio.o
 $(MODULE)-objs += zio_checksum.o
 $(MODULE)-objs += zio_compress.o
-$(MODULE)-objs += zio_crypt.o
 $(MODULE)-objs += zio_inject.o
 $(MODULE)-objs += zrlock.o
 $(MODULE)-objs += zthr.o
-$(MODULE)-objs += zvol.o
 $(MODULE)-objs += dsl_destroy.o
 $(MODULE)-objs += dsl_userhold.o
 
@@ -136,24 +126,38 @@ $(MODULE)-objs += dsl_userhold.o
 OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512bw.o := y
 OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512f.o := y
 
-$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_sse2.o
-$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_ssse3.o
-$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx2.o
-$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx512f.o
-$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx512bw.o
+$(MODULE)-x86 += vdev_raidz_math_sse2.o
+$(MODULE)-x86 += vdev_raidz_math_ssse3.o
+$(MODULE)-x86 += vdev_raidz_math_avx2.o
+$(MODULE)-x86 += vdev_raidz_math_avx512f.o
+$(MODULE)-x86 += vdev_raidz_math_avx512bw.o
 
-$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neon.o
-$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neonx2.o
+#$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neon.o
+#$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neonx2.o
 
 objs = $($(MODULE)-objs)
-
+objs+= $($(MODULE)-x86)
 all: $(objs)
 
-CFLAGS = -D_KERNEL -D__KERNEL__ -D_SYS_UCRED_H_
+CFLAGS = -D_KERNEL -D__KERNEL__
+CFLAGS+=  -D_SYS_VMEM_H_
+#-D_SYS_UCRED_H_ 
+CFLAGS+= -Wall
+CFLAGS+= -nostdinc -fno-common -fno-builtin -Wno-unknown-pragmas
+# remove once zfs_ioctl.c is fixed
+CFLAGS+= -Wno-unused-function
+CFLAGS+= -DKLD_MODULE -DKLD_TIED
+CFLAGS+= -Werror
 CFLAGS+= -I$(ZFSBASE)/include
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/spl
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/zfs
+CFLAGS+= -I$(KERNBASE)/sys
+CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/internal
 CFLAGS+= -include $(ZFSBASE)/include/os/freebsd/spl/sys/ccompile.h
+#CFLAGS+= -D__x86_64 -DHAVE_AVX2
 #CFLAGS+= -D_SYS_UIO_H_
 $(objs): %.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@
+
+clean:
+	rm *.o *~

@@ -50,7 +50,17 @@ typedef struct ucred cred_t;
 #ifdef _KERNEL
 
 #define	CRED()		curthread->td_ucred
+#define	kcred	(thread0.td_ucred)
 
+#define	KUID_TO_SUID(x)		(x)
+#define	KGID_TO_SGID(x)		(x)
+#define	crgetuid(cred)		((cred)->cr_uid)
+#define	crgetruid(cred)		((cred)->cr_ruid)
+#define	crgetgid(cred)		((cred)->cr_gid)
+#define	crgetgroups(cred)	((cred)->cr_groups)
+#define	crgetngroups(cred)	((cred)->cr_ngroups)
+#define	crgetsid(cred, i)	(NULL)
+	
 struct proc;				/* cred.h is included in proc.h */
 struct prcred;
 struct ksid;
@@ -64,32 +74,24 @@ extern int ngroups_max;
 /*
  * kcred is used when you need all privileges.
  */
-extern struct cred *kcred;
 
 extern void cred_init(void);
-extern void crhold(cred_t *);
 extern void crfree(cred_t *);
 extern cred_t *cralloc(void);		/* all but ref uninitialized */
 extern cred_t *cralloc_ksid(void);	/* cralloc() + ksid alloc'ed */
 extern cred_t *crget(void);		/* initialized */
-extern cred_t *crcopy(cred_t *);
 extern void crcopy_to(cred_t *, cred_t *);
 extern cred_t *crdup(cred_t *);
 extern void crdup_to(cred_t *, cred_t *);
 extern cred_t *crgetcred(void);
 extern void crset(struct proc *, cred_t *);
 extern void crset_zone_privall(cred_t *);
-extern int groupmember(gid_t, const cred_t *);
 extern int supgroupmember(gid_t, const cred_t *);
 extern int hasprocperm(const cred_t *, const cred_t *);
 extern int prochasprocperm(struct proc *, struct proc *, const cred_t *);
 extern int crcmp(const cred_t *, const cred_t *);
 extern cred_t *zone_kcred(void);
 
-extern uid_t crgetuid(const cred_t *);
-extern uid_t crgetruid(const cred_t *);
-extern uid_t crgetsuid(const cred_t *);
-extern gid_t crgetgid(const cred_t *);
 extern gid_t crgetrgid(const cred_t *);
 extern gid_t crgetsgid(const cred_t *);
 extern zoneid_t crgetzoneid(const cred_t *);
@@ -103,10 +105,8 @@ extern struct auditinfo_addr *crgetauinfo_modifiable(cred_t *);
 
 extern uint_t crgetref(const cred_t *);
 
-extern const gid_t *crgetgroups(const cred_t *);
 extern const gid_t *crgetggroups(const struct credgrp *);
 
-extern int crgetngroups(const cred_t *);
 
 /*
  * Sets real, effective and/or saved uid/gid;
@@ -124,7 +124,6 @@ extern int crsetugid(cred_t *, uid_t, gid_t);
 /*
  * Functions to handle the supplemental group list.
  */
-extern int crsetgroups(cred_t *, int, gid_t *);
 extern struct credgrp *crgrpcopyin(int, gid_t *);
 extern void crgrprele(struct credgrp *);
 extern void crsetcredgrp(cred_t *, struct credgrp *);
@@ -176,7 +175,6 @@ extern int eph_gid_alloc(struct zone *, int, gid_t *, int);
 extern void crsetsid(cred_t *, struct ksid *, int);
 extern void crsetsidlist(cred_t *, struct ksidlist *);
 
-extern struct ksid *crgetsid(const cred_t *, int);
 extern struct ksidlist *crgetsidlist(const cred_t *);
 
 extern int crsetpriv(cred_t *, ...);

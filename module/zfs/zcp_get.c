@@ -218,6 +218,7 @@ get_dsl_dir_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop,
  * If so, val and setpoint will be overwritten with updated content.
  * Otherwise, they are left unchanged.
  */
+#ifdef __linux__
 static int
 get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
     char *setpoint)
@@ -290,6 +291,89 @@ get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
 	return (0);
 #endif
 }
+#elif defined(__FreeBSD__)
+static int
+get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
+    char *setpoint)
+{
+#ifndef _KERNEL
+	return (0);
+#else
+	int error;
+	zfsvfs_t *zfvp;
+	vfs_t *vfsp;
+	objset_t *os;
+	uint64_t tmp = *val;
+
+	error = dmu_objset_from_ds(ds, &os);
+	if (error != 0)
+		return (error);
+
+	error = getzfsvfs_impl(os, &zfvp);
+	if (error != 0)
+		return (error);
+	if (zfvp == NULL)
+		return (ENOENT);
+	vfsp = zfvp->z_vfs;
+	switch (zfs_prop) {
+	case ZFS_PROP_ATIME:
+		if (vfs_optionisset(vfsp, MNTOPT_NOATIME, NULL))
+			tmp = 0;
+		if (vfs_optionisset(vfsp, MNTOPT_ATIME, NULL))
+			tmp = 1;
+		break;
+	case ZFS_PROP_DEVICES:
+		if (vfs_optionisset(vfsp, MNTOPT_NODEVICES, NULL))
+			tmp = 0;
+		if (vfs_optionisset(vfsp, MNTOPT_DEVICES, NULL))
+			tmp = 1;
+		break;
+	case ZFS_PROP_EXEC:
+		if (vfs_optionisset(vfsp, MNTOPT_NOEXEC, NULL))
+			tmp = 0;
+		if (vfs_optionisset(vfsp, MNTOPT_EXEC, NULL))
+			tmp = 1;
+		break;
+	case ZFS_PROP_SETUID:
+		if (vfs_optionisset(vfsp, MNTOPT_NOSETUID, NULL))
+			tmp = 0;
+		if (vfs_optionisset(vfsp, MNTOPT_SETUID, NULL))
+			tmp = 1;
+		break;
+	case ZFS_PROP_READONLY:
+		if (vfs_optionisset(vfsp, MNTOPT_RW, NULL))
+			tmp = 0;
+		if (vfs_optionisset(vfsp, MNTOPT_RO, NULL))
+			tmp = 1;
+		break;
+	case ZFS_PROP_XATTR:
+		if (vfs_optionisset(vfsp, MNTOPT_NOXATTR, NULL))
+			tmp = 0;
+		if (vfs_optionisset(vfsp, MNTOPT_XATTR, NULL))
+			tmp = 1;
+		break;
+	case ZFS_PROP_NBMAND:
+		if (vfs_optionisset(vfsp, MNTOPT_NONBMAND, NULL))
+			tmp = 0;
+		if (vfs_optionisset(vfsp, MNTOPT_NBMAND, NULL))
+			tmp = 1;
+		break;
+	default:
+		vfs_rel(vfsp);
+		return (ENOENT);
+	}
+
+	vfs_rel(vfsp);
+	if (tmp != *val) {
+		(void) strcpy(setpoint, "temporary");
+		*val = tmp;
+	}
+	return (0);
+#endif
+}
+#else
+#error "unknown OS"
+#endif
 
 /*
  * Check if the property we're looking for is stored at the dsl_dataset or

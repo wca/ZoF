@@ -40,25 +40,16 @@ typedef	struct vattr	vattr_t;
 typedef enum vtype vtype_t;
 
 #include <sys/types.h>
+#include <sys/queue.h>
+#include_next <sys/sdt.h>
 #include <sys/namei.h>
 enum symfollow { NO_FOLLOW = NOFOLLOW };
 
-#define	XU_NGROUPS	16
 #define        NOCRED  ((struct ucred *)0)     /* no credential available */
-
-/*
- * This is the external representation of struct ucred.
- */
-struct xucred {
-	u_int	cr_version;		/* structure layout version */
-	uid_t	cr_uid;			/* effective user id */
-	short	cr_ngroups;		/* number of groups */
-	gid_t	cr_groups[XU_NGROUPS];	/* groups */
-	void	*_cr_unused1;		/* compatibility with old ucred */
-};
 
 #include <sys/proc.h>
 #include <sys/vnode_impl.h>
+#include_next <sys/vnode.h>
 #include <sys/mount.h>
 #include <sys/cred.h>
 #include <sys/fcntl.h>
@@ -131,6 +122,54 @@ vn_is_readonly(vnode_t *vp)
 #define	MAXOFFSET_T	OFF_MAX
 #define	EXCL		0
 
+#define	FCREAT		O_CREAT
+#define	FTRUNC		O_TRUNC
+#define	FEXCL		O_EXCL
+#define	FDSYNC		FFSYNC
+#define	FRSYNC		FFSYNC
+#define	FSYNC		FFSYNC
+#define	FOFFMAX		0x00
+#define	FIGNORECASE	0x00
+
+/*
+ * Attributes of interest to the caller of setattr or getattr.
+ */
+#define	AT_TYPE		0x00001
+#define	AT_MODE		0x00002
+#define	AT_UID		0x00004
+#define	AT_GID		0x00008
+#define	AT_FSID		0x00010
+#define	AT_NODEID	0x00020
+#define	AT_NLINK	0x00040
+#define	AT_SIZE		0x00080
+#define	AT_ATIME	0x00100
+#define	AT_MTIME	0x00200
+#define	AT_CTIME	0x00400
+#define	AT_RDEV		0x00800
+#define	AT_BLKSIZE	0x01000
+#define	AT_NBLOCKS	0x02000
+/*			0x04000 */	/* unused */
+#define	AT_SEQ		0x08000
+/*
+ * If AT_XVATTR is set then there are additional bits to process in
+ * the xvattr_t's attribute bitmap.  If this is not set then the bitmap
+ * MUST be ignored.  Note that this bit must be set/cleared explicitly.
+ * That is, setting AT_ALL will NOT set AT_XVATTR.
+ */
+#define	AT_XVATTR	0x10000
+
+#define	AT_ALL		(AT_TYPE|AT_MODE|AT_UID|AT_GID|AT_FSID|AT_NODEID|\
+			AT_NLINK|AT_SIZE|AT_ATIME|AT_MTIME|AT_CTIME|\
+			AT_RDEV|AT_BLKSIZE|AT_NBLOCKS|AT_SEQ)
+
+#define	AT_STAT		(AT_MODE|AT_UID|AT_GID|AT_FSID|AT_NODEID|AT_NLINK|\
+			AT_SIZE|AT_ATIME|AT_MTIME|AT_CTIME|AT_RDEV|AT_TYPE)
+
+#define	AT_TIMES	(AT_ATIME|AT_MTIME|AT_CTIME)
+
+#define	AT_NOSET	(AT_NLINK|AT_RDEV|AT_FSID|AT_NODEID|AT_TYPE|\
+			AT_BLKSIZE|AT_NBLOCKS|AT_SEQ)
+
 static __inline void
 vattr_init_mask(vattr_t *vap)
 {
@@ -154,15 +193,6 @@ vattr_init_mask(vattr_t *vap)
 	if (vap->va_flags != VNOVAL)
 		vap->va_mask |= AT_XVATTR;
 }
-
-#define	FCREAT		O_CREAT
-#define	FTRUNC		O_TRUNC
-#define	FEXCL		O_EXCL
-#define	FDSYNC		FFSYNC
-#define	FRSYNC		FFSYNC
-#define	FSYNC		FFSYNC
-#define	FOFFMAX		0x00
-#define	FIGNORECASE	0x00
 
 static __inline int
 vn_openat(char *pnamep, enum uio_seg seg, int filemode, int createmode,
@@ -292,6 +322,7 @@ vn_remove(char *fnamep, enum uio_seg seg, enum rm dirflag)
 	return (kern_unlinkat(curthread, AT_FDCWD, fnamep, seg, 0));
 }
 
+#include <sys/vfs.h>
 #endif	/* _KERNEL */
 
 #endif	/* _OPENSOLARIS_SYS_VNODE_H_ */

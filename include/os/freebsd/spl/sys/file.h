@@ -39,11 +39,22 @@ typedef	struct file	file_t;
 #include <sys/capsicum.h>
 
 static __inline file_t *
-getf(int fd, cap_rights_t *rightsp)
+getf_caps(int fd, cap_rights_t *rightsp)
 {
 	struct file *fp;
 
 	if (fget(curthread, fd, rightsp, &fp) == 0)
+		return (fp);
+	return (NULL);
+}
+
+
+static __inline file_t *
+getf(int fd)
+{
+	struct file *fp;
+
+	if (fget(curthread, fd, &cap_no_rights, &fp) == 0)
 		return (fp);
 	return (NULL);
 }

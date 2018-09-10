@@ -20,16 +20,15 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
-#ifndef	_SYS_FS_ZFS_ZNODE_H
-#define	_SYS_FS_ZFS_ZNODE_H
+#ifndef	_FREEBSD_SYS_FS_ZFS_ZNODE_H
+#define	_FREEBSD_SYS_FS_ZFS_ZNODE_H
 
 #ifdef _KERNEL
-#include <sys/isa_defs.h>
-#include <sys/types32.h>
 #include <sys/list.h>
 #include <sys/dmu.h>
 #include <sys/sa.h>
@@ -84,7 +83,7 @@ extern "C" {
 		pflags |= attr; \
 	else \
 		pflags &= ~attr; \
-	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(ZTOZSB(zp)), \
+	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zp->z_zfsvfs), \
 	    &pflags, sizeof (pflags), tx)); \
 }
 
@@ -93,8 +92,8 @@ extern "C" {
  */
 #define	ZFS_XATTR		0x1		/* is an extended attribute */
 #define	ZFS_INHERIT_ACE		0x2		/* ace has inheritable ACEs */
-#define	ZFS_ACL_TRIVIAL		0x4		/* files ACL is trivial */
-#define	ZFS_ACL_OBJ_ACE		0x8		/* ACL has CMPLX Object ACE */
+#define	ZFS_ACL_TRIVIAL 	0x4		/* files ACL is trivial */
+#define	ZFS_ACL_OBJ_ACE 	0x8		/* ACL has CMPLX Object ACE */
 #define	ZFS_ACL_PROTECTED	0x10		/* ACL protected */
 #define	ZFS_ACL_DEFAULTED	0x20		/* ACL should be defaulted */
 #define	ZFS_ACL_AUTO_INHERIT	0x40		/* ACL should be inherited */
@@ -154,8 +153,7 @@ extern "C" {
 
 /*
  * Convert mode bits (zp_mode) to BSD-style DT_* values for storing in
- * the directory entries.  On Linux systems this value is already
- * defined correctly as part of the /usr/include/dirent.h header file.
+ * the directory entries.
  */
 #ifndef IFTODT
 #define	IFTODT(mode) (((mode) & S_IFMT) >> 12)
@@ -186,12 +184,16 @@ typedef struct zfs_dirlock {
 } zfs_dirlock_t;
 
 typedef struct znode {
+	struct zfsvfs	*z_zfsvfs;
+	vnode_t		*z_vnode;
 	uint64_t	z_id;		/* object ID for this znode */
 	kmutex_t	z_lock;		/* znode modification lock */
+#ifdef illumos
 	krwlock_t	z_parent_lock;	/* parent lock for directories */
 	krwlock_t	z_name_lock;	/* "master" lock for dirent locks */
 	zfs_dirlock_t	*z_dirlocks;	/* directory entry lock list */
-	rangelock_t	z_rangelock;	/* file range locks */
+#endif
+	zfs_rlock_t	z_range_lock;	/* file range lock */
 	uint8_t		z_unlinked;	/* file has been unlinked */
 	uint8_t		z_atime_dirty;	/* atime needs to be synced */
 	uint8_t		z_zn_prefetch;	/* Prefetch znodes? */
@@ -200,10 +202,15 @@ typedef struct znode {
 	uint_t		z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
 	uint64_t	z_dnodesize;	/* dnode size */
+	uint64_t	z_gen;		/* generation (cached) */
 	uint64_t	z_size;		/* file size (cached) */
+	uint64_t	z_atime[2];	/* atime (cached) */
+	uint64_t	z_links;	/* file links (cached) */
 	uint64_t	z_pflags;	/* pflags (cached) */
-	uint32_t	z_sync_cnt;	/* synchronous open count */
+	uint64_t	z_uid;		/* uid fuid (cached) */
+	uint64_t	z_gid;		/* gid fuid (cached) */
 	mode_t		z_mode;		/* mode (cached) */
+	uint32_t	z_sync_cnt;	/* synchronous open count */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
 	krwlock_t	z_xattr_lock;	/* xattr data lock */
@@ -213,25 +220,28 @@ typedef struct znode {
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */
-	boolean_t	z_is_mapped;	/* are we mmap'ed */
-	boolean_t	z_is_ctldir;	/* are we .zfs entry */
-	boolean_t	z_is_stale;	/* are we stale due to rollback? */
-	struct inode	z_inode;	/* generic vfs inode */
 } znode_t;
 
-typedef struct znode_hold {
-	uint64_t	zh_obj;		/* object id */
-	kmutex_t	zh_lock;	/* lock serializing object access */
-	avl_node_t	zh_node;	/* avl tree linkage */
-	zfs_refcount_t	zh_refcount;	/* active consumer reference count */
-} znode_hold_t;
+#define	ZFS_LINK_MAX	UINT64_MAX
 
-static inline uint64_t
-zfs_inherit_projid(znode_t *dzp)
-{
-	return ((dzp->z_pflags & ZFS_PROJINHERIT) ? dzp->z_projid :
-	    ZFS_DEFAULT_PROJID);
-}
+/*
+ * ZFS minor numbers can refer to either a control device instance or
+ * a zvol. Depending on the value of zss_type, zss_data points to either
+ * a zvol_state_t or a zfs_onexit_t.
+ */
+enum zfs_soft_state_type {
+        ZSST_ZVOL,
+        ZSST_CTLDEV
+};
+
+typedef struct zfs_soft_state {
+        enum zfs_soft_state_type zss_type;
+        void *zss_data;
+} zfs_soft_state_t;
+
+extern void *zfsdev_get_soft_state(minor_t minor,
+    enum zfs_soft_state_type which);
+extern minor_t zfsdev_minor_alloc(void);
 
 /*
  * Range locking rules
@@ -250,91 +260,96 @@ zfs_inherit_projid(znode_t *dzp)
  */
 
 /*
- * Convert between znode pointers and inode pointers
+ * Convert between znode pointers and vnode pointers
  */
-#define	ZTOI(znode)	(&((znode)->z_inode))
-#define	ITOZ(inode)	(container_of((inode), znode_t, z_inode))
-#define	ZTOZSB(znode)	((zfsvfs_t *)(ZTOI(znode)->i_sb->s_fs_info))
-#define	ITOZSB(inode)	((zfsvfs_t *)((inode)->i_sb->s_fs_info))
+#ifdef DEBUG
+static __inline vnode_t *
+ZTOV(znode_t *zp)
+{
+	vnode_t *vp = zp->z_vnode;
 
-#define	S_ISDEV(mode)	(S_ISCHR(mode) || S_ISBLK(mode) || S_ISFIFO(mode))
+	ASSERT(vp != NULL && vp->v_data == zp);
+	return (vp);
+}
+static __inline znode_t *
+VTOZ(vnode_t *vp)
+{
+	znode_t *zp = (znode_t *)vp->v_data;
 
-/* Called on entry to each ZFS inode and vfs operation. */
-#define	ZFS_ENTER_ERROR(zfsvfs, error)				\
-do {								\
-	rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG);	\
-	if ((zfsvfs)->z_unmounted) {				\
-		ZFS_EXIT(zfsvfs);				\
-		return (error);					\
-	}							\
-} while (0)
-#define	ZFS_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, EIO)
-#define	ZPL_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, -EIO)
+	ASSERT(zp != NULL && zp->z_vnode == vp);
+	return (zp);
+}
+#else
+#define	ZTOV(ZP)	((ZP)->z_vnode)
+#define	VTOZ(VP)	((znode_t *)(VP)->v_data)
+#endif
 
-/* Must be called before exiting the operation. */
-#define	ZFS_EXIT(zfsvfs)					\
-do {								\
-	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
-} while (0)
-#define	ZPL_EXIT(zfsvfs)	ZFS_EXIT(zfsvfs)
+#define ZTOZSB(zp) ((zp)->z_zfsvfs)
+#define ZTOTYPE(zp)	(ZTOV(zp)->v_type)
+#define ZTOGID(zp) ((zp)->z_gid)
+#define ZTOUID(zp) ((zp)->z_uid)
+#define Z_ISBLK(type) ((type) == VBLK)
+#define Z_ISCHR(type) ((type) == VCHR)
+#define Z_ISLNK(type) ((type) == VLNK)
 
-/* Verifies the znode is valid. */
-#define	ZFS_VERIFY_ZP_ERROR(zp, error)				\
-do {								\
-	if ((zp)->z_sa_hdl == NULL) {				\
-		ZFS_EXIT(ZTOZSB(zp));				\
-		return (error);					\
-	}							\
-} while (0)
-#define	ZFS_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, EIO)
-#define	ZPL_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, -EIO)
+
+/* Called on entry to each ZFS vnode and vfs operation  */
+#define	ZFS_ENTER(zfsvfs) \
+	{ \
+		rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG); \
+		if ((zfsvfs)->z_unmounted) { \
+			ZFS_EXIT(zfsvfs); \
+			return (EIO); \
+		} \
+	}
+
+/* Must be called before exiting the vop */
+#define	ZFS_EXIT(zfsvfs) rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG)
+
+/* Verifies the znode is valid */
+#define	ZFS_VERIFY_ZP(zp) \
+	if ((zp)->z_sa_hdl == NULL) { \
+		ZFS_EXIT((zp)->z_zfsvfs); \
+		return (EIO); \
+	} \
 
 /*
  * Macros for dealing with dmu_buf_hold
  */
-#define	ZFS_OBJ_MTX_SZ		64
-#define	ZFS_OBJ_MTX_MAX		(1024 * 1024)
-#define	ZFS_OBJ_HASH(zfsvfs, obj)	((obj) & ((zfsvfs->z_hold_size) - 1))
+#define	ZFS_OBJ_HASH(obj_num)	((obj_num) & (ZFS_OBJ_MTX_SZ - 1))
+#define	ZFS_OBJ_MUTEX(zfsvfs, obj_num)	\
+	(&(zfsvfs)->z_hold_mtx[ZFS_OBJ_HASH(obj_num)])
+#define	ZFS_OBJ_HOLD_ENTER(zfsvfs, obj_num) \
+	mutex_enter(ZFS_OBJ_MUTEX((zfsvfs), (obj_num)))
+#define	ZFS_OBJ_HOLD_TRYENTER(zfsvfs, obj_num) \
+	mutex_tryenter(ZFS_OBJ_MUTEX((zfsvfs), (obj_num)))
+#define	ZFS_OBJ_HOLD_EXIT(zfsvfs, obj_num) \
+	mutex_exit(ZFS_OBJ_MUTEX((zfsvfs), (obj_num)))
 
-extern unsigned int zfs_object_mutex_size;
-
-/*
- * Encode ZFS stored time values from a struct timespec / struct timespec64.
- */
+/* Encode ZFS stored time values from a struct timespec */
 #define	ZFS_TIME_ENCODE(tp, stmp)		\
-do {						\
+{						\
 	(stmp)[0] = (uint64_t)(tp)->tv_sec;	\
 	(stmp)[1] = (uint64_t)(tp)->tv_nsec;	\
-} while (0)
+}
 
-#if defined(HAVE_INODE_TIMESPEC64_TIMES)
-/*
- * Decode ZFS stored time values to a struct timespec64
- * 4.18 and newer kernels.
- */
+/* Decode ZFS stored time values to a struct timespec */
 #define	ZFS_TIME_DECODE(tp, stmp)		\
-do {						\
-	(tp)->tv_sec = (time64_t)(stmp)[0];	\
-	(tp)->tv_nsec = (long)(stmp)[1];	\
-} while (0)
-#else
-/*
- * Decode ZFS stored time values to a struct timespec
- * 4.17 and older kernels.
- */
-#define	ZFS_TIME_DECODE(tp, stmp)		\
-do {						\
-	(tp)->tv_sec = (time_t)(stmp)[0];	\
-	(tp)->tv_nsec = (long)(stmp)[1];	\
-} while (0)
-#endif /* HAVE_INODE_TIMESPEC64_TIMES */
+{						\
+	(tp)->tv_sec = (time_t)(stmp)[0];		\
+	(tp)->tv_nsec = (long)(stmp)[1];		\
+}
 
 /*
  * Timestamp defines
  */
-#define	ACCESSED		(ATTR_ATIME)
-#define	STATE_CHANGED		(ATTR_CTIME)
-#define	CONTENT_MODIFIED	(ATTR_MTIME | ATTR_CTIME)
+#define	ACCESSED		(AT_ATIME)
+#define	STATE_CHANGED		(AT_CTIME)
+#define	CONTENT_MODIFIED	(AT_MTIME | AT_CTIME)
+
+#define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp) \
+	if ((zfsvfs)->z_atime && !((zfsvfs)->z_vfs->vfs_flag & VFS_RDONLY)) \
+		zfs_tstamp_update_setup(zp, ACCESSED, NULL, NULL);
 
 extern int	zfs_init_fs(zfsvfs_t *, znode_t **);
 extern void	zfs_set_dataprop(objset_t *);
@@ -346,23 +361,18 @@ extern void	zfs_grow_blocksize(znode_t *, uint64_t, dmu_tx_t *);
 extern int	zfs_freesp(znode_t *, uint64_t, uint64_t, int, boolean_t);
 extern void	zfs_znode_init(void);
 extern void	zfs_znode_fini(void);
-extern int	zfs_znode_hold_compare(const void *, const void *);
 extern int	zfs_zget(zfsvfs_t *, uint64_t, znode_t **);
 extern int	zfs_rezget(znode_t *);
 extern void	zfs_zinactive(znode_t *);
 extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
+extern void	zfs_znode_free(znode_t *);
 extern void	zfs_remove_op_tables(void);
 extern int	zfs_create_op_tables(void);
-extern int	zfs_sync(struct super_block *, int, cred_t *);
 extern dev_t	zfs_cmpldev(uint64_t);
 extern int	zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
 extern int	zfs_get_stats(objset_t *os, nvlist_t *nv);
 extern boolean_t zfs_get_vfs_flag_unmounted(objset_t *os);
 extern void	zfs_znode_dmu_fini(znode_t *);
-extern int	zfs_inode_alloc(struct super_block *, struct inode **ip);
-extern void	zfs_inode_destroy(struct inode *);
-extern void	zfs_inode_update(znode_t *);
-extern void	zfs_mark_inode_dirty(struct inode *);
 
 extern void zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     znode_t *dzp, znode_t *zp, char *name, vsecattr_t *, zfs_fuid_info_t *,
@@ -379,25 +389,24 @@ extern void zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 extern void zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     znode_t *sdzp, char *sname, znode_t *tdzp, char *dname, znode_t *szp);
 extern void zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-    znode_t *zp, offset_t off, ssize_t len, int ioflag,
-    zil_callback_t callback, void *callback_data);
+    znode_t *zp, offset_t off, ssize_t len, int ioflag);
 extern void zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, uint64_t off, uint64_t len);
 extern void zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, vattr_t *vap, uint_t mask_applied, zfs_fuid_info_t *fuidp);
+#ifndef ZFS_NO_ACL
 extern void zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
     vsecattr_t *vsecp, zfs_fuid_info_t *fuidp);
+#endif
 extern void zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx);
 extern void zfs_upgrade(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
-
-#if defined(HAVE_UIO_RW)
-extern caddr_t zfs_map_page(page_t *, enum seg_rw);
-extern void zfs_unmap_page(page_t *, caddr_t);
-#endif /* HAVE_UIO_RW */
+extern int zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 
 extern zil_get_data_t zfs_get_data;
 extern zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE];
 extern int zfsfstype;
+
+extern int zfs_znode_parent_and_name(znode_t *zp, znode_t **dzpp, char *buf);
 
 #endif /* _KERNEL */
 

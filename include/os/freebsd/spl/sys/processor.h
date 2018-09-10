@@ -130,7 +130,8 @@ extern lgrpid_t gethomelgroup(void);
  */
 extern int	p_online_internal(processorid_t, int, int *);
 extern int	p_online_internal_locked(processorid_t, int, int *);
-
+#define getcpuid() curcpu
+	
 #endif /* !_KERNEL */
 
 #ifdef __cplusplus

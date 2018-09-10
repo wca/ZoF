@@ -33,8 +33,6 @@
 
 #define	MAXUID	UID_MAX
 
-#define	SPEC_MAXOFFSET_T	OFF_MAX
-
 #define	_ACL_ACLENT_ENABLED	0x1
 #define	_ACL_ACE_ENABLED	0x2
 
@@ -55,7 +53,6 @@ struct opensolaris_utsname {
 };
 
 extern char hw_serial[11];
-extern struct opensolaris_utsname utsname;
 #endif
 
 #endif	/* _OPENSOLARIS_SYS_MISC_H_ */

@@ -119,16 +119,15 @@ extern "C" {
 #define	__CONST			__sun_attr__((__const__))
 #define	__PURE			__sun_attr__((__pure__))
 
-#define vmem_free kmem_free
-#define vmem_zalloc kmem_zalloc
-#define vmem_alloc kmem_alloc
-#define ____cacheline_aligned __aligned(CACHE_LINE_SIZE)
+#define vmem_free zfs_kmem_free
+/* XXX */
+#define vmem_zalloc zfs_kmem_alloc
+#define vmem_alloc zfs_kmem_alloc
 #define EXPORT_SYMBOL(x)
 #define module_param(a, b, c)
 #define module_param_named(a, b, c, d)
-#define noinline __attribute__((noinline))
 #define MODULE_PARM_DESC(a, b)
-#define likely(x)       __builtin_expect((x), 1)
+#include <linux/types.h>
 	
 #ifdef	__cplusplus
 }

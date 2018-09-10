@@ -283,7 +283,7 @@ dump_free(dmu_sendarg_t *dsp, uint64_t object, uint64_t offset,
 }
 
 static int
-dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type, uint64_t object,
+dmu_dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type, uint64_t object,
     uint64_t offset, int lsize, int psize, const blkptr_t *bp, void *data)
 {
 	uint64_t payload_size;
@@ -919,14 +919,14 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 			char *buf = abuf->b_data;
 			while (blksz > 0 && err == 0) {
 				int n = MIN(blksz, SPA_OLD_MAXBLOCKSIZE);
-				err = dump_write(dsa, type, zb->zb_object,
+				err = dmu_dump_write(dsa, type, zb->zb_object,
 				    offset, n, n, NULL, buf);
 				offset += n;
 				buf += n;
 				blksz -= n;
 			}
 		} else {
-			err = dump_write(dsa, type, zb->zb_object, offset,
+			err = dmu_dump_write(dsa, type, zb->zb_object, offset,
 			    blksz, arc_buf_size(abuf), bp, abuf->b_data);
 		}
 		arc_buf_destroy(abuf, &abuf);

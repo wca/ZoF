@@ -298,6 +298,8 @@ extern int acl_check(acl_t *, int);
 
 #else	/* !defined(_KERNEL) */
 
+extern void aces_from_acl(ace_t *aces, int *nentries, const struct acl *aclp);
+extern int acl_from_aces(struct acl *aclp, const ace_t *aces, int nentries);
 extern void ksort(caddr_t, int, int, int (*)(void *, void *));
 extern int cmp2acls(void *, void *);
 

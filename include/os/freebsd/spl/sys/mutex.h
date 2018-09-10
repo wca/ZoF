@@ -31,6 +31,8 @@
 
 #ifdef _KERNEL
 
+typedef struct sx	kmutex_t;
+
 #include <sys/param.h>
 #include <sys/lock.h>
 #include_next <sys/sdt.h>

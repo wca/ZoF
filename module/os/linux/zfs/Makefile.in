@@ -1,9 +1,18 @@
 
 $(MODULE)-objs += abd.o
+$(MODULE)-objs += policy.o
+$(MODULE)-objs += vdev_disk.o
+$(MODULE)-objs += vdev_file.o
+$(MODULE)-objs += zfs_acl.o
+$(MODULE)-objs += zfs_ctldir.o
+$(MODULE)-objs += zfs_dir.o
 $(MODULE)-objs += zfs_ioctl.o
+$(MODULE)-objs += zfs_log.o
+$(MODULE)-objs += zfs_replay.o
 $(MODULE)-objs += zfs_sysfs.o
 $(MODULE)-objs += zfs_vfsops.o
 $(MODULE)-objs += zfs_vnops.o
+$(MODULE)-objs += zfs_znode.o
 $(MODULE)-objs += zle.o
 $(MODULE)-objs += zpl_ctldir.o
 $(MODULE)-objs += zpl_export.o
@@ -14,3 +23,4 @@ $(MODULE)-objs += zpl_xattr.o
 $(MODULE)-objs += qat.o
 $(MODULE)-objs += qat_compress.o
 $(MODULE)-objs += qat_crypt.o
+$(MODULE)-objs += zvol.o

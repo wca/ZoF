@@ -286,16 +286,18 @@ freebsd_crypt_uio(boolean_t encrypt,
 {
 #ifdef _KERNEL
 	struct cryptop *crp;
-	struct cryptodesc *crd, *enc_desc, *auth_desc;
+	struct cryptodesc *enc_desc, *auth_desc;
 	struct enc_xform *xform;
 	struct auth_hash *xauth;
 	iovec_t *last_iovec;
 	freebsd_crypt_session_t *session = NULL;
 	int error;
+
+#ifdef FCRYPTO_DEBUG
+	struct cryptodesc *crd;
 	uint8_t *p = NULL;
 	size_t total = 0;
 
-#ifdef FCRYPTO_DEBUG
 	printf("%s(%s, %p, { %s, %d, %d, %s }, %p, { %d, %p, %u }, %p, %u, %u)\n",
 	    __FUNCTION__, encrypt ? "encrypt" : "decrypt", input_sessionp,
 	    c_info->ci_algname, c_info->ci_crypt_type,

@@ -55,8 +55,6 @@ extern void zfs_dirent_unlock(zfs_dirlock_t *);
 extern int zfs_link_create(zfs_dirlock_t *, znode_t *, dmu_tx_t *, int);
 extern int zfs_link_destroy(zfs_dirlock_t *, znode_t *, dmu_tx_t *, int,
     boolean_t *);
-extern int zfs_dirlook(znode_t *, char *, struct inode **, int, int *,
-    pathname_t *);
 extern void zfs_mknode(znode_t *, vattr_t *, dmu_tx_t *, cred_t *,
     uint_t, znode_t **, zfs_acl_ids_t *);
 extern void zfs_rmnode(znode_t *);
@@ -65,9 +63,17 @@ extern boolean_t zfs_dirempty(znode_t *);
 extern void zfs_unlinked_add(znode_t *, dmu_tx_t *);
 extern void zfs_unlinked_drain(zfsvfs_t *zfsvfs);
 extern int zfs_sticky_remove_access(znode_t *, znode_t *, cred_t *cr);
+#ifdef __linux__
+extern int zfs_dirlook(znode_t *, char *, struct inode **, int, int *,
+    pathname_t *);
 extern int zfs_get_xattrdir(znode_t *, struct inode **, cred_t *, int);
 extern int zfs_make_xattrdir(znode_t *, vattr_t *, struct inode **, cred_t *);
-
+#else
+extern int zfs_dirlook(znode_t *, char *, vnode_t **, int, int *,
+    pathname_t *);
+extern int zfs_get_xattrdir(znode_t *, vnode_t **, cred_t *, int);
+extern int zfs_make_xattrdir(znode_t *, vattr_t *, vnode_t **, cred_t *);
+#endif	
 #ifdef	__cplusplus
 }
 #endif

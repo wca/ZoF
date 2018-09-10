@@ -65,6 +65,7 @@
 #include <sys/spa_boot.h>
 #include <sys/jail.h>
 #include <ufs/ufs/quota.h>
+#include <sys/refstr.h>
 
 #include "zfs_comutil.h"
 
@@ -102,7 +103,6 @@ static int zfs_sync(vfs_t *vfsp, int waitfor);
 static int zfs_checkexp(vfs_t *vfsp, struct sockaddr *nam, int *extflagsp,
     struct ucred **credanonp, int *numsecflavors, int **secflavors);
 static int zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp);
-static void zfs_objset_close(zfsvfs_t *zfsvfs);
 static void zfs_freevfs(vfs_t *vfsp);
 
 struct vfsops zfs_vfsops = {
@@ -131,7 +131,6 @@ zfs_getquota(zfsvfs_t *zfsvfs, uid_t id, int isgroup, struct dqblk64 *dqp)
 {
 	int error = 0;
 	char buf[32];
-	int err;
 	uint64_t usedobj, quotaobj;
 	uint64_t quota, used = 0;
 	timespec_t now;
@@ -179,7 +178,6 @@ zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg)
 	struct thread *td;
 	int cmd, type, error = 0;
 	int bitsize;
-	uint64_t fuid;
 	zfs_userquota_prop_t quota_type;
 	struct dqblk64 dqblk = { 0 };
 	
@@ -277,6 +275,13 @@ zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg)
 done:
 	ZFS_EXIT(zfsvfs);
 	return (error);
+}
+
+
+boolean_t
+zfs_is_readonly(zfsvfs_t *zfsvfs)
+{
+	return (!!(zfsvfs->z_vfs->vfs_flag & VFS_RDONLY));
 }
 
 /*ARGSUSED*/
@@ -596,7 +601,7 @@ zfs_register_callbacks(vfs_t *vfsp)
 		readonly = B_FALSE;
 		do_readonly = B_TRUE;
 	}
-	if (vfs_optionisset(vfsp, MNTOPT_NOSUID, NULL)) {
+	if (vfs_optionisset(vfsp, MNTOPT_NOSETUID, NULL)) {
 		setuid = B_FALSE;
 		do_setuid = B_TRUE;
 	} else {
@@ -654,7 +659,7 @@ zfs_register_callbacks(vfs_t *vfsp)
 		nbmand = B_FALSE;
 	} else if (vfs_optionisset(vfsp, MNTOPT_NBMAND, NULL)) {
 		nbmand = B_TRUE;
-	} else if (error = dsl_prop_get_int_ds(ds, "nbmand", &nbmand) != 0) {
+	} else if ((error = dsl_prop_get_int_ds(ds, "nbmand", &nbmand) != 0)) {
 		dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 		return (error);
 	}
@@ -720,7 +725,7 @@ unregister:
 
 static int
 zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
-    uint64_t *userp, uint64_t *groupp)
+	uint64_t *userp, uint64_t *groupp, uint64_t *projectp)
 {
 	/*
 	 * Is it a valid type of object to track?
@@ -810,6 +815,8 @@ zfs_userquota_prop_to_obj(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type)
 		return (zfsvfs->z_userquota_obj);
 	case ZFS_PROP_GROUPQUOTA:
 		return (zfsvfs->z_groupquota_obj);
+	default:
+		return (0);
 	}
 	return (0);
 }
@@ -1141,7 +1148,7 @@ zfsvfs_task_unlinked_drain(void *context, int pending __unused)
 #endif
 
 int
-zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
+zfsvfs_create(const char *osname, boolean_t readonly, zfsvfs_t **zfvp)
 {
 	objset_t *os;
 	zfsvfs_t *zfsvfs;
@@ -1468,12 +1475,11 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	uint64_t recordsize, fsid_guid;
 	int error = 0;
 	zfsvfs_t *zfsvfs;
-	vnode_t *vp;
 
 	ASSERT(vfsp);
 	ASSERT(osname);
 
-	error = zfsvfs_create(osname, &zfsvfs);
+	error = zfsvfs_create(osname, vfsp->mnt_flag & MNT_RDONLY, &zfsvfs);
 	if (error)
 		return (error);
 	zfsvfs->z_vfs = vfsp;
@@ -1490,8 +1496,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	ASSERT(vfs_devismounted(mount_dev) == 0);
 #endif
 
-	if (error = dsl_prop_get_integer(osname, "recordsize", &recordsize,
-	    NULL))
+	if ((error = dsl_prop_get_integer(osname, "recordsize", &recordsize, NULL)))
 		goto out;
 	zfsvfs->z_vfs->vfs_bsize = SPA_MINBLOCKSIZE;
 	zfsvfs->z_vfs->mnt_stat.f_iosize = recordsize;
@@ -1515,7 +1520,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	ASSERT((fsid_guid & ~((1ULL<<56)-1)) == 0);
 	vfsp->vfs_fsid.val[0] = fsid_guid;
 	vfsp->vfs_fsid.val[1] = ((fsid_guid>>32) << 8) |
-	    vfsp->mnt_vfc->vfc_typenum & 0xFF;
+	    (vfsp->mnt_vfc->vfc_typenum & 0xFF);
 
 	/*
 	 * Set features for file system.
@@ -1536,7 +1541,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 
 		atime_changed_cb(zfsvfs, B_FALSE);
 		readonly_changed_cb(zfsvfs, B_TRUE);
-		if (error = dsl_prop_get_integer(osname, "xattr", &pval, NULL))
+		if ((error = dsl_prop_get_integer(osname, "xattr", &pval, NULL)))
 			goto out;
 		xattr_changed_cb(zfsvfs, pval);
 		zfsvfs->z_issnap = B_TRUE;
@@ -1981,7 +1986,7 @@ zfs_mount(vfs_t *vfsp)
 	 * Refuse to mount a filesystem if we are in a local zone and the
 	 * dataset is not visible.
 	 */
-	if (!INGLOBALZONE(curthread) &&
+	if (!INGLOBALZONE(curproc) &&
 	    (!zone_dataset_visible(osname, &canwrite) || !canwrite)) {
 		error = SET_ERROR(EPERM);
 		goto out;
@@ -2218,8 +2223,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	/*
 	 * Evict cached data
 	 */
-	if (dsl_dataset_is_dirty(dmu_objset_ds(zfsvfs->z_os)) &&
-	    !(zfsvfs->z_vfs->vfs_flag & VFS_RDONLY))
+	if (!zfs_is_readonly(zfsvfs))
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 	dmu_objset_evict_dbufs(zfsvfs->z_os);
 
@@ -2482,7 +2486,7 @@ zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp)
 	gen_mask = -1ULL >> (64 - 8 * i);
 
 	dprintf("getting %llu [%u mask %llx]\n", object, fid_gen, gen_mask);
-	if (err = zfs_zget(zfsvfs, object, &zp)) {
+	if ((err = zfs_zget(zfsvfs, object, &zp))) {
 		ZFS_EXIT(zfsvfs);
 		return (err);
 	}

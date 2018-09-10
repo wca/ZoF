@@ -29,6 +29,8 @@
 #ifndef _OPENSOLARIS_SYS_SUNDDI_H_
 #define	_OPENSOLARIS_SYS_SUNDDI_H_
 
+typedef int ddi_devid_t;
+
 #ifdef _KERNEL
 
 #include <sys/kmem.h>
@@ -47,9 +49,16 @@ int ddi_strtoll(const char *str, char **nptr, int base, long long *result);
 int ddi_strtoull(const char *str, char **nptr, int base,
     unsigned long long *result);
 
+#define	DDI_PROP_DONTPASS			0x0001
+#define	DDI_PROP_CANSLEEP			0x0002
+
 #define	DDI_SUCCESS	(0)
 #define	DDI_FAILURE	(-1)
 #define	DDI_SLEEP	0x666
+
+#define	ddi_prop_lookup_string(x1, x2, x3, x4, x5)	(*x5 = NULL)
+#define	ddi_prop_free(x)				(void)0
+#define	ddi_root_node()					(void)0
 
 int ddi_soft_state_init(void **statep, size_t size, size_t nitems);
 void ddi_soft_state_fini(void **statep);

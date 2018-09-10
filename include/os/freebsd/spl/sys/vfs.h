@@ -33,12 +33,15 @@
 
 #ifdef _KERNEL
 
-#include <sys/mount.h>
-#include <sys/vnode.h>
-
 #define	rootdir	rootvnode
 
+struct thread;
+struct vnode;
+typedef struct vnode vnode_t;
+typedef struct thread kthread_t;
 typedef	struct mount	vfs_t;
+
+typedef	int	umode_t;
 
 #define	vfs_flag	mnt_flag
 #define	vfs_data	mnt_data
@@ -58,6 +61,20 @@ typedef	struct mount	vfs_t;
 
 #define	VROOT		VV_ROOT
 
+#define	XU_NGROUPS	16
+
+#if 0
+/*
+ * This is the external representation of struct ucred.
+ */
+struct xucred {
+	u_int	cr_version;		/* structure layout version */
+	uid_t	cr_uid;			/* effective user id */
+	short	cr_ngroups;		/* number of groups */
+	gid_t	cr_groups[XU_NGROUPS];	/* groups */
+	void	*_cr_unused1;		/* compatibility with old ucred */
+};
+#endif
 /*
  * Structure defining a mount option for a filesystem.
  * option names are found in mntent.h
@@ -121,5 +138,5 @@ typedef	uint64_t	vfs_feature_t;
 #define	vfs_has_feature(vfsp, feature)		(0)
 
 #endif	/* _KERNEL */
-
+#include <sys/mount.h>
 #endif	/* _OPENSOLARIS_SYS_VFS_H_ */

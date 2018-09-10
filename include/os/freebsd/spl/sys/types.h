@@ -41,11 +41,13 @@ typedef	int64_t		clock_t;
 #endif
 
 #include_next <sys/types.h>
+#include <sys/_stdarg.h>
 
 #define	MAXNAMELEN	256
 
 typedef	struct timespec	timestruc_t;
 typedef	struct timespec	timespec_t;
+typedef struct timespec inode_timespec_t;
 typedef u_int		uint_t;
 typedef u_char		uchar_t;
 typedef u_short		ushort_t;

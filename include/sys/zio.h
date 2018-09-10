@@ -283,6 +283,10 @@ enum zio_wait_type {
 
 /* Similar for ENOACTIVE */
 #define	ENOTACTIVE	ECANCELED
+
+#define EREMOTEIO EREMOTE
+#define ECHRNG ENXIO
+#define ETIME ETIMEDOUT
 #else
 #error "OS not defined"
 #endif
