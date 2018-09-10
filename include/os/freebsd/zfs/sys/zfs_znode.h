@@ -40,6 +40,7 @@
 #endif
 #include <sys/zfs_acl.h>
 #include <sys/zil.h>
+#include <sys/zfs_project.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -49,20 +50,32 @@ extern "C" {
  * Additional file level attributes, that are stored
  * in the upper half of zp_flags
  */
-#define	ZFS_READONLY		0x0000000100000000
-#define	ZFS_HIDDEN		0x0000000200000000
-#define	ZFS_SYSTEM		0x0000000400000000
-#define	ZFS_ARCHIVE		0x0000000800000000
-#define	ZFS_IMMUTABLE		0x0000001000000000
-#define	ZFS_NOUNLINK		0x0000002000000000
-#define	ZFS_APPENDONLY		0x0000004000000000
-#define	ZFS_NODUMP		0x0000008000000000
-#define	ZFS_OPAQUE		0x0000010000000000
-#define	ZFS_AV_QUARANTINED 	0x0000020000000000
-#define	ZFS_AV_MODIFIED 	0x0000040000000000
-#define	ZFS_REPARSE		0x0000080000000000
-#define	ZFS_OFFLINE		0x0000100000000000
-#define	ZFS_SPARSE		0x0000200000000000
+#define	ZFS_READONLY		0x0000000100000000ull
+#define	ZFS_HIDDEN		0x0000000200000000ull
+#define	ZFS_SYSTEM		0x0000000400000000ull
+#define	ZFS_ARCHIVE		0x0000000800000000ull
+#define	ZFS_IMMUTABLE		0x0000001000000000ull
+#define	ZFS_NOUNLINK		0x0000002000000000ull
+#define	ZFS_APPENDONLY		0x0000004000000000ull
+#define	ZFS_NODUMP		0x0000008000000000ull
+#define	ZFS_OPAQUE		0x0000010000000000ull
+#define	ZFS_AV_QUARANTINED	0x0000020000000000ull
+#define	ZFS_AV_MODIFIED		0x0000040000000000ull
+#define	ZFS_REPARSE		0x0000080000000000ull
+#define	ZFS_OFFLINE		0x0000100000000000ull
+#define	ZFS_SPARSE		0x0000200000000000ull
+
+/*
+ * PROJINHERIT attribute is used to indicate that the child object under the
+ * directory which has the PROJINHERIT attribute needs to inherit its parent
+ * project ID that is used by project quota.
+ */
+#define	ZFS_PROJINHERIT		0x0000400000000000ull
+
+/*
+ * PROJID attr is used internally to indicate that the object has project ID.
+ */
+#define	ZFS_PROJID		0x0000800000000000ull
 
 #define	ZFS_ATTR_SET(zp, attr, value, pflags, tx) \
 { \
@@ -106,7 +119,9 @@ extern "C" {
 #define	SA_ZPL_FLAGS(z)		z->z_attr_table[ZPL_FLAGS]
 #define	SA_ZPL_SIZE(z)		z->z_attr_table[ZPL_SIZE]
 #define	SA_ZPL_ZNODE_ACL(z)	z->z_attr_table[ZPL_ZNODE_ACL]
+#define	SA_ZPL_DXATTR(z)	z->z_attr_table[ZPL_DXATTR]
 #define	SA_ZPL_PAD(z)		z->z_attr_table[ZPL_PAD]
+#define	SA_ZPL_PROJID(z)	z->z_attr_table[ZPL_PROJID]
 
 /*
  * Is ID ephemeral?
@@ -125,7 +140,7 @@ extern "C" {
 
 /*
  * Special attributes for master node.
- * "userquota@" and "groupquota@" are also valid (from
+ * "userquota@", "groupquota@" and "projectquota@" are also valid (from
  * zfs_userquota_prop_prefixes[]).
  */
 #define	ZFS_FSID		"FSID"
@@ -172,8 +187,8 @@ typedef struct znode {
 	struct zfsvfs	*z_zfsvfs;
 	vnode_t		*z_vnode;
 	uint64_t	z_id;		/* object ID for this znode */
-#ifdef illumos
 	kmutex_t	z_lock;		/* znode modification lock */
+#ifdef illumos
 	krwlock_t	z_parent_lock;	/* parent lock for directories */
 	krwlock_t	z_name_lock;	/* "master" lock for dirent locks */
 	zfs_dirlock_t	*z_dirlocks;	/* directory entry lock list */
@@ -198,6 +213,10 @@ typedef struct znode {
 	uint32_t	z_sync_cnt;	/* synchronous open count */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
+	krwlock_t	z_xattr_lock;	/* xattr data lock */
+	nvlist_t	*z_xattr_cached; /* cached xattrs */
+	uint64_t	z_xattr_parent;	/* parent obj for this xattr */
+	uint64_t	z_projid;	/* project ID */
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */
@@ -245,6 +264,15 @@ VTOZ(vnode_t *vp)
 #define	ZTOV(ZP)	((ZP)->z_vnode)
 #define	VTOZ(VP)	((znode_t *)(VP)->v_data)
 #endif
+
+#define ZTOZSB(zp) ((zp)->z_zfsvfs)
+#define ZTOTYPE(zp)	(ZTOV(zp)->v_type)
+#define ZTOGID(zp) ((zp)->z_gid)
+#define ZTOUID(zp) ((zp)->z_uid)
+#define S_ISBLK(type) ((type) == VBLK)
+#define S_ISCHR(type) ((type) == VCHR)
+#define S_ISLINK(type) ((type) == VLINK)
+
 
 /* Called on entry to each ZFS vnode and vfs operation  */
 #define	ZFS_ENTER(zfsvfs) \
@@ -309,7 +337,7 @@ extern void	zfs_set_dataprop(objset_t *);
 extern void	zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *,
     dmu_tx_t *tx);
 extern void	zfs_tstamp_update_setup(znode_t *, uint_t, uint64_t [2],
-    uint64_t [2], boolean_t);
+    uint64_t [2]);
 extern void	zfs_grow_blocksize(znode_t *, uint64_t, dmu_tx_t *);
 extern int	zfs_freesp(znode_t *, uint64_t, uint64_t, int, boolean_t);
 extern void	zfs_znode_init(void);
