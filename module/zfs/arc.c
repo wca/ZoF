@@ -292,10 +292,12 @@
 #include <sys/zil.h>
 #include <sys/fm/fs/zfs.h>
 #ifdef _KERNEL
+#ifdef __linux__
 #include <sys/shrinker.h>
 #include <sys/vmsystm.h>
 #include <sys/zpl.h>
 #include <linux/page_compat.h>
+#endif
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
@@ -4775,7 +4777,7 @@ arc_shrink(int64_t to_free)
 	if (asize > arc_c)
 		(void) arc_adjust();
 }
-
+#ifdef __linux__
 /*
  * Return maximum amount of memory that we could possibly use.  Reduced
  * to half of all memory in user space which is primarily used for testing.
@@ -4842,8 +4844,10 @@ int64_t arc_pages_pp_reserve = 64;
  * Additional reserve of pages for swapfs.
  */
 int64_t arc_swapfs_reserve = 64;
+#endif
 #endif /* _KERNEL */
 
+#ifdef __linux__
 /*
  * Return the amount of memory that can be consumed before reclaim will be
  * needed.  Positive if there is sufficient free memory, negative indicates
@@ -4966,6 +4970,7 @@ arc_available_memory(void)
 
 	return (lowest);
 }
+#endif
 
 /*
  * Determine if the system is under memory pressure and is asking
@@ -5211,6 +5216,7 @@ arc_reclaim_thread(void *unused)
  *         already below arc_c_min, evicting any more would only
  *         increase this negative difference.
  */
+#ifdef __linux__
 static uint64_t
 arc_evictable_memory(void)
 {
@@ -5314,6 +5320,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
 
 SPL_SHRINKER_DECLARE(arc_shrinker, arc_shrinker_func, DEFAULT_SEEKS);
+#endif
 #endif /* _KERNEL */
 
 /*
@@ -7213,7 +7220,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 static int
 arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 {
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	uint64_t available_memory = arc_free_memory();
 
 #if defined(_ILP32)
@@ -7393,10 +7400,12 @@ arc_kstat_update(kstat_t *ksp, int rw)
 
 		as->arcstat_memory_all_bytes.value.ui64 =
 		    arc_all_memory();
+#ifdef __linux__
 		as->arcstat_memory_free_bytes.value.ui64 =
 		    arc_free_memory();
 		as->arcstat_memory_available_bytes.value.i64 =
 		    arc_available_memory();
+#endif
 	}
 
 	return (0);
@@ -7683,7 +7692,7 @@ arc_init(void)
 	arc_min_prefetch_ms = 1000;
 	arc_min_prescient_prefetch_ms = 6000;
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	/*
 	 * Register a shrinker to support synchronous (direct) memory
 	 * reclaim from the arc.  This is done to prevent kswapd from
@@ -7789,7 +7798,7 @@ arc_fini(void)
 {
 	arc_prune_t *p;
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	spl_unregister_shrinker(&arc_shrinker);
 #endif /* _KERNEL */
 
@@ -9248,7 +9257,7 @@ l2arc_stop(void)
 	mutex_exit(&l2arc_feed_thr_lock);
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 EXPORT_SYMBOL(arc_buf_size);
 EXPORT_SYMBOL(arc_write);
 EXPORT_SYMBOL(arc_read);
@@ -9331,7 +9340,7 @@ MODULE_PARM_DESC(l2arc_feed_secs, "Seconds between L2ARC writing");
 module_param(l2arc_feed_min_ms, ulong, 0644);
 MODULE_PARM_DESC(l2arc_feed_min_ms, "Min feed interval in milliseconds");
 
-module_param(l2arc_noprefetch, int, 0644);
+vmodule_param(l2arc_noprefetch, int, 0644);
 MODULE_PARM_DESC(l2arc_noprefetch, "Skip caching prefetched buffers");
 
 module_param(l2arc_feed_again, int, 0644);
