@@ -971,7 +971,7 @@ spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
 	if (vd) {
 		smh->vdev_guid = vd->vdev_guid;
 		if (vd->vdev_path)
-			smh->vdev_path = strdup(vd->vdev_path);
+			smh->vdev_path = spl_strdup(vd->vdev_path);
 	}
 	smh->vdev_label = label;
 	smh->mmp_kstat_id = mmp_kstat_id;

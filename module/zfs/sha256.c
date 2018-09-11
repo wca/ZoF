@@ -30,7 +30,9 @@
 #include <sys/zio.h>
 #include <sys/sha2.h>
 #include <sys/abd.h>
+#ifdef __linux__
 #include "qat.h"
+#endif
 
 static int
 sha_incremental(void *buf, size_t size, void *arg)
@@ -49,6 +51,7 @@ abd_checksum_SHA256(abd_t *abd, uint64_t size,
 	SHA2_CTX ctx;
 	zio_cksum_t tmp;
 
+#ifdef __linux__
 	if (qat_checksum_use_accel(size)) {
 		uint8_t *buf = abd_borrow_buf_copy(abd, size);
 		ret = qat_checksum(ZIO_CHECKSUM_SHA256, buf, size, &tmp);
@@ -58,6 +61,7 @@ abd_checksum_SHA256(abd_t *abd, uint64_t size,
 
 		/* If the hardware implementation fails fall back to software */
 	}
+#endif
 
 	SHA2Init(SHA256, &ctx);
 	(void) abd_iterate_func(abd, 0, size, sha_incremental, &ctx);

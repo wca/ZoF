@@ -57,7 +57,9 @@
 #include <sys/kstat.h>
 #include "zfs_prop.h"
 #include <sys/zfeature.h>
+#ifdef __linux__
 #include "qat.h"
+#endif
 
 /*
  * SPA locking
@@ -2117,7 +2119,9 @@ spa_init(int mode)
 	spa_config_load();
 	l2arc_start();
 	scan_init();
+#ifdef __linux__
 	qat_init();
+#endif
 }
 
 void
@@ -2141,8 +2145,9 @@ spa_fini(void)
 	refcount_fini();
 	fm_fini();
 	scan_fini();
+#ifdef __linux__
 	qat_fini();
-
+#endif
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);
 	avl_destroy(&spa_l2cache_avl);
@@ -2481,7 +2486,7 @@ spa_suspend_async_destroy(spa_t *spa)
 	return (B_FALSE);
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 
 #include <linux/mod_compat.h>
 

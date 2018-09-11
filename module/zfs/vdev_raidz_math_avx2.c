@@ -26,8 +26,9 @@
 #if defined(__x86_64) && defined(HAVE_AVX2)
 
 #include <sys/types.h>
+#ifdef __linux__
 #include <linux/simd_x86.h>
-
+#endif
 #define	__asm __asm__ __volatile__
 
 #define	_REG_CNT(_0, _1, _2, _3, _4, _5, _6, _7, N, ...) N
