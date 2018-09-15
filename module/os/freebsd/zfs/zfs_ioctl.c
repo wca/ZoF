@@ -136,9 +136,6 @@
  *         distinguish between the operation failing, and
  *         deserialization failing.
  */
-#ifdef __FreeBSD__
-#include "opt_kstack_pages.h"
-#endif
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -201,10 +198,9 @@
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
 #include "zfs_comutil.h"
-#include "zfs_ioctl_compat.h"
 
-#include "lua.h"
-#include "lauxlib.h"
+#include <sys/lua/lua.h>
+#include <sys/lua/lauxlib.h>
 
 static struct cdev *zfsdev;
 
@@ -422,7 +418,7 @@ zfs_secpolicy_none(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 static int
 zfs_secpolicy_read(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
-	if (INGLOBALZONE(curthread) ||
+	if (INGLOBALZONE(curproc) ||
 	    zone_dataset_visible(zc->zc_name, NULL))
 		return (0);
 
@@ -438,11 +434,11 @@ zfs_dozonecheck_impl(const char *dataset, uint64_t zoned, cred_t *cr)
 	 * The dataset must be visible by this zone -- check this first
 	 * so they don't see EPERM on something they shouldn't know about.
 	 */
-	if (!INGLOBALZONE(curthread) &&
+	if (!INGLOBALZONE(curproc) &&
 	    !zone_dataset_visible(dataset, &writable))
 		return (SET_ERROR(ENOENT));
 
-	if (INGLOBALZONE(curthread)) {
+	if (INGLOBALZONE(curproc)) {
 		/*
 		 * If the fs is zoned, only root can access it from the
 		 * global zone.
@@ -512,7 +508,7 @@ zfs_secpolicy_write_perms(const char *name, const char *perm, cred_t *cr)
 	 * is allowed to do all write_perms.  This ensures that zfs_ioc_*
 	 * will get to handle nonexistent datasets.
 	 */
-	if (INGLOBALZONE(curthread) && secpolicy_zfs(cr) == 0)
+	if (INGLOBALZONE(curproc) && secpolicy_zfs(cr) == 0)
 		return (0);
 
 	error = dsl_pool_hold(name, FTAG, &dp);
@@ -645,14 +641,14 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
 		/*
 		 * Disallow setting of 'zoned' from within a local zone.
 		 */
-		if (!INGLOBALZONE(curthread))
+		if (!INGLOBALZONE(curproc))
 			return (SET_ERROR(EPERM));
 		break;
 
 	case ZFS_PROP_QUOTA:
 	case ZFS_PROP_FILESYSTEM_LIMIT:
 	case ZFS_PROP_SNAPSHOT_LIMIT:
-		if (!INGLOBALZONE(curthread)) {
+		if (!INGLOBALZONE(curproc)) {
 			uint64_t zoned;
 			char setpoint[ZFS_MAX_DATASET_NAME_LEN];
 			/*
@@ -684,6 +680,8 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
 		return (EOPNOTSUPP);
 #endif
 		break;
+		default:
+			return (EOPNOTSUPP);
 	}
 
 	return (zfs_secpolicy_write_perms(dsname, zfs_prop_to_name(prop), cr));
@@ -786,7 +784,7 @@ zfs_secpolicy_deleg_share(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 int
 zfs_secpolicy_share(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
-	if (!INGLOBALZONE(curthread))
+	if (!INGLOBALZONE(curproc))
 		return (SET_ERROR(EPERM));
 
 	if (secpolicy_nfs(cr) == 0) {
@@ -799,7 +797,7 @@ zfs_secpolicy_share(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 int
 zfs_secpolicy_smb_acl(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
-	if (!INGLOBALZONE(curthread))
+	if (!INGLOBALZONE(curproc))
 		return (SET_ERROR(EPERM));
 
 	if (secpolicy_smb(cr) == 0) {
@@ -1465,9 +1463,9 @@ put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl)
 }
 
 int
-getzfsvfs_impl(objset_t *os, vfs_t **vfsp)
+getzfsvfs_impl(objset_t *os, zfsvfs_t **zfvp)
 {
-	zfsvfs_t *zfvp;
+	vfs_t *vfsp;
 	int error = 0;
 
 	if (dmu_objset_type(os) != DMU_OST_ZFS) {
@@ -1475,10 +1473,10 @@ getzfsvfs_impl(objset_t *os, vfs_t **vfsp)
 	}
 
 	mutex_enter(&os->os_user_ptr_lock);
-	zfvp = dmu_objset_get_user(os);
-	if (zfvp) {
-		*vfsp = zfvp->z_vfs;
-		vfs_ref(zfvp->z_vfs);
+	*zfvp = dmu_objset_get_user(os);
+	if (*zfvp) {
+		vfsp = (*zfvp)->z_vfs;
+		vfs_ref(vfsp);
 	} else {
 		error = SET_ERROR(ESRCH);
 	}
@@ -1496,18 +1494,16 @@ getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
 	error = dmu_objset_hold(dsname, FTAG, &os);
 	if (error != 0)
 		return (error);
-	error = getzfsvfs_impl(os, &vfsp);
+	error = getzfsvfs_impl(os, zfvp);
 	dmu_objset_rele(os, FTAG);
 	if (error != 0)
 		return (error);
-
+	vfsp = (*zfvp)->z_vfs;
 	error = vfs_busy(vfsp, 0);
 	vfs_rel(vfsp);
 	if (error != 0) {
 		*zfvp = NULL;
 		error = SET_ERROR(ESRCH);
-	} else {
-		*zfvp = vfsp->vfs_data;
 	}
 	return (error);
 }
@@ -1576,8 +1572,8 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	dsl_crypto_params_t *dcp = NULL;
 	char *spa_name = zc->zc_name;
 
-	if (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
-	    zc->zc_iflags, &config))
+	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
+		zc->zc_iflags, &config)))
 		return (error);
 
 	if (zc->zc_nvlist_src_size != 0 && (error =
@@ -2127,9 +2123,8 @@ zfs_ioc_vdev_split(zfs_cmd_t *zc)
 
 	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
 		return (error);
-
-	if (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
-	    zc->zc_iflags, &config)) {
+	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
+	    zc->zc_iflags, &config))) {
 		spa_close(spa, FTAG);
 		return (error);
 	}
@@ -2313,7 +2308,7 @@ zfs_ioc_objset_zplprops(zfs_cmd_t *zc)
 	int err;
 
 	/* XXX reading without owning */
-	if (err = dmu_objset_hold(zc->zc_name, FTAG, &os))
+	if ((err = dmu_objset_hold(zc->zc_name, FTAG, &os)))
 		return (err);
 
 	dmu_objset_fast_stat(os, &zc->zc_objset_stats);
@@ -2354,7 +2349,7 @@ dataset_name_hidden(const char *name)
 		return (B_TRUE);
 	if (strchr(name, '%') != NULL)
 		return (B_TRUE);
-	if (!INGLOBALZONE(curthread) && !zone_dataset_visible(name, NULL))
+	if (!INGLOBALZONE(curproc) && !zone_dataset_visible(name, NULL))
 		return (B_TRUE);
 	return (B_FALSE);
 }
@@ -2381,7 +2376,7 @@ zfs_ioc_dataset_list_next(zfs_cmd_t *zc)
 	size_t orig_len = strlen(zc->zc_name);
 
 top:
-	if (error = dmu_objset_hold(zc->zc_name, FTAG, &os)) {
+	if ((error = dmu_objset_hold(zc->zc_name, FTAG, &os))) {
 		if (error == ENOENT)
 			error = SET_ERROR(ESRCH);
 		return (error);
@@ -2804,8 +2799,8 @@ zfs_check_userprops(const char *fsname, nvlist_t *nvl)
 		    nvpair_type(pair) != DATA_TYPE_STRING)
 			return (SET_ERROR(EINVAL));
 
-		if (error = zfs_secpolicy_write_perms(fsname,
-		    ZFS_DELEG_PERM_USERPROP, CRED()))
+		if ((error = zfs_secpolicy_write_perms(fsname,
+			ZFS_DELEG_PERM_USERPROP, CRED())))
 			return (error);
 
 		if (strlen(propname) >= ZAP_MAXNAMELEN)
@@ -2985,8 +2980,8 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 	int error;
 	nvpair_t *pair;
 
-	if (error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
-	    zc->zc_iflags, &props))
+	if ((error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
+		zc->zc_iflags, &props)))
 		return (error);
 
 	/*
@@ -4060,8 +4055,8 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 	if (prop == ZPROP_INVAL) {
 		if (zfs_prop_user(propname)) {
-			if (err = zfs_secpolicy_write_perms(dsname,
-			    ZFS_DELEG_PERM_USERPROP, cr))
+			if ((err = zfs_secpolicy_write_perms(dsname,
+				ZFS_DELEG_PERM_USERPROP, cr)))
 				return (err);
 			return (0);
 		}
@@ -4084,7 +4079,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				return (SET_ERROR(EINVAL));
 			}
 
-			if (err = zfs_secpolicy_write_perms(dsname, perm, cr))
+			if ((err = zfs_secpolicy_write_perms(dsname, perm, cr)))
 				return (err);
 			return (0);
 		}
@@ -4269,6 +4264,8 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 		spa_close(spa, FTAG);
 		break;
 	}
+	default:
+		return (ENOTSUP);
 	}
 
 	return (zfs_secpolicy_setprop(dsname, prop, pair, CRED()));
@@ -5383,10 +5380,10 @@ zfs_ioc_share(zfs_cmd_t *zc)
 		break;
 	case ZFS_SHARE_SMB:
 	case ZFS_UNSHARE_SMB:
-		if (error = zsmbexport_fs((void *)
+		if ((error = zsmbexport_fs((void *)
 		    (uintptr_t)zc->zc_share.z_exportdata,
 		    zc->zc_share.z_sharetype == ZFS_SHARE_SMB ?
-		    B_TRUE: B_FALSE)) {
+			B_TRUE: B_FALSE))) {
 			return (error);
 		}
 		break;
@@ -6540,7 +6537,7 @@ zfsdev_minor_alloc(void)
 	return (0);
 }
 
-static int
+
 zfs_ctldev_init(struct cdev *devp)
 {
 	minor_t minor;

@@ -596,7 +596,7 @@ zfs_register_callbacks(vfs_t *vfsp)
 		readonly = B_FALSE;
 		do_readonly = B_TRUE;
 	}
-	if (vfs_optionisset(vfsp, MNTOPT_NOSUID, NULL)) {
+	if (vfs_optionisset(vfsp, MNTOPT_NOSETUID, NULL)) {
 		setuid = B_FALSE;
 		do_setuid = B_TRUE;
 	} else {
@@ -1141,7 +1141,7 @@ zfsvfs_task_unlinked_drain(void *context, int pending __unused)
 #endif
 
 int
-zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
+zfsvfs_create(const char *osname, boolean_t readonly, zfsvfs_t **zfvp)
 {
 	objset_t *os;
 	zfsvfs_t *zfsvfs;
@@ -1473,7 +1473,7 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	ASSERT(vfsp);
 	ASSERT(osname);
 
-	error = zfsvfs_create(osname, &zfsvfs);
+	error = zfsvfs_create(osname, vfsp->mnt_flag & MNT_RDONLY, &zfsvfs);
 	if (error)
 		return (error);
 	zfsvfs->z_vfs = vfsp;

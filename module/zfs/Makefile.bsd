@@ -106,6 +106,7 @@ $(MODULE)-objs += zfs_byteswap.o
 $(MODULE)-objs += zfs_debug.o
 $(MODULE)-objs += zfs_fm.o
 $(MODULE)-objs += zfs_fuid.o
+$(MODULE)-objs += zfs_ioctl.o
 $(MODULE)-objs += zfs_onexit.o
 $(MODULE)-objs += zfs_ratelimit.o
 $(MODULE)-objs += zfs_rlock.o
@@ -139,10 +140,12 @@ objs = $($(MODULE)-objs)
 objs+= $($(MODULE)-x86)
 all: $(objs)
 
-CFLAGS = -D_KERNEL -D__KERNEL__ -D_SYS_UCRED_H_
+CFLAGS = -D_KERNEL -D__KERNEL__
+CFLAGS+=  -D_SYS_UCRED_H_ -D_SYS_VMEM_H_
 CFLAGS+= -I$(ZFSBASE)/include
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/spl
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/zfs
+CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/internal
 CFLAGS+= -include $(ZFSBASE)/include/os/freebsd/spl/sys/ccompile.h
 #CFLAGS+= -D__x86_64 -DHAVE_AVX2
 #CFLAGS+= -D_SYS_UIO_H_

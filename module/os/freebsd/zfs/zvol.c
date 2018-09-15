@@ -99,6 +99,8 @@
 
 #include "zfs_namecheck.h"
 
+uint_t zfs_geom_probe_vdev_key;
+
 #ifndef illumos
 struct g_class zfs_zvol_class = {
 	.name = "ZFS::ZVOL",
@@ -109,7 +111,7 @@ DECLARE_GEOM_CLASS(zfs_zvol_class, zfs_zvol);
 
 #endif
 void *zfsdev_state;
-static char *zvol_tag = "zvol_tag";
+static char *zvol_ftag = "zvol_tag";
 
 #define	ZVOL_DUMPSIZE		"dumpsize"
 
@@ -312,8 +314,31 @@ zvol_check_volsize(uint64_t volsize, uint64_t blocksize)
 }
 
 int
-zvol_check_volblocksize(uint64_t volblocksize)
+zvol_check_volblocksize(const char *name, uint64_t volblocksize)
 {
+	/* Record sizes above 128k need the feature to be enabled */
+	if (volblocksize > SPA_OLD_MAXBLOCKSIZE) {
+		spa_t *spa;
+		int error;
+
+		if ((error = spa_open(name, &spa, FTAG)) != 0)
+			return (error);
+
+		if (!spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_BLOCKS)) {
+			spa_close(spa, FTAG);
+			return (SET_ERROR(ENOTSUP));
+		}
+
+		/*
+		 * We don't allow setting the property above 1MB,
+		 * unless the tunable has been changed.
+		 */
+		if (volblocksize > zfs_max_recordsize)
+			return (SET_ERROR(EDOM));
+
+		spa_close(spa, FTAG);
+	}
+
 	if (volblocksize < SPA_MINBLOCKSIZE ||
 	    volblocksize > SPA_OLD_MAXBLOCKSIZE ||
 	    !ISP2(volblocksize))
@@ -425,7 +450,7 @@ zvol_free_extents(zvol_state_t *zv)
 {
 	zvol_extent_t *ze;
 
-	while (ze = list_head(&zv->zv_extents)) {
+	while ((ze = list_head(&zv->zv_extents))) {
 		list_remove(&zv->zv_extents, ze);
 		kmem_free(ze, sizeof (zvol_extent_t));
 	}
@@ -842,7 +867,7 @@ zvol_first_open(zvol_state_t *zv)
 
 	/* lie and say we're read-only */
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, B_TRUE, B_TRUE,
-	    zvol_tag, &os);
+	    zvol_ftag, &os);
 	if (error)
 		return (error);
 
@@ -850,7 +875,7 @@ zvol_first_open(zvol_state_t *zv)
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
 	if (error) {
 		ASSERT(error == 0);
-		dmu_objset_disown(os, 1, zvol_tag);
+		dmu_objset_disown(os, 1, zvol_ftag);
 		return (error);
 	}
 
@@ -858,14 +883,14 @@ zvol_first_open(zvol_state_t *zv)
 	error = dmu_object_info(os, ZVOL_OBJ, &doi);
 	if (error) {
 		ASSERT(error == 0);
-		dmu_objset_disown(os, 1, zvol_tag);
+		dmu_objset_disown(os, 1, zvol_ftag);
 		return (error);
 	}
 	zv->zv_volblocksize = doi.doi_data_block_size;
 
-	error = dnode_hold(os, ZVOL_OBJ, zvol_tag, &zv->zv_dn);
+	error = dnode_hold(os, ZVOL_OBJ, zvol_ftag, &zv->zv_dn);
 	if (error) {
-		dmu_objset_disown(os, 1, zvol_tag);
+		dmu_objset_disown(os, 1, zvol_ftag);
 		return (error);
 	}
 
@@ -888,7 +913,7 @@ zvol_last_close(zvol_state_t *zv)
 	zil_close(zv->zv_zilog);
 	zv->zv_zilog = NULL;
 
-	dnode_rele(zv->zv_dn, zvol_tag);
+	dnode_rele(zv->zv_dn, zvol_ftag);
 	zv->zv_dn = NULL;
 
 	/*
@@ -899,7 +924,7 @@ zvol_last_close(zvol_state_t *zv)
 		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
 	dmu_objset_evict_dbufs(zv->zv_objset);
 
-	dmu_objset_disown(zv->zv_objset, 1, zvol_tag);
+	dmu_objset_disown(zv->zv_objset, 1, zvol_ftag);
 	zv->zv_objset = NULL;
 }
 
@@ -972,7 +997,7 @@ zvol_update_volsize(objset_t *os, uint64_t volsize)
 }
 
 void
-zvol_remove_minors(const char *name)
+zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
 {
 #ifdef illumos
 	zvol_state_t *zv;
@@ -2332,7 +2357,7 @@ zvol_busy(void)
 	return (zvol_minors != 0);
 }
 
-void
+int
 zvol_init(void)
 {
 	VERIFY(ddi_soft_state_init(&zfsdev_state, sizeof (zfs_soft_state_t),
@@ -2342,6 +2367,7 @@ zvol_init(void)
 #else
 	ZFS_LOG(1, "ZVOL Initialized.");
 #endif
+	return (0);
 }
 
 void
@@ -2904,8 +2930,8 @@ zvol_create_snapshots(objset_t *os, const char *name)
 	return (error);
 }
 
-int
-zvol_create_minors(const char *name)
+void
+zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
 {
 	uint64_t cookie;
 	objset_t *os;
@@ -2913,12 +2939,12 @@ zvol_create_minors(const char *name)
 	int error, len;
 
 	if (dataset_name_hidden(name))
-		return (0);
+		return;
 
 	if ((error = dmu_objset_hold(name, FTAG, &os)) != 0) {
 		printf("ZFS WARNING: Unable to put hold on %s (error=%d).\n",
 		    name, error);
-		return (error);
+		return;
 	}
 	if (dmu_objset_type(os) == DMU_OST_ZVOL) {
 		dsl_dataset_long_hold(os->os_dsl_dataset, FTAG);
@@ -2932,18 +2958,18 @@ zvol_create_minors(const char *name)
 		}
 		dsl_dataset_long_rele(os->os_dsl_dataset, FTAG);
 		dsl_dataset_rele(os->os_dsl_dataset, FTAG);
-		return (error);
+		return;
 	}
 	if (dmu_objset_type(os) != DMU_OST_ZFS) {
 		dmu_objset_rele(os, FTAG);
-		return (0);
+		return;
 	}
 
 	osname = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 	if (snprintf(osname, MAXPATHLEN, "%s/", name) >= MAXPATHLEN) {
 		dmu_objset_rele(os, FTAG);
 		kmem_free(osname, MAXPATHLEN);
-		return (ENOENT);
+		return;
 	}
 	p = osname + strlen(osname);
 	len = MAXPATHLEN - (p - osname);
@@ -2961,17 +2987,17 @@ zvol_create_minors(const char *name)
 	while (dmu_dir_list_next(os, MAXPATHLEN - (p - osname), p, NULL,
 	    &cookie) == 0) {
 		dmu_objset_rele(os, FTAG);
-		(void)zvol_create_minors(osname);
+		panic("XXX implement this");
+		//(void)zvol_create_minors(osname);
 		if ((error = dmu_objset_hold(name, FTAG, &os)) != 0) {
 			printf("ZFS WARNING: Unable to put hold on %s (error=%d).\n",
 			    name, error);
-			return (error);
+			return;
 		}
 	}
 
 	dmu_objset_rele(os, FTAG);
 	kmem_free(osname, MAXPATHLEN);
-	return (0);
 }
 
 static void
@@ -3030,7 +3056,8 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 }
 
 void
-zvol_rename_minors(const char *oldname, const char *newname)
+zvol_rename_minors(spa_t *spa, const char *oldname, const char *newname,
+	boolean_t async)
 {
 	char name[MAXPATHLEN];
 	struct g_provider *pp;

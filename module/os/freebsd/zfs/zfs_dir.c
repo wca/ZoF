@@ -122,8 +122,8 @@ zfs_dirent_lookup(znode_t *dzp, const char *name, znode_t **zpp, int flag)
 	 * Verify that we are not trying to lock '.', '..', or '.zfs'
 	 */
 	if (name[0] == '.' &&
-	    (name[1] == '\0' || (name[1] == '.' && name[2] == '\0')) ||
-	    zfs_has_ctldir(dzp) && strcmp(name, ZFS_CTLDIR_NAME) == 0)
+	    (((name[1] == '\0') || (name[1] == '.' && name[2] == '\0')) ||
+		 (zfs_has_ctldir(dzp) && strcmp(name, ZFS_CTLDIR_NAME) == 0)))
 		return (SET_ERROR(EEXIST));
 
 	/*
@@ -604,7 +604,7 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL,
 		    ctime, sizeof (ctime));
 		zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime,
-		    ctime, B_TRUE);
+		    ctime);
 	}
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
@@ -622,7 +622,7 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 	    ctime, sizeof (ctime));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs), NULL,
 	    &dzp->z_pflags, sizeof (dzp->z_pflags));
-	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime, B_TRUE);
+	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime);
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
 
@@ -737,8 +737,7 @@ zfs_link_destroy(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 			    NULL, &ctime, sizeof (ctime));
 			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs),
 			    NULL, &zp->z_pflags, sizeof (zp->z_pflags));
-			zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime, ctime,
-			    B_TRUE);
+			zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime, ctime);
 		}
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zfsvfs),
 		    NULL, &zp->z_links, sizeof (zp->z_links));
@@ -764,7 +763,7 @@ zfs_link_destroy(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 	    NULL, mtime, sizeof (mtime));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs),
 	    NULL, &dzp->z_pflags, sizeof (dzp->z_pflags));
-	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime, B_TRUE);
+	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime);
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
 
@@ -810,7 +809,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, vnode_t **xvpp, cred_t *cr)
 	if ((error = zfs_acl_ids_create(zp, IS_XATTR, vap, cr, NULL,
 	    &acl_ids)) != 0)
 		return (error);
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, 0)) {
 		zfs_acl_ids_free(&acl_ids);
 		return (SET_ERROR(EDQUOT));
 	}

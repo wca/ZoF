@@ -225,6 +225,25 @@ typedef struct znode {
 #define	ZFS_LINK_MAX	UINT64_MAX
 
 /*
+ * ZFS minor numbers can refer to either a control device instance or
+ * a zvol. Depending on the value of zss_type, zss_data points to either
+ * a zvol_state_t or a zfs_onexit_t.
+ */
+enum zfs_soft_state_type {
+        ZSST_ZVOL,
+        ZSST_CTLDEV
+};
+
+typedef struct zfs_soft_state {
+        enum zfs_soft_state_type zss_type;
+        void *zss_data;
+} zfs_soft_state_t;
+
+extern void *zfsdev_get_soft_state(minor_t minor,
+    enum zfs_soft_state_type which);
+extern minor_t zfsdev_minor_alloc(void);
+
+/*
  * Range locking rules
  * --------------------
  * 1. When truncating a file (zfs_create, zfs_setattr, zfs_space) the whole
@@ -269,9 +288,9 @@ VTOZ(vnode_t *vp)
 #define ZTOTYPE(zp)	(ZTOV(zp)->v_type)
 #define ZTOGID(zp) ((zp)->z_gid)
 #define ZTOUID(zp) ((zp)->z_uid)
-#define S_ISBLK(type) ((type) == VBLK)
-#define S_ISCHR(type) ((type) == VCHR)
-#define S_ISLINK(type) ((type) == VLINK)
+#define Z_ISBLK(type) ((type) == VBLK)
+#define Z_ISCHR(type) ((type) == VCHR)
+#define Z_ISLINK(type) ((type) == VLINK)
 
 
 /* Called on entry to each ZFS vnode and vfs operation  */
@@ -330,7 +349,7 @@ VTOZ(vnode_t *vp)
 
 #define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp) \
 	if ((zfsvfs)->z_atime && !((zfsvfs)->z_vfs->vfs_flag & VFS_RDONLY)) \
-		zfs_tstamp_update_setup(zp, ACCESSED, NULL, NULL, B_FALSE);
+		zfs_tstamp_update_setup(zp, ACCESSED, NULL, NULL);
 
 extern int	zfs_init_fs(zfsvfs_t *, znode_t **);
 extern void	zfs_set_dataprop(objset_t *);

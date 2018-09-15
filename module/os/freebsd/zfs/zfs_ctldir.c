@@ -80,6 +80,9 @@
 
 #include "zfs_namecheck.h"
 
+#include <sys/kernel.h>
+#include <sys/dirent.h>
+
 /* Common access mode for all virtual directories under the ctldir */
 const u_short zfsctl_ctldir_mode = S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP |
     S_IROTH | S_IXOTH;

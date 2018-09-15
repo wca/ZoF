@@ -200,10 +200,13 @@
 #include <sys/zcp.h>
 #include <sys/zio_checksum.h>
 #include <sys/vdev_removal.h>
+#ifdef __linux__
 #include <sys/zfs_sysfs.h>
+
 
 #include <linux/miscdevice.h>
 #include <linux/slab.h>
+#endif
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
@@ -212,6 +215,14 @@
 
 #include <sys/lua/lua.h>
 #include <sys/lua/lauxlib.h>
+
+#ifndef __linux__
+#define z_sb z_vfs
+#define deactivate_super vfs_unbusy
+#define group_leader p_pid
+#define KMALLOC_MAX_SIZE MAXPHYS
+#define VOP_SEEK(...) (0)
+#endif
 
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
@@ -1485,10 +1496,18 @@ getzfsvfs_impl(objset_t *os, zfsvfs_t **zfvp)
 	mutex_enter(&os->os_user_ptr_lock);
 	*zfvp = dmu_objset_get_user(os);
 	/* bump s_active only when non-zero to prevent umount race */
+#ifdef __linux__
 	if (*zfvp == NULL || (*zfvp)->z_sb == NULL ||
 	    !atomic_inc_not_zero(&((*zfvp)->z_sb->s_active))) {
 		error = SET_ERROR(ESRCH);
 	}
+#else
+	if (*zfvp) {
+		vfs_ref((*zfvp)->z_vfs);
+	} else {
+		error = SET_ERROR(ESRCH);
+	}
+#endif
 	mutex_exit(&os->os_user_ptr_lock);
 	return (error);
 }
@@ -6904,7 +6923,7 @@ zfsdev_get_state(minor_t minor, enum zfsdev_state_type which)
 
 	return (ptr);
 }
-
+#ifdef __linux__
 int
 zfsdev_getminor(struct file *filp, minor_t *minorp)
 {
@@ -6935,7 +6954,7 @@ zfsdev_getminor(struct file *filp, minor_t *minorp)
 
 	return (SET_ERROR(EBADF));
 }
-
+#endif
 /*
  * Find a free minor number.  The zfsdev_state_list is expected to
  * be short since it is only a list of currently open file handles.
@@ -6959,7 +6978,7 @@ zfsdev_minor_alloc(void)
 
 	return (0);
 }
-
+#ifdef __linux__
 static int
 zfsdev_state_init(struct file *filp)
 {
@@ -7050,6 +7069,7 @@ zfsdev_release(struct inode *ino, struct file *filp)
 
 	return (-error);
 }
+#endif
 
 static long
 zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
@@ -7156,7 +7176,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		goto out;
 
 	/* legacy ioctls can modify zc_name */
-	saved_poolname = strdup(zc->zc_name);
+	saved_poolname = spl_strdup(zc->zc_name);
 	if (saved_poolname == NULL) {
 		error = SET_ERROR(ENOMEM);
 		goto out;
@@ -7262,6 +7282,7 @@ zfsdev_compat_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 #define	zfsdev_compat_ioctl	NULL
 #endif
 
+#ifdef __linux__
 static const struct file_operations zfsdev_fops = {
 	.open		= zfsdev_open,
 	.release	= zfsdev_release,
@@ -7407,8 +7428,9 @@ _fini(void)
 	printk(KERN_NOTICE "ZFS: Unloaded module v%s-%s%s\n",
 	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
 }
+#endif
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 module_init(_init);
 module_exit(_fini);
 

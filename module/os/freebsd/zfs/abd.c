@@ -91,6 +91,7 @@
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
 
+
 typedef struct abd_stats {
 	kstat_named_t abdstat_struct_size;
 	kstat_named_t abdstat_scatter_cnt;
@@ -159,10 +160,6 @@ SYSCTL_ULONG(_vfs_zfs, OID_AUTO, abd_chunk_size, CTLFLAG_RDTUN,
     &zfs_abd_chunk_size, 0, "The size of the chunks ABD allocates");
 #endif
 
-#ifdef _KERNEL
-extern vmem_t *zio_alloc_arena;
-#endif
-
 kmem_cache_t *abd_chunk_cache;
 static kstat_t *abd_ksp;
 
@@ -190,23 +187,9 @@ abd_free_chunk(void *c)
 void
 abd_init(void)
 {
-#ifdef illumos
-	vmem_t *data_alloc_arena = NULL;
-
-#ifdef _KERNEL
-	data_alloc_arena = zio_alloc_arena;
-#endif
-
-	/*
-	 * Since ABD chunks do not appear in crash dumps, we pass KMC_NOTOUCH
-	 * so that no allocator metadata is stored with the buffers.
-	 */
-	abd_chunk_cache = kmem_cache_create("abd_chunk", zfs_abd_chunk_size, 0,
-	    NULL, NULL, NULL, NULL, data_alloc_arena, KMC_NOTOUCH);
-#else
 	abd_chunk_cache = kmem_cache_create("abd_chunk", zfs_abd_chunk_size, 0,
 	    NULL, NULL, NULL, NULL, 0, KMC_NOTOUCH | KMC_NODEBUG);
-#endif
+
 	abd_ksp = kstat_create("zfs", 0, "abdstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (abd_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
 	if (abd_ksp != NULL) {

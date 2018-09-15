@@ -82,6 +82,12 @@ typedef void	vdev_remap_cb_t(uint64_t inner_offset, vdev_t *vd,
     uint64_t offset, uint64_t size, void *arg);
 typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
     vdev_remap_cb_t callback, void *arg);
+/*
+ * Given a target vdev, translates the logical range "in" to the physical
+ * range "res"
+ */
+typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg_t *in,
+    range_seg_t *res);
 
 typedef const struct vdev_ops {
 	vdev_open_func_t		*vdev_op_open;
@@ -94,6 +100,11 @@ typedef const struct vdev_ops {
 	vdev_hold_func_t		*vdev_op_hold;
 	vdev_rele_func_t		*vdev_op_rele;
 	vdev_remap_func_t		*vdev_op_remap;
+	/*
+	 * For translating ranges from non-leaf vdevs (e.g. raidz) to leaves.
+	 * Used when initializing vdevs. Isn't used by leaf ops.
+	 */
+	vdev_xlation_func_t		*vdev_op_xlate;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;
@@ -324,6 +335,7 @@ struct vdev {
 	uint64_t	vdev_not_present; /* not present during import	*/
 	uint64_t	vdev_unspare;	/* unspare when resilvering done */
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
+	boolean_t	vdev_notrim;	/* true if trim failed */
 	boolean_t	vdev_checkremove; /* temporary online test	*/
 	boolean_t	vdev_forcefault; /* force online fault		*/
 	boolean_t	vdev_splitting;	/* split or repair in progress  */
@@ -476,6 +488,8 @@ extern vdev_ops_t vdev_indirect_ops;
 /*
  * Common size functions
  */
+extern void vdev_default_xlate(vdev_t *vd, const range_seg_t *in,
+    range_seg_t *out);
 extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);

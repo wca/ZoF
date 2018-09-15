@@ -33,6 +33,7 @@ extern "C" {
 #endif
 
 #include <sys/types.h>
+#include <sys/dirent.h>
 
 #if defined(_KERNEL)
 

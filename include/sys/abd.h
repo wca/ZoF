@@ -59,8 +59,13 @@ typedef struct abd {
 	union {
 		struct abd_scatter {
 			uint_t		abd_offset;
+#ifdef __linux__
 			uint_t		abd_nents;
 			struct scatterlist *abd_sgl;
+#else
+			uint_t  abd_chunk_size;
+			void    *abd_chunks[];
+#endif
 		} abd_scatter;
 		struct abd_linear {
 			void		*abd_buf;

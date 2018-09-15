@@ -61,6 +61,7 @@ typedef	struct mount	vfs_t;
 
 #define	XU_NGROUPS	16
 
+#if 0
 /*
  * This is the external representation of struct ucred.
  */
@@ -71,7 +72,7 @@ struct xucred {
 	gid_t	cr_groups[XU_NGROUPS];	/* groups */
 	void	*_cr_unused1;		/* compatibility with old ucred */
 };
-
+#endif
 /*
  * Structure defining a mount option for a filesystem.
  * option names are found in mntent.h

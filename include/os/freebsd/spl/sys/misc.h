@@ -33,8 +33,6 @@
 
 #define	MAXUID	UID_MAX
 
-#define	SPEC_MAXOFFSET_T	OFF_MAX
-
 #define	_ACL_ACLENT_ENABLED	0x1
 #define	_ACL_ACE_ENABLED	0x2
 

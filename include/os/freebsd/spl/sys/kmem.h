@@ -52,6 +52,8 @@ MALLOC_DECLARE(M_SOLARIS);
 #define	KMC_NODEBUG		UMA_ZONE_NODUMP
 #define	KMC_NOTOUCH		0
 
+typedef struct vmem vmem_t;
+
 typedef struct kmem_cache {
 	char		kc_name[32];
 #if defined(_KERNEL) && !defined(KMEM_DEBUG)
