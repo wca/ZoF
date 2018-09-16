@@ -73,6 +73,7 @@
 #include <sys/misc.h>
 #include <sys/kdb.h>
 #include <sys/pathname.h>
+#include <sys/conf.h>
 /* XXX move us */
 
 #define tsd_create(keyp, destructor)    do {                            \
@@ -82,6 +83,7 @@
 #define tsd_destroy(keyp)               osd_thread_deregister(*(keyp))
 #define tsd_get(key)                    osd_thread_get(curthread, (key))
 #define tsd_set(key, value)             osd_thread_set(curthread, (key), (value))
+#define fm_panic panic
 
 extern int zfs_debug_level;
 extern struct mtx zfs_debug_mtx;
@@ -97,6 +99,7 @@ extern struct mtx zfs_debug_mtx;
         }                                                               \
 } while (0)
 
+#define	MSEC_TO_TICK(msec)	((msec) / (MILLISEC / hz))
 extern int hz;
 extern int tick;
 typedef int fstrans_cookie_t;

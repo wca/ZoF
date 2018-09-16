@@ -290,7 +290,7 @@ VTOZ(vnode_t *vp)
 #define ZTOUID(zp) ((zp)->z_uid)
 #define Z_ISBLK(type) ((type) == VBLK)
 #define Z_ISCHR(type) ((type) == VCHR)
-#define Z_ISLINK(type) ((type) == VLINK)
+#define Z_ISLNK(type) ((type) == VLNK)
 
 
 /* Called on entry to each ZFS vnode and vfs operation  */

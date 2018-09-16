@@ -79,7 +79,7 @@ extern "C" {
 #define kpreempt_disable() critical_enter()
 #define kpreempt_enable() critical_exit()
 #define CPU_SEQID curcpu
-
+#define	is_system_labeled()		0
 /*
  * Convert a single byte to/from binary-coded decimal (BCD).
  */

@@ -33,8 +33,6 @@
 #include <sys/_uio.h>
 #include <sys/debug.h>
 
-#define	FOF_OFFSET	1	/* Use the offset in uio argument */
-
 struct uio {
 	struct	iovec *uio_iov;
 	int	uio_iovcnt;

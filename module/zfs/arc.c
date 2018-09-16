@@ -4777,6 +4777,13 @@ arc_shrink(int64_t to_free)
 	if (asize > arc_c)
 		(void) arc_adjust();
 }
+#ifdef __FreeBSD__
+static uint64_t
+arc_all_memory(void)
+{
+	return ((uint64_t)physmem * arc_lotsfree_percent / 100);
+}
+#endif
 #ifdef __linux__
 /*
  * Return maximum amount of memory that we could possibly use.  Reduced
@@ -4853,7 +4860,7 @@ int64_t arc_swapfs_reserve = 64;
  * needed.  Positive if there is sufficient free memory, negative indicates
  * the amount of memory that needs to be freed up.
  */
-static int64_t
+int64_t
 arc_available_memory(void)
 {
 	int64_t lowest = INT64_MAX;

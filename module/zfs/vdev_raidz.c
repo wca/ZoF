@@ -2323,6 +2323,37 @@ vdev_raidz_need_resilver(vdev_t *vd, uint64_t offset, size_t psize)
 	return (B_FALSE);
 }
 
+static void
+vdev_raidz_xlate(vdev_t *cvd, const range_seg_t *in, range_seg_t *res)
+{
+	vdev_t *raidvd = cvd->vdev_parent;
+	ASSERT(raidvd->vdev_ops == &vdev_raidz_ops);
+
+	uint64_t width = raidvd->vdev_children;
+	uint64_t tgt_col = cvd->vdev_id;
+	uint64_t ashift = raidvd->vdev_top->vdev_ashift;
+
+	/* make sure the offsets are block-aligned */
+	ASSERT0(in->rs_start % (1 << ashift));
+	ASSERT0(in->rs_end % (1 << ashift));
+	uint64_t b_start = in->rs_start >> ashift;
+	uint64_t b_end = in->rs_end >> ashift;
+
+	uint64_t start_row = 0;
+	if (b_start > tgt_col) /* avoid underflow */
+		start_row = ((b_start - tgt_col - 1) / width) + 1;
+
+	uint64_t end_row = 0;
+	if (b_end > tgt_col)
+		end_row = ((b_end - tgt_col - 1) / width) + 1;
+
+	res->rs_start = start_row << ashift;
+	res->rs_end = end_row << ashift;
+
+	ASSERT3U(res->rs_start, <=, in->rs_start);
+	ASSERT3U(res->rs_end - res->rs_start, <=, in->rs_end - in->rs_start);
+}
+
 vdev_ops_t vdev_raidz_ops = {
 	vdev_raidz_open,
 	vdev_raidz_close,
@@ -2334,6 +2365,7 @@ vdev_ops_t vdev_raidz_ops = {
 	NULL,
 	NULL,
 	NULL,
+	vdev_raidz_xlate,
 	VDEV_TYPE_RAIDZ,	/* name of this vdev type */
 	B_FALSE			/* not a leaf vdev */
 };

@@ -300,6 +300,7 @@ get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
 	return (0);
 #else
 	int error;
+	zfsvfs_t *zfvp;
 	vfs_t *vfsp;
 	objset_t *os;
 	uint64_t tmp = *val;
@@ -308,9 +309,12 @@ get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
 	if (error != 0)
 		return (error);
 
-	error = getzfsvfs_impl(os, &vfsp);
+	error = getzfsvfs_impl(os, &zfvp);
 	if (error != 0)
 		return (error);
+	if (zfvp == NULL)
+		return (ENOENT);
+	vfsp = zfvp->z_vfs;
 	switch (zfs_prop) {
 	case ZFS_PROP_ATIME:
 		if (vfs_optionisset(vfsp, MNTOPT_NOATIME, NULL))

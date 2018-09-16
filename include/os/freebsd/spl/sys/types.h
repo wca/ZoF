@@ -41,6 +41,7 @@ typedef	int64_t		clock_t;
 #endif
 
 #include_next <sys/types.h>
+#include <sys/_stdarg.h>
 
 #define	MAXNAMELEN	256
 

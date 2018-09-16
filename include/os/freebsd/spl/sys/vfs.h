@@ -41,6 +41,8 @@ typedef struct vnode vnode_t;
 typedef struct thread kthread_t;
 typedef	struct mount	vfs_t;
 
+typedef	int	umode_t;
+
 #define	vfs_flag	mnt_flag
 #define	vfs_data	mnt_data
 #define	vfs_count	mnt_ref

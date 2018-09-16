@@ -36,7 +36,7 @@
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <linux/compiler.h>
-#include <asm/types.h>
+
 
 #ifndef __bitwise__
 #ifdef __CHECKER__
@@ -61,6 +61,7 @@ typedef uint16_t __bitwise__ __sum16;
 typedef unsigned long pgoff_t;
 typedef unsigned __poll_t;
 
+typedef uint64_t u64;
 typedef u64 phys_addr_t;
 
 typedef size_t __kernel_size_t;

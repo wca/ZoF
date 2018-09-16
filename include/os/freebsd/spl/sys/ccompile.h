@@ -120,7 +120,8 @@ extern "C" {
 #define	__PURE			__sun_attr__((__pure__))
 
 #define vmem_free zfs_kmem_free
-#define vmem_zalloc zfs_kmem_zalloc
+/* XXX */
+#define vmem_zalloc zfs_kmem_alloc
 #define vmem_alloc zfs_kmem_alloc
 #define EXPORT_SYMBOL(x)
 #define module_param(a, b, c)

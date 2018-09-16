@@ -52,6 +52,8 @@ typedef struct ucred cred_t;
 #define	CRED()		curthread->td_ucred
 #define	kcred	(thread0.td_ucred)
 
+#define	KUID_TO_SUID(x)		(x)
+#define	KGID_TO_SGID(x)		(x)
 #define	crgetuid(cred)		((cred)->cr_uid)
 #define	crgetruid(cred)		((cred)->cr_ruid)
 #define	crgetgid(cred)		((cred)->cr_gid)
