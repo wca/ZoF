@@ -115,7 +115,6 @@ $(MODULE)-objs += zil.o
 $(MODULE)-objs += zio.o
 $(MODULE)-objs += zio_checksum.o
 $(MODULE)-objs += zio_compress.o
-$(MODULE)-objs += zio_crypt.o
 $(MODULE)-objs += zio_inject.o
 $(MODULE)-objs += zrlock.o
 $(MODULE)-objs += zthr.o
@@ -141,13 +140,21 @@ objs+= $($(MODULE)-x86)
 all: $(objs)
 
 CFLAGS = -D_KERNEL -D__KERNEL__
-CFLAGS+=  -D_SYS_UCRED_H_ -D_SYS_VMEM_H_
+CFLAGS+=  -D_SYS_VMEM_H_
+#-D_SYS_UCRED_H_ 
+CFLAGS+= -nostdinc -fno-common -fno-builtin
+CFLAGS+= -DKLD_MODULE -DKLD_TIED
+CFLAGS+= -Werror
 CFLAGS+= -I$(ZFSBASE)/include
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/spl
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/zfs
+CFLAGS+= -I$(KERNBASE)/sys
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/internal
 CFLAGS+= -include $(ZFSBASE)/include/os/freebsd/spl/sys/ccompile.h
 #CFLAGS+= -D__x86_64 -DHAVE_AVX2
 #CFLAGS+= -D_SYS_UIO_H_
 $(objs): %.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@
+
+clean:
+	rm *.o *~
