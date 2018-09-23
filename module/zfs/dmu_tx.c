@@ -1229,15 +1229,6 @@ dmu_tx_do_callbacks(list_t *cb_list, int error)
 }
 
 /*
- * Interface to hold a bunch of attributes.
- * used for creating new files.
- * attrsize is the total size of all attributes
- * to be added during object creation
- *
- * For updating/adding a single attribute dmu_tx_hold_sa() should be used.
- */
-
-/*
  * hold necessary attribute name for attribute registration.
  * should be a very rare case where this is needed.  If it does
  * happen it would only happen on the first write to the file system.
@@ -1272,6 +1263,14 @@ dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object)
 		    SPA_OLD_MAXBLOCKSIZE, FTAG);
 }
 
+/*
+ * Interface to hold a bunch of attributes.
+ * used for creating new files.
+ * attrsize is the total size of all attributes
+ * to be added during object creation
+ *
+ * For updating/adding a single attribute dmu_tx_hold_sa() should be used.
+ */
 void
 dmu_tx_hold_sa_create(dmu_tx_t *tx, int attrsize)
 {

@@ -2348,6 +2348,7 @@ dbuf_dirty_parent(dbuf_dirty_state_t *dds)
 		dbuf_dirty_record_t *di;
 		int parent_held = FALSE;
 
+		/* Get a hold on the parent before dropping struct_rwlock */
 		if (db->db_parent == NULL || db->db_parent == dn->dn_dbuf) {
 			int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
 
@@ -2363,6 +2364,14 @@ dbuf_dirty_parent(dbuf_dirty_state_t *dds)
 		if (parent_held)
 			dbuf_rele(parent, FTAG);
 
+		/*
+		 * Update the dirty record to add this dbuf to its parent's
+		 * dirty record's list of dirty children.  The indirect
+		 * mutex could be conditionally acquired, but doing so is
+		 * unlikely to save any effort in most cases.  Acquiring it
+		 * unconditionally keeps this path clean of apparent LORs.
+		 */
+		mutex_enter(&di->dt.di.dr_mtx);
 		mutex_enter(&db->db_mtx);
 		/*
 		 * Since we've dropped the mutex, it's possible that
@@ -2370,18 +2379,22 @@ dbuf_dirty_parent(dbuf_dirty_state_t *dds)
 		 */
 		if (list_head(&db->db_dirty_records) == dr ||
 		    dn->dn_object == DMU_META_DNODE_OBJECT) {
-			mutex_enter(&di->dt.di.dr_mtx);
 			ASSERT3U(di->dr_txg, ==, tx->tx_txg);
 			ASSERT(!list_link_active(&dr->dr_dirty_node));
 			list_insert_tail(&di->dt.di.dr_children, dr);
-			mutex_exit(&di->dt.di.dr_mtx);
 			dr->dr_parent = di;
 		}
 		mutex_exit(&db->db_mtx);
+		mutex_exit(&di->dt.di.dr_mtx);
 	} else {
+		/* The dbuf's parent is the dnode. */
 		ASSERT(db->db_level+1 == dn->dn_nlevels);
 		ASSERT(db->db_blkid < dn->dn_nblkptr);
 		ASSERT(db->db_parent == NULL || db->db_parent == dn->dn_dbuf);
+		/*
+		 * Update the dnode's list of dirty records to include this
+		 * dbuf's dirty record.
+		 */
 		mutex_enter(&dn->dn_mtx);
 		ASSERT(!list_link_active(&dr->dr_dirty_node));
 		list_insert_tail(&dn->dn_dirty_records[txgoff], dr);
@@ -2711,7 +2724,8 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
 	/*
-	 * If this buffer is not dirty, we're done.
+	 * If this buffer is not dirty in this transaction
+	 * group, we're done.
 	 */
 	dr = dbuf_find_dirty_eq(db, txg);
 	if (dr == NULL)
@@ -4624,7 +4638,15 @@ dbuf_undirty_indirect(dbuf_dirty_record_t *dr)
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	ASSERT(list_head(&dr->dt.di.dr_children) == NULL);
+	/*
+	 * The size of an indirect block must match what its
+	 * associated dnode thinks it should be.
+	 */
 	ASSERT3U(db->db.db_size, ==, 1 << dn->dn_phys->dn_indblkshift);
+	/*
+	 * If the dbuf's block pointer is not a hole, evict it when
+	 * its last ARC buffer hold has been released.
+	 */
 	if (!BP_IS_HOLE(db->db_blkptr)) {
 		ASSERTV(int epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT);
 		ASSERT3U(db->db_blkid, <=,

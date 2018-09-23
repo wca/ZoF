@@ -385,19 +385,14 @@ typedef struct dmu_buf {
 #define	DMU_POOL_ZPOOL_CHECKPOINT	"com.delphix:zpool_checkpoint"
 
 /*
- * Allocate an object from this objset.  The range of object numbers
- * available is (0, DN_MAX_OBJECT).  Object 0 is the meta-dnode.
+ *
+ * Chooses an unallocated object number and returns a new object that
+ * uses it in *objectp.  The range of object numbers available is
+ * (0, DN_MAX_OBJECT).  Object 0 is the meta-dnode.
  *
  * The transaction must be assigned to a txg.  The newly allocated
  * object will be "held" in the transaction (ie. you can modify the
  * newly allocated object in this transaction).
- *
- * dmu_object_alloc() chooses an object and returns it in *objectp.
- *
- * dmu_object_claim() allocates a specific object number.  If that
- * number is already allocated, it fails and returns EEXIST.
- *
- * Return 0 on success, or ENOSPC or EEXIST as specified above.
  */
 uint64_t dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
@@ -409,6 +404,11 @@ uint64_t dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
     int dnodesize, dmu_tx_t *tx);
 int dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
+
+/*
+ * Allocates an object for the specified object number.
+ * Returns 0 on success, or EEXIST of the object number is already allocated.
+ */
 int dmu_object_claim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len,
     int dnodesize, dmu_tx_t *tx);

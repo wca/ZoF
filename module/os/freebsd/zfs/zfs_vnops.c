@@ -1635,9 +1635,6 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct componentname *cnp,
  *		excl	- flag indicating exclusive or non-exclusive mode.
  *		mode	- mode to open file with.
  *		cr	- credentials of caller.
- *		flag	- large file flag [UNUSED].
- *		ct	- caller context
- *		vsecp	- ACL to be set
  *
  *	OUT:	vpp	- vnode of created or trunc'd entry.
  *
@@ -1645,7 +1642,7 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct componentname *cnp,
  *
  * Timestamps:
  *	dvp - ctime|mtime updated if new entry created
- *	 vp - ctime|mtime always, atime if new
+ *	 vp - ctime|mtime updated always, atime if new
  */
 
 /* ARGSUSED */
@@ -2181,6 +2178,13 @@ out:
  *		cr	- credentials of caller.
  *		ct	- caller context
  *		flags	- case flags
+ *		ncookies- number of returned cookies
+ *		cookies	- array of cookies returned by ZAP.  Note that the
+ *			  low 4 bits of the cookie returned by zap is always
+ *			  zero.  This allows us to use the low range for
+ *			  "special" directory entries: 0 for '.' and 1 for
+ *			  '..'.  If this is the root of the filesystem, we
+ *			  use the offset 2 for the '.zfs' directory.
  *
  *	OUT:	uio	- updated offset and range, buffer filled.
  *		eofp	- set to true if end-of-file detected.
@@ -2189,15 +2193,11 @@ out:
  *
  * Timestamps:
  *	vp - atime updated
- *
- * Note that the low 4 bits of the cookie returned by zap is always zero.
- * This allows us to use the low range for "special" directory entries:
- * We use 0 for '.', and 1 for '..'.  If this is the root of the filesystem,
- * we use the offset 2 for the '.zfs' directory.
  */
 /* ARGSUSED */
 static int
-zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, int *eofp, int *ncookies, u_long **cookies)
+zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, int *eofp, int *ncookies,
+    u_long **cookies)
 {
 	znode_t		*zp = VTOZ(vp);
 	iovec_t		*iovp;
