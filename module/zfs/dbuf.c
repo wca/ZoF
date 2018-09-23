@@ -2359,8 +2359,9 @@ dbuf_dirty_parent(dbuf_dirty_state_t *dds)
 		}
 		if (drop_struct_lock)
 			rw_exit(&dn->dn_struct_rwlock);
+
 		ASSERT3U(db->db_level+1, ==, parent->db_level);
-		di = dbuf_dirty(parent, tx);
+		di = dbuf_dirty_indirect(parent, tx);
 		if (parent_held)
 			dbuf_rele(parent, FTAG);
 
