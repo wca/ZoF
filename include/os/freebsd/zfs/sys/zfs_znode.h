@@ -299,7 +299,7 @@ VTOZ(vnode_t *vp)
 		rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG); \
 		if ((zfsvfs)->z_unmounted) { \
 			ZFS_EXIT(zfsvfs); \
-			return (EIO); \
+			return (SET_ERROR(EIO)); \
 		} \
 	}
 
@@ -310,7 +310,7 @@ VTOZ(vnode_t *vp)
 #define	ZFS_VERIFY_ZP(zp) \
 	if ((zp)->z_sa_hdl == NULL) { \
 		ZFS_EXIT((zp)->z_zfsvfs); \
-		return (EIO); \
+		return (SET_ERROR(EIO)); \
 	} \
 
 /*
