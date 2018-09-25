@@ -643,13 +643,6 @@ zfs_ace_walk(void *datap, uint64_t cookie, int aclcnt,
 	return ((uint64_t)(uintptr_t)acep);
 }
 
-static zfs_acl_node_t *
-zfs_acl_curr_node(zfs_acl_t *aclp)
-{
-	ASSERT(aclp->z_curr_node);
-	return (aclp->z_curr_node);
-}
-
 /*
  * Copy ACE to internal ZFS format.
  * While processing the ACL each ACE will be validated for correctness.
@@ -2394,7 +2387,7 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 	int		error;
 	int		is_attr;
 	boolean_t 	check_privs;
-	znode_t		*xzp;
+	znode_t		*xzp = NULL;
 	znode_t 	*check_zp = zp;
 	mode_t		needed_bits;
 	uid_t		owner;

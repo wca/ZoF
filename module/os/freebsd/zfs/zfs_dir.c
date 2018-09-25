@@ -33,6 +33,7 @@
 #include <sys/resource.h>
 #include <sys/vfs.h>
 #include <sys/vnode.h>
+#include <sys/extdirent.h>
 #include <sys/file.h>
 #include <sys/kmem.h>
 #include <sys/uio.h>
@@ -57,7 +58,6 @@
 #include <sys/sa.h>
 #include <sys/zfs_sa.h>
 #include <sys/dnlc.h>
-#include <sys/extdirent.h>
 
 /*
  * zfs_match_find() is used by zfs_dirent_lookup() to peform zap lookups
@@ -111,7 +111,6 @@ zfs_dirent_lookup(znode_t *dzp, const char *name, znode_t **zpp, int flag)
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	matchtype_t	mt = 0;
 	uint64_t	zoid;
-	vnode_t		*vp = NULL;
 	int		error = 0;
 
 	ASSERT_VOP_LOCKED(ZTOV(dzp), __func__);
@@ -220,7 +219,7 @@ zfs_dd_lookup(znode_t *dzp, znode_t **zpp)
 int
 zfs_dirlook(znode_t *dzp, const char *name, znode_t **zpp)
 {
-	zfsvfs_t *zfsvfs = dzp->z_zfsvfs;
+	zfsvfs_t *zfsvfs __unused = dzp->z_zfsvfs;
 	znode_t *zp;
 	int error = 0;
 
@@ -793,7 +792,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, vnode_t **xvpp, cred_t *cr)
 	int error;
 	zfs_acl_ids_t acl_ids;
 	boolean_t fuid_dirtied;
-	uint64_t parent;
+	uint64_t parent __unused;
 
 	*xvpp = NULL;
 

@@ -65,6 +65,7 @@
  * so that it cannot be freed until all snapshots have been unmounted.
  */
 
+#include <sys/dirent.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_ioctl.h>
@@ -81,7 +82,6 @@
 #include "zfs_namecheck.h"
 
 #include <sys/kernel.h>
-#include <sys/dirent.h>
 
 /* Common access mode for all virtual directories under the ctldir */
 const u_short zfsctl_ctldir_mode = S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP |
@@ -236,7 +236,6 @@ sfs_destroy_node(sfs_node_t *node)
 static void *
 sfs_reclaim_vnode(vnode_t *vp)
 {
-	sfs_node_t *node;
 	void *data;
 
 	sfs_vnode_remove(vp);
@@ -431,7 +430,6 @@ zfsctl_snapdir_vnode(struct mount *mp, void *arg __unused, int flags,
 int
 zfsctl_root(zfsvfs_t *zfsvfs, int flags, vnode_t **vpp)
 {
-	vnode_t *vp;
 	int error;
 
 	error = zfsctl_root_vnode(zfsvfs->z_vfs, NULL, flags, vpp);
@@ -630,12 +628,10 @@ zfsctl_root_lookup(ap)
 	struct componentname *cnp = ap->a_cnp;
 	vnode_t *dvp = ap->a_dvp;
 	vnode_t **vpp = ap->a_vpp;
-	cred_t *cr = ap->a_cnp->cn_cred;
 	int flags = ap->a_cnp->cn_flags;
 	int lkflags = ap->a_cnp->cn_lkflags;
 	int nameiop = ap->a_cnp->cn_nameiop;
 	int err;
-	int ltype;
 
 	ASSERT(dvp->v_type == VDIR);
 
@@ -806,7 +802,6 @@ zfsctl_common_getacl(ap)
 	for (i = 0; i < ap->a_aclp->acl_cnt; i++) {
 		struct acl_entry *entry;
 		entry = &(ap->a_aclp->acl_entry[i]);
-		uint32_t old_perm = entry->ae_perm;
 		entry->ae_perm &= ~(ACL_WRITE_ACL | ACL_WRITE_OWNER |
 		    ACL_WRITE_ATTRIBUTES | ACL_WRITE_NAMED_ATTRS |
 		    ACL_READ_NAMED_ATTRS );
@@ -1124,7 +1119,6 @@ zfsctl_snapdir_getattr(ap)
 	vattr_t *vap = ap->a_vap;
 	zfsvfs_t *zfsvfs = vp->v_vfsp->vfs_data;
 	dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
-	sfs_node_t *node = vp->v_data;
 	uint64_t snap_count;
 	int err;
 
@@ -1262,8 +1256,7 @@ static struct vop_vector zfsctl_ops_snapshot = {
 int
 zfsctl_lookup_objset(vfs_t *vfsp, uint64_t objsetid, zfsvfs_t **zfsvfsp)
 {
-	struct mount *mp;
-	zfsvfs_t *zfsvfs = vfsp->vfs_data;
+	zfsvfs_t *zfsvfs __unused = vfsp->vfs_data;
 	vnode_t *vp;
 	int error;
 
@@ -1295,10 +1288,7 @@ zfsctl_umount_snapshots(vfs_t *vfsp, int fflags, cred_t *cr)
 	char snapname[ZFS_MAX_DATASET_NAME_LEN];
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
 	struct mount *mp;
-	vnode_t *dvp;
 	vnode_t *vp;
-	sfs_node_t *node;
-	sfs_node_t *snap;
 	uint64_t cookie;
 	int error;
 

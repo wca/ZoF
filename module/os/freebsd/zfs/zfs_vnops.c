@@ -38,6 +38,7 @@
 #include <sys/vfs.h>
 #include <sys/vm.h>
 #include <sys/vnode.h>
+#include <sys/dirent.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/kmem.h>
@@ -59,7 +60,6 @@
 #include <sys/dbuf.h>
 #include <sys/zap.h>
 #include <sys/sa.h>
-#include <sys/dirent.h>
 #include <sys/policy.h>
 #include <sys/sunddi.h>
 #include <sys/filio.h>
@@ -77,6 +77,7 @@
 #include <sys/vmmeter.h>
 #include <vm/vm_param.h>
 #include <sys/zil.h>
+#include <sys/zfs_vnops.h>
 
 #include <vm/vm_object.h>
 
@@ -300,8 +301,6 @@ zfs_ioctl(vnode_t *vp, u_long com, intptr_t data, int flag, cred_t *cred,
     int *rvalp, caller_context_t *ct)
 {
 	offset_t off;
-	offset_t ndata;
-	dmu_object_info_t doi;
 	int error;
 	zfsvfs_t *zfsvfs;
 	znode_t *zp;
@@ -325,12 +324,7 @@ zfs_ioctl(vnode_t *vp, u_long com, intptr_t data, int flag, cred_t *cred,
 	case _FIO_SEEK_DATA:
 	case _FIO_SEEK_HOLE:
 	{
-#ifdef illumos
-		if (ddi_copyin((void *)data, &off, sizeof (off), flag))
-			return (SET_ERROR(EFAULT));
-#else
 		off = *(offset_t *)data;
-#endif
 		zp = VTOZ(vp);
 		zfsvfs = zp->z_zfsvfs;
 		ZFS_ENTER(zfsvfs);
@@ -341,55 +335,9 @@ zfs_ioctl(vnode_t *vp, u_long com, intptr_t data, int flag, cred_t *cred,
 		ZFS_EXIT(zfsvfs);
 		if (error)
 			return (error);
-#ifdef illumos
-		if (ddi_copyout(&off, (void *)data, sizeof (off), flag))
-			return (SET_ERROR(EFAULT));
-#else
 		*(offset_t *)data = off;
-#endif
 		return (0);
 	}
-#ifdef illumos
-	case _FIO_COUNT_FILLED:
-	{
-		/*
-		 * _FIO_COUNT_FILLED adds a new ioctl command which
-		 * exposes the number of filled blocks in a
-		 * ZFS object.
-		 */
-		zp = VTOZ(vp);
-		zfsvfs = zp->z_zfsvfs;
-		ZFS_ENTER(zfsvfs);
-		ZFS_VERIFY_ZP(zp);
-
-		/*
-		 * Wait for all dirty blocks for this object
-		 * to get synced out to disk, and the DMU info
-		 * updated.
-		 */
-		error = dmu_object_wait_synced(zfsvfs->z_os, zp->z_id);
-		if (error) {
-			ZFS_EXIT(zfsvfs);
-			return (error);
-		}
-
-		/*
-		 * Retrieve fill count from DMU object.
-		 */
-		error = dmu_object_info(zfsvfs->z_os, zp->z_id, &doi);
-		if (error) {
-			ZFS_EXIT(zfsvfs);
-			return (error);
-		}
-
-		ndata = doi.doi_fill_count;
-
-		ZFS_EXIT(zfsvfs);
-		if (ddi_copyout(&ndata, (void *)data, sizeof (ndata), flag))
-			return (SET_ERROR(EFAULT));
-		return (0);
-	}
-#endif
 	}
 	return (SET_ERROR(ENOTTY));
 }
@@ -571,7 +519,6 @@ mappedread_sf(vnode_t *vp, int nbytes, uio_t *uio)
 	int64_t start;
 	caddr_t va;
 	int len = nbytes;
-	int off;
 	int error = 0;
 
 	ASSERT(uio->uio_segflg == UIO_NOCOPY);
@@ -636,7 +583,6 @@ mappedread(vnode_t *vp, int nbytes, uio_t *uio)
 	znode_t *zp = VTOZ(vp);
 	vm_object_t obj;
 	int64_t start;
-	caddr_t va;
 	int len = nbytes;
 	int off;
 	int error = 0;
@@ -658,11 +604,7 @@ mappedread(vnode_t *vp, int nbytes, uio_t *uio)
 
 			zfs_vmobject_wunlock(obj);
 			va = zfs_map_page(pp, &sf);
-#ifdef illumos
-			error = uiomove(va + off, bytes, UIO_READ, uio);
-#else
 			error = vn_io_fault_uiomove(va + off, bytes, uio);
-#endif
 			zfs_unmap_page(sf);
 			zfs_vmobject_wlock(obj);
 			page_unhold(pp);
@@ -709,7 +651,6 @@ zfs_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 	ssize_t		n, nbytes;
 	int		error = 0;
 	rl_t		*rl;
-	xuio_t		*xuio = NULL;
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
@@ -771,47 +712,13 @@ zfs_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 	ASSERT(uio->uio_loffset < zp->z_size);
 	n = MIN(uio->uio_resid, zp->z_size - uio->uio_loffset);
 
-#ifdef illumos
-	if ((uio->uio_extflg == UIO_XUIO) &&
-	    (((xuio_t *)uio)->xu_type == UIOTYPE_ZEROCOPY)) {
-		int nblk;
-		int blksz = zp->z_blksz;
-		uint64_t offset = uio->uio_loffset;
-
-		xuio = (xuio_t *)uio;
-		if ((ISP2(blksz))) {
-			nblk = (P2ROUNDUP(offset + n, blksz) - P2ALIGN(offset,
-			    blksz)) / blksz;
-		} else {
-			ASSERT(offset + n <= blksz);
-			nblk = 1;
-		}
-		(void) dmu_xuio_init(xuio, nblk);
-
-		if (vn_has_cached_data(vp)) {
-			/*
-			 * For simplicity, we always allocate a full buffer
-			 * even if we only expect to read a portion of a block.
-			 */
-			while (--nblk >= 0) {
-				(void) dmu_xuio_add(xuio,
-				    dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
-				    blksz), 0, blksz);
-			}
-		}
-	}
-#endif	/* illumos */
-
 	while (n > 0) {
 		nbytes = MIN(n, zfs_read_chunk_size -
 		    P2PHASE(uio->uio_loffset, zfs_read_chunk_size));
 
-#ifdef __FreeBSD__
 		if (uio->uio_segflg == UIO_NOCOPY)
 			error = mappedread_sf(vp, nbytes, uio);
-		else
-#endif /* __FreeBSD__ */
-		if (vn_has_cached_data(vp)) {
+		else if (vn_has_cached_data(vp)) {
 			error = mappedread(vp, nbytes, uio);
 		} else {
 			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
@@ -874,7 +781,7 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 	iovec_t		*aiov = NULL;
 	xuio_t		*xuio = NULL;
 	int		i_iov = 0;
-	int		iovcnt = uio->uio_iovcnt;
+	int		iovcnt __unused = uio->uio_iovcnt;
 	iovec_t		*iovp = uio->uio_iov;
 	int		write_eof;
 	int		count = 0;
@@ -943,19 +850,6 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
-
-#ifdef illumos
-	/*
-	 * Pre-fault the pages to ensure slow (eg NFS) pages
-	 * don't hold up txg.
-	 * Skip this if uio contains loaned arc_buf.
-	 */
-	if ((uio->uio_extflg == UIO_XUIO) &&
-	    (((xuio_t *)uio)->xu_type == UIOTYPE_ZEROCOPY))
-		xuio = (xuio_t *)uio;
-	else
-		uio_prefaultpages(MIN(n, max_blksz), uio);
-#endif
 
 	/*
 	 * If in append mode, set the io offset pointer to eof.
@@ -1186,11 +1080,7 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 		while ((end_size = zp->z_size) < uio->uio_loffset) {
 			(void) atomic_cas_64(&zp->z_size, end_size,
 			    uio->uio_loffset);
-#ifdef illumos
-			ASSERT(error == 0);
-#else
 			ASSERT(error == 0 || error == EFAULT);
-#endif
 		}
 		/*
 		 * If we are replaying and eof is non zero then force
@@ -1230,7 +1120,6 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 		return (error);
 	}
 
-#ifdef __FreeBSD__
 	/*
 	 * EFAULT means that at least one page of the source buffer was not
 	 * available.  VFS will re-try remaining I/O upon this error.
@@ -1239,7 +1128,6 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
-#endif
 
 	if (ioflag & (FSYNC | FDSYNC) ||
 	    zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
@@ -1264,7 +1152,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	 * Release the vnode asynchronously as we currently have the
 	 * txg stopped from syncing.
 	 */
-	VN_RELE_ASYNC(ZTOV(zp), dsl_pool_vnrele_taskq(dmu_objset_pool(os)));
+	VN_RELE_ASYNC(ZTOV(zp), dsl_pool_iput_taskq(dmu_objset_pool(os)));
 
 	if (error == 0 && zgd->zgd_bp)
 		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
@@ -1307,7 +1195,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		 * txg stopped from syncing.
 		 */
 		VN_RELE_ASYNC(ZTOV(zp),
-		    dsl_pool_vnrele_taskq(dmu_objset_pool(os)));
+		    dsl_pool_iput_taskq(dmu_objset_pool(os)));
 		return (SET_ERROR(ENOENT));
 	}
 
@@ -1448,7 +1336,7 @@ static int
 zfs_lookup_lock(vnode_t *dvp, vnode_t *vp, const char *name, int lkflags)
 {
 	znode_t *zdp = VTOZ(dvp);
-	zfsvfs_t *zfsvfs = zdp->z_zfsvfs;
+	zfsvfs_t *zfsvfs __unused = zdp->z_zfsvfs;
 	int error;
 	int ltype;
 
@@ -1702,7 +1590,6 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct componentname *cnp,
 		vput(ZTOV(zp));
 	}
 
-out:
 	if (error != 0)
 		*vpp = NULL;
 
@@ -1782,7 +1669,6 @@ zfs_create(vnode_t *dvp, char *name, vattr_t *vap, int excl, int mode,
 	zfs_acl_ids_t   acl_ids;
 	boolean_t	fuid_dirtied;
 	void		*vsecp = NULL;
-	int		flag = 0;
 	uint64_t	txtype;
 
 	/*
@@ -1937,10 +1823,10 @@ zfs_remove(vnode_t *dvp, vnode_t *vp, char *name, cred_t *cr)
 	znode_t		*xzp;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	zilog_t		*zilog;
-	uint64_t	acl_obj, xattr_obj;
+	uint64_t	xattr_obj;
 	uint64_t	obj = 0;
 	dmu_tx_t	*tx;
-	boolean_t	unlinked, toobig = FALSE;
+	boolean_t	unlinked;
 	uint64_t	txtype;
 	int		error;
 
@@ -2706,23 +2592,15 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 
 	vap->va_type = IFTOVT(zp->z_mode);
 	vap->va_mode = zp->z_mode & ~S_IFMT;
-#ifdef illumos
-	vap->va_fsid = zp->z_zfsvfs->z_vfs->vfs_dev;
-#else
 	vn_fsid(vp, vap);
-#endif
 	vap->va_nodeid = zp->z_id;
 	vap->va_nlink = zp->z_links;
 	if ((vp->v_flag & VROOT) && zfs_show_ctldir(zp) &&
 	    zp->z_links < ZFS_LINK_MAX)
 		vap->va_nlink++;
 	vap->va_size = zp->z_size;
-#ifdef illumos
-	vap->va_rdev = vp->v_rdev;
-#else
 	if (vp->v_type == VBLK || vp->v_type == VCHR)
 		vap->va_rdev = zfs_cmpldev(rdev);
-#endif
 	vap->va_seq = zp->z_seq;
 	vap->va_flags = 0;	/* FreeBSD: Reset chflags(2) flags. */
      	vap->va_filerev = zp->z_seq;
@@ -3251,7 +3129,7 @@ zfs_setattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 			goto out;
 		}
 
-		if (err = zfs_acl_chmod_setattr(zp, &aclp, new_mode))
+		if ((err = zfs_acl_chmod_setattr(zp, &aclp, new_mode)))
 			goto out;
 
 		if (!zp->z_is_sa && ((acl_obj = zfs_external_acl(zp)) != 0)) {
@@ -3708,7 +3586,7 @@ zfs_rename_check(znode_t *szp, znode_t *sdzp, znode_t *tdzp)
 
 		if (zp != tdzp)
 			VN_RELE_ASYNC(ZTOV(zp),
-			    dsl_pool_vnrele_taskq(dmu_objset_pool(zfsvfs->z_os)));
+			    dsl_pool_iput_taskq(dmu_objset_pool(zfsvfs->z_os)));
 		zp = zp1;
 	}
 
@@ -3716,7 +3594,7 @@ zfs_rename_check(znode_t *szp, znode_t *sdzp, znode_t *tdzp)
 		panic("checkpath: .. not a directory\n");
 	if (zp != tdzp)
 		VN_RELE_ASYNC(ZTOV(zp),
-		    dsl_pool_vnrele_taskq(dmu_objset_pool(zfsvfs->z_os)));
+		    dsl_pool_iput_taskq(dmu_objset_pool(zfsvfs->z_os)));
 	return (error);
 }
 
@@ -4009,7 +3887,6 @@ zfs_symlink(vnode_t *dvp, vnode_t **vpp, char *name, vattr_t *vap, char *link,
 	zfs_acl_ids_t	acl_ids;
 	boolean_t	fuid_dirtied;
 	uint64_t	txtype = TX_SYMLINK;
-	int		flags = 0;
 
 	ASSERT(vap->va_type == VLNK);
 
@@ -4412,9 +4289,6 @@ static int
 zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
     caller_context_t *ct)
 {
-	znode_t		*zp, *xzp;
-	zfsvfs_t	*zfsvfs;
-	int		error;
 
 	switch (cmd) {
 	case _PC_LINK_MAX:
@@ -4424,53 +4298,9 @@ zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
 	case _PC_FILESIZEBITS:
 		*valp = 64;
 		return (0);
-#ifdef illumos
-	case _PC_XATTR_EXISTS:
-		zp = VTOZ(vp);
-		zfsvfs = zp->z_zfsvfs;
-		ZFS_ENTER(zfsvfs);
-		ZFS_VERIFY_ZP(zp);
-		*valp = 0;
-		error = zfs_dirent_lookup(zp, "", &xzp,
-		    ZXATTR | ZEXISTS | ZSHARED);
-		if (error == 0) {
-			if (!zfs_dirempty(xzp))
-				*valp = 1;
-			vrele(ZTOV(xzp));
-		} else if (error == ENOENT) {
-			/*
-			 * If there aren't extended attributes, it's the
-			 * same as having zero of them.
-			 */
-			error = 0;
-		}
-		ZFS_EXIT(zfsvfs);
-		return (error);
-
-	case _PC_SATTR_ENABLED:
-	case _PC_SATTR_EXISTS:
-		*valp = vfs_has_feature(vp->v_vfsp, VFSFT_SYSATTR_VIEWS) &&
-		    (vp->v_type == VREG || vp->v_type == VDIR);
-		return (0);
-
-	case _PC_ACCESS_FILTERING:
-		*valp = vfs_has_feature(vp->v_vfsp, VFSFT_ACCESS_FILTER) &&
-		    vp->v_type == VDIR;
-		return (0);
-
-	case _PC_ACL_ENABLED:
-		*valp = _ACL_ACE_ENABLED;
-		return (0);
-#endif	/* illumos */
 	case _PC_MIN_HOLE_SIZE:
 		*valp = (int)SPA_MINBLOCKSIZE;
 		return (0);
-#ifdef illumos
-	case _PC_TIMESTAMP_RESOLUTION:
-		/* nanosecond timestamp resolution */
-		*valp = 1L;
-		return (0);
-#endif
 	case _PC_ACL_EXTENDED:
 		*valp = 0;
 		return (0);
@@ -5586,9 +5416,8 @@ vop_deleteextattr {
 	struct thread *td = ap->a_td;
 	struct nameidata nd;
 	char attrname[255];
-	struct vattr va;
 	vnode_t *xvp = NULL, *vp;
-	int error, flags;
+	int error;
 
 	error = extattr_check_cred(ap->a_vp, ap->a_attrnamespace,
 	    ap->a_cred, ap->a_td, VWRITE);
