@@ -142,7 +142,10 @@ all: $(objs)
 CFLAGS = -D_KERNEL -D__KERNEL__
 CFLAGS+=  -D_SYS_VMEM_H_
 #-D_SYS_UCRED_H_ 
-CFLAGS+= -nostdinc -fno-common -fno-builtin
+CFLAGS+= -Wall
+CFLAGS+= -nostdinc -fno-common -fno-builtin -Wno-unknown-pragmas
+# remove once zfs_ioctl.c is fixed
+CFLAGS+= -Wno-unused-function
 CFLAGS+= -DKLD_MODULE -DKLD_TIED
 CFLAGS+= -Werror
 CFLAGS+= -I$(ZFSBASE)/include

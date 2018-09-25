@@ -69,10 +69,10 @@ extern int assfail(const char *, const char *, int);
 #define	ASSERT32(x)	ASSERT(x)
 #endif
 
-#ifdef NDEBUG
-#define	ASSERTV(x)
-#else
+#ifdef DEBUG
 #define	ASSERTV(x)	x
+#else
+#define	ASSERTV(x)
 #endif
 
 /*

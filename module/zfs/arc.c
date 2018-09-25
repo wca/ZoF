@@ -340,7 +340,7 @@ static int		arc_p_min_shift = 4;
 static int		arc_shrink_shift = 7;
 
 /* percent of pagecache to reclaim arc to */
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 static uint_t		zfs_arc_pc_percent = 0;
 #endif
 

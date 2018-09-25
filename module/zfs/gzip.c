@@ -51,7 +51,6 @@ typedef uLongf zlen_t;
 size_t
 gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
-	int ret;
 	zlen_t dstlen = d_len;
 
 	ASSERT(d_len <= s_len);
@@ -59,7 +58,7 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 #ifdef __linux__
 	/* check if hardware accelerator can be used */
 	if (qat_dc_use_accel(s_len)) {
-		ret = qat_compress(QAT_COMPRESS, s_start, s_len, d_start,
+		int ret = qat_compress(QAT_COMPRESS, s_start, s_len, d_start,
 		    d_len, &dstlen);
 		if (ret == CPA_STATUS_SUCCESS) {
 			return ((size_t)dstlen);

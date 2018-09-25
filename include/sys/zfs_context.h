@@ -104,7 +104,7 @@ extern int hz;
 extern int tick;
 typedef int fstrans_cookie_t;
 #define spl_fstrans_mark() (0)
-#define spl_fstrans_unmark(x)
+#define spl_fstrans_unmark(x) (x = 0)
 #define signal_pending(x) SIGPENDING(x)
 #define current curthread
 #define thread_join(x)

@@ -144,7 +144,6 @@ zfs_onexit_fd_hold(int fd, minor_t *minorp)
 {
 	file_t *fp, *tmpfp;
 	zfs_onexit_t *zo;
-	cap_rights_t rights;
 	void *data;
 	int error;
 
