@@ -42,9 +42,11 @@
 #include "zfs_deleg.h"
 
 #if defined(_KERNEL)
+#if defined(__linux__)
 #include <linux/sort.h>
 #define	qsort(base, num, size, cmp) \
     sort(base, num, size, cmp, NULL)
+#endif
 #else
 #include <stdlib.h>
 #include <string.h>
