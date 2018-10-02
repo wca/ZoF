@@ -99,7 +99,7 @@
 
 #include "zfs_namecheck.h"
 
-uint_t zfs_geom_probe_vdev_key;
+extern uint_t zfs_geom_probe_vdev_key;
 
 struct g_class zfs_zvol_class = {
 	.name = "ZFS::ZVOL",

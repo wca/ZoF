@@ -20,6 +20,7 @@ $(MODULE)-objs += abd.o
 $(MODULE)-objs += freebsd_crypto.o
 $(MODULE)-objs += freebsd_spa.o
 $(MODULE)-objs += vdev_file.o
+$(MODULE)-objs += vdev_geom.o
 $(MODULE)-objs += zfs_acl.o
 $(MODULE)-objs += zfs_ctldir.o
 $(MODULE)-objs += zfs_dir.o
@@ -27,21 +28,15 @@ $(MODULE)-objs += zfs_log.o
 $(MODULE)-objs += zfs_replay.o
 $(MODULE)-objs += zfs_vfsops.o
 $(MODULE)-objs += zfs_vnops.o
+$(MODULE)-objs += zfs_znode.o
+$(MODULE)-objs += zio_crypt.o
 $(MODULE)-objs += zvol.o
 
 objs = $($(MODULE)-objs)
-all: $(objs)
+all: zfs_os.ko
 
-CFLAGS = -D_KERNEL -D__KERNEL__  -D_SYS_VMEM_H_
-CFLAGS+= -DKLD_MODULE -DKLD_TIED -DHAVE_UIO_ZEROCOPY
-CFLAGS+= -Werror
-CFLAGS+= -Wall -Wno-unknown-pragmas
-CFLAGS+= -nostdinc -fno-common -fno-builtin
-CFLAGS+= -I$(ZFSBASE)/include
-CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/spl
-CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/zfs
-CFLAGS+= -include $(ZFSBASE)/include/os/freebsd/spl/sys/ccompile.h
-CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/internal
-CFLAGS+= -I$(KERNBASE)/sys
-$(objs): %.o: %.c
-	$(CC) -c $(CFLAGS) $< -o $@
+include $(ZFSBASE)/Makefile.bsd.inc
+
+zfs_os.ko:  $(objs)
+	ld -r -d -o $@ $(objs)
+

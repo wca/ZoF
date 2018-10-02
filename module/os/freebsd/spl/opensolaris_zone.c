@@ -161,7 +161,7 @@ zone_dataset_visible(const char *dataset, int *write)
 
 	if (dataset[0] == '\0')
 		return (0);
-	if (INGLOBALZONE(curthread)) {
+	if (INGLOBALZONE(curproc)) {
 		if (write != NULL)
 			*write = 1;
 		return (1);

@@ -35,9 +35,11 @@ __FBSDID("$FreeBSD$");
 #include <sys/misc.h>
 #include <sys/sysctl.h>
 
+#include <sys/zfs_context.h>
+
 char hw_serial[11] = "0";
 
-struct opensolaris_utsname utsname = {
+static struct opensolaris_utsname hw_utsname = {
 	.machine = MACHINE
 };
 
@@ -45,10 +47,16 @@ static void
 opensolaris_utsname_init(void *arg)
 {
 
-	utsname.sysname = ostype;
-	utsname.nodename = prison0.pr_hostname;
-	utsname.release = osrelease;
-	snprintf(utsname.version, sizeof(utsname.version), "%d", osreldate);
+	hw_utsname.sysname = ostype;
+	hw_utsname.nodename = prison0.pr_hostname;
+	hw_utsname.release = osrelease;
+	snprintf(hw_utsname.version, sizeof(hw_utsname.version), "%d", osreldate);
+}
+
+utsname_t *
+utsname(void)
+{
+	return &hw_utsname;
 }
 SYSINIT(opensolaris_utsname_init, SI_SUB_TUNABLES, SI_ORDER_ANY,
     opensolaris_utsname_init, NULL);

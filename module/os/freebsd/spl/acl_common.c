@@ -220,47 +220,13 @@ cmp2acls(void *a, void *b)
 	return (0);
 }
 
-/*ARGSUSED*/
-static void *
-cacl_realloc(void *ptr, size_t size, size_t new_size)
-{
-#if defined(_KERNEL)
-	void *tmp;
-
-	tmp = kmem_alloc(new_size, KM_SLEEP);
-	(void) memcpy(tmp, ptr, (size < new_size) ? size : new_size);
-	kmem_free(ptr, size);
-	return (tmp);
-#else
-	return (realloc(ptr, new_size));
-#endif
-}
-
 static int
 cacl_malloc(void **ptr, size_t size)
 {
-#if defined(_KERNEL)
 	*ptr = kmem_zalloc(size, KM_SLEEP);
 	return (0);
-#else
-	*ptr = calloc(1, size);
-	if (*ptr == NULL)
-		return (errno);
-
-	return (0);
-#endif
 }
 
-/*ARGSUSED*/
-static void
-cacl_free(void *ptr, size_t size)
-{
-#if defined(_KERNEL)
-	kmem_free(ptr, size);
-#else
-	free(ptr);
-#endif
-}
 
 #if !defined(_KERNEL)
 acl_t *
@@ -1697,7 +1663,7 @@ ace_trivial_common(void *acep, int aclcnt,
 	uint16_t type;
 	uint64_t cookie = 0;
 
-	while (cookie = walk(acep, cookie, aclcnt, &flags, &type, &mask)) {
+	while ((cookie = walk(acep, cookie, aclcnt, &flags, &type, &mask))) {
 		switch (flags & ACE_TYPE_FLAGS) {
 		case ACE_OWNER:
 		case ACE_GROUP|ACE_IDENTIFIER_GROUP:

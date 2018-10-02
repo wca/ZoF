@@ -255,7 +255,7 @@ int
 zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 {
 	int ret;
-	crypto_mechanism_t mech;
+	crypto_mechanism_t mech __unused;
 	uint_t keydata_len;
 	zio_crypt_info_t *ci = NULL;
 	
@@ -350,7 +350,7 @@ zio_crypt_key_change_salt(zio_crypt_key_t *key)
 {
 	int ret = 0;
 	uint8_t salt[ZIO_DATA_SALT_LEN];
-	crypto_mechanism_t mech;
+	crypto_mechanism_t mech __unused;
 
 	uint_t keydata_len = zio_crypt_table[key->zk_crypt].ci_keylen;
 
@@ -591,7 +591,6 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
     uint8_t *mac, uint8_t *keydata_out, uint8_t *hmac_keydata_out)
 {
 	int ret;
-	uio_t puio, cuio;
 	uint64_t aad[3];
 #ifdef __FreeBSD__
 	/*
@@ -599,8 +598,10 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 	 * input and output.  Also, the AAD (for AES-GMC at least)
 	 * needs to logically go in front.
 	 */
+	uio_t cuio;
 	iovec_t iovecs[4];
 #else
+	uio_t puio, cuio;
 	iovec_t plain_iovecs[2], cipher_iovecs[3];
 #endif
 	uint64_t crypt = key->zk_crypt;
@@ -703,8 +704,6 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
     uint8_t *mac, zio_crypt_key_t *key)
 {
 	int ret;
-	crypto_mechanism_t mech;
-	uio_t puio, cuio;
 	uint64_t aad[3];
 #ifdef __FreeBSD__
 	/*
@@ -712,9 +711,12 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	 * input and output.  Also, the AAD (for AES-GMC at least)
 	 * needs to logically go in front.
 	 */
+	uio_t cuio;
 	iovec_t iovecs[4];
 	void *src, *dst;
 #else
+	uio_t puio, cuio;
+	crypto_mechanism_t mech;
 	iovec_t plain_iovecs[2], cipher_iovecs[3];
 #endif
 	uint_t enc_len, keydata_len, aad_len;
@@ -922,7 +924,9 @@ zio_crypt_do_hmac(zio_crypt_key_t *key, uint8_t *data, uint_t datalen,
 	bcopy(raw_digestbuf, digestbuf, digestlen);
 	return (0);
 
-error:
+#ifndef __FreeBSD__
+ error:
+#endif
 	bzero(digestbuf, digestlen);
 	return (ret);
 }
@@ -1232,7 +1236,9 @@ zio_crypt_bp_do_hmac_updates(crypto_context_t ctx, uint64_t version,
 #endif
 	return (0);
 
-error:
+#ifndef __FreeBSD__
+ error:
+#endif
 	return (ret);
 }
 
@@ -1353,11 +1359,11 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
     boolean_t should_bswap, uint8_t *portable_mac, uint8_t *local_mac)
 {
 	int ret;
-	crypto_mechanism_t mech;
 #ifdef __FreeBSD__
 	struct hmac_ctx hash_ctx;
 	struct hmac_ctx *ctx = &hash_ctx;
 #else
+	crypto_mechanism_t mech;
 	crypto_context_t ctx;
 	crypto_data_t cd;
 #endif
@@ -1456,7 +1462,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	 */
 	if ((osp->os_userused_dnode.dn_type == DMU_OT_NONE &&
 	    osp->os_groupused_dnode.dn_type == DMU_OT_NONE) ||
-	    (datalen <= OBJSET_OLD_PHYS_SIZE)) {
+	    (datalen <= OBJSET_PHYS_SIZE_V1)) {
 		bzero(local_mac, ZIO_OBJSET_MAC_LEN);
 		return (0);
 	}

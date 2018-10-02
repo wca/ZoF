@@ -37,6 +37,9 @@ __FBSDID("$FreeBSD$");
 #include <sys/priv.h>
 #include <sys/libkern.h>
 
+#include <sys/mutex.h>
+#include <sys/vnode.h>
+
 MALLOC_DECLARE(M_MOUNT);
 
 void

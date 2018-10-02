@@ -6567,8 +6567,11 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 
 	newspa->spa_config_source = SPA_CONFIG_SRC_SPLIT;
 
+	/* FreeBSD XXX */
+	newspa->spa_splitting_newspa = B_TRUE;
 	/* create the new pool from the disks of the original pool */
 	error = spa_load(newspa, SPA_LOAD_IMPORT, SPA_IMPORT_ASSEMBLE);
+	newspa->spa_splitting_newspa = B_FALSE;
 	if (error)
 		goto out;
 

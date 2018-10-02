@@ -566,14 +566,14 @@ zfs_prop_init(void)
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "PBKDF2SALT");
 	zprop_register_hidden(ZFS_PROP_KEY_GUID, "keyguid", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "KEYGUID");
-
+#ifdef __linux__
 	/*
 	 * Property to be removed once libbe is integrated
 	 */
 	zprop_register_hidden(ZFS_PROP_PRIVATE, "priv_prop",
 	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_FILESYSTEM,
 	    "PRIV_PROP");
-
+#endif
 	/* oddball properties */
 	zprop_register_impl(ZFS_PROP_CREATION, "creation", PROP_TYPE_NUMBER, 0,
 	    NULL, PROP_READONLY, ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK,
@@ -849,7 +849,7 @@ zfs_prop_align_right(zfs_prop_t prop)
 
 #endif
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 static int __init
 zcommon_init(void)
 {

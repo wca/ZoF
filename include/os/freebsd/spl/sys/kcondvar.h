@@ -62,14 +62,14 @@ typedef enum {
 #define	cv_init(cv, name, type, arg)	zfs_cv_init(cv, name, type, arg)
 #define cv_timedwait_io cv_timedwait
 
-extern clock_t
+static inline clock_t
 cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
     int flag)
 {
 
 	return (cv_timedwait_sbt(cvp, mp, nstosbt(tim), nstosbt(res), 0));
 }
-extern clock_t
+static inline clock_t
 cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
     hrtime_t res, int flag)
 {

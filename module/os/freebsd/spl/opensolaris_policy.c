@@ -179,7 +179,6 @@ secpolicy_vnode_any_access(cred_t *cr, vnode_t *vp, uid_t owner)
 		return (0);
 
 	for (i = 0; i < sizeof (privs)/sizeof (int); i++) {
-		boolean_t allzone = B_FALSE;
 		int priv;
 
 		switch (priv = privs[i]) {

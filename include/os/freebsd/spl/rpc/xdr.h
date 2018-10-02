@@ -30,6 +30,7 @@
 #ifndef	_OPENSOLARIS_RPC_XDR_H_
 #define	_OPENSOLARIS_RPC_XDR_H_
 
+#include <rpc/types.h>
 #include_next <rpc/xdr.h>
 
 #ifndef _KERNEL

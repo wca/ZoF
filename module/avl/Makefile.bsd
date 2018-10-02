@@ -1,0 +1,12 @@
+
+$(MODULE)-objs += avl.o
+
+objs = $($(MODULE)-objs)
+objs+= $($(MODULE)-x86)
+all: avl.ko
+
+include $(ZFSBASE)/Makefile.bsd.inc
+
+avl.ko: $(objs)
+	ld -r -d -o avl.ko $(objs)
+

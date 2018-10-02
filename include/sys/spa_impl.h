@@ -402,6 +402,8 @@ struct spa {
 	zfs_refcount_t	spa_refcount;		/* number of opens */
 
 	taskq_t		*spa_upgrade_taskq;	/* taskq for upgrade jobs */
+	/* FreeBSD XXX */
+	boolean_t	spa_splitting_newspa;	/* creating new spa in split */
 };
 
 extern char *spa_config_path;

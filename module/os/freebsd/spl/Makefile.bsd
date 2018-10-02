@@ -1,0 +1,47 @@
+src = @abs_top_srcdir@/module/zfs
+obj = @abs_builddir@
+target_cpu = @target_cpu@
+
+MODULE := zfs
+
+obj-$(CONFIG_ZFS) := $(MODULE).o
+
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+# Suppress unused-value warnings in sparc64 architecture headers
+ifeq ($(target_cpu),sparc64)
+ccflags-y += -Wno-unused-value
+endif
+
+# Suppress unused but set variable warnings often due to ASSERTs
+ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
+
+$(MODULE)-objs += acl_common.o
+$(MODULE)-objs += callb.o
+$(MODULE)-objs += list.o
+$(MODULE)-objs += opensolaris.o
+$(MODULE)-objs += opensolaris_acl.o
+$(MODULE)-objs += opensolaris_atomic.o
+$(MODULE)-objs += opensolaris_cmn_err.o
+$(MODULE)-objs += opensolaris_dtrace.o
+$(MODULE)-objs += opensolaris_kmem.o
+$(MODULE)-objs += opensolaris_kobj.o
+$(MODULE)-objs += opensolaris_kstat.o
+$(MODULE)-objs += opensolaris_lookup.o
+$(MODULE)-objs += opensolaris_misc.o
+$(MODULE)-objs += opensolaris_policy.o
+$(MODULE)-objs += opensolaris_string.o
+$(MODULE)-objs += opensolaris_sunddi.o
+$(MODULE)-objs += opensolaris_taskq.o
+$(MODULE)-objs += opensolaris_uio.o
+$(MODULE)-objs += opensolaris_vfs.o
+$(MODULE)-objs += opensolaris_vm.o
+$(MODULE)-objs += opensolaris_zone.o
+
+objs = $($(MODULE)-objs)
+all: spl.ko
+
+include $(ZFSBASE)/Makefile.bsd.inc
+
+spl.ko:  $(objs)
+	ld -r -d -o $@ $(objs)
