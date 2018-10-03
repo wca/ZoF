@@ -29,19 +29,10 @@
 #ifndef _OPENSOLARIS_SYS_UIO_H_
 #define	_OPENSOLARIS_SYS_UIO_H_
 
-//#include_next <sys/uio.h>
+#include_next <sys/uio.h>
 #include <sys/_uio.h>
 #include <sys/debug.h>
 
-struct uio {
-	struct	iovec *uio_iov;
-	int	uio_iovcnt;
-	off_t	uio_offset;
-	ssize_t	uio_resid;
-	enum	uio_seg uio_segflg;
-	enum	uio_rw uio_rw;
-	void	*uio_td;
-};
 
 
 #define	uio_loffset	uio_offset
@@ -70,7 +61,6 @@ typedef struct xuio {
 #define	XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
 #define	XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
 
-#ifdef BUILDING_ZFS
 static __inline int
 zfs_uiomove(void *cp, size_t n, enum uio_rw dir, uio_t *uio)
 {
@@ -82,6 +72,5 @@ zfs_uiomove(void *cp, size_t n, enum uio_rw dir, uio_t *uio)
 
 int uiocopy(void *p, size_t n, enum uio_rw rw, struct uio *uio, size_t *cbytes);
 void uioskip(uio_t *uiop, size_t n);
-#endif	/* BUILDING_ZFS */
 
 #endif	/* !_OPENSOLARIS_SYS_UIO_H_ */

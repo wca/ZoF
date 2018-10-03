@@ -49,7 +49,9 @@
 #include <sys/strings.h>
 #include <sys/byteorder.h>
 #include <sys/list.h>
+#ifdef __linux__
 #include <sys/uio_impl.h>
+#endif
 #include <sys/time.h>
 #include <sys/zone.h>
 #include <sys/sdt.h>

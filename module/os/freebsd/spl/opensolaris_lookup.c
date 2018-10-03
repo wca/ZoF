@@ -30,17 +30,9 @@ __FBSDID("$FreeBSD$");
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
-#include <sys/pathname.h>
+#include <sys/spl_pathname.h>
 #include <sys/vfs.h>
 #include <sys/vnode.h>
-
-int
-lookupname(char *dirname, enum uio_seg seg, enum symfollow follow,
-    vnode_t **dirvpp, vnode_t **compvpp)
-{
-
-	return (lookupnameat(dirname, seg, follow, dirvpp, compvpp, NULL));
-}
 
 int
 lookupnameat(char *dirname, enum uio_seg seg, enum symfollow follow,
@@ -62,3 +54,12 @@ lookupnameat(char *dirname, enum uio_seg seg, enum symfollow follow,
 	vn_lock(startvp, ltype | LK_RETRY);
 	return (error);
 }
+
+int
+lookupname(char *dirname, enum uio_seg seg, enum symfollow follow,
+    vnode_t **dirvpp, vnode_t **compvpp)
+{
+
+	return (lookupnameat(dirname, seg, follow, dirvpp, compvpp, NULL));
+}
+
