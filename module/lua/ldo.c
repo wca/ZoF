@@ -66,6 +66,7 @@
 #define	JMP_BUF_CNT	1
 #endif
 
+#ifdef __linux__
 typedef	struct _label_t { long long unsigned val[JMP_BUF_CNT]; } label_t;
 
 int setjmp(label_t *) __attribute__ ((__nothrow__));
@@ -85,6 +86,12 @@ void longjmp (label_t * buf) {
 	for (;;);
 }
 #endif
+#elif defined(__FreeBSD__)
+#define LUAI_THROW(L,c)		longjmp((c)->b, 1)
+#define LUAI_TRY(L,c,a)		if (setjmp((c)->b) == 0) { a }
+#define luai_jmpbuf		jmp_buf
+#endif
+
 
 #else /* _KERNEL */
 
