@@ -30,10 +30,10 @@ $(MODULE)-objs += zfs_vnops.o
 $(MODULE)-objs += zvol.o
 
 objs = $($(MODULE)-objs)
-all: zfs_os.a
+all: zfs_os.ko
 
 include $(ZFSBASE)/Makefile.bsd.inc
 
-zfs_os.a:  $(objs)
-	ar -rc $@ $(objs)
+zfs_os.ko:  $(objs)
+	ld -r -d -o $@ $(objs)
 

@@ -19,4 +19,4 @@ $(objs): %.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 clean:
-	rm -f *.o *~
+	rm -f *.o *~ *.a *.ko

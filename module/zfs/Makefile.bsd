@@ -137,12 +137,12 @@ $(MODULE)-x86 += vdev_raidz_math_avx512bw.o
 
 objs = $($(MODULE)-objs)
 objs+= $($(MODULE)-x86)
-all: zfs_common.a
+all: zfs_common.ko
 
 #CFLAGS+= -D__x86_64 -DHAVE_AVX2
 #CFLAGS+= -D_SYS_UIO_H_
 
 include $(ZFSBASE)/Makefile.bsd.inc
 
-zfs_common.a:  $(objs)
-	ar -rc $@ $(objs)
+zfs_common.ko:  $(objs)
+	ld -r -d -o $@ $(objs)

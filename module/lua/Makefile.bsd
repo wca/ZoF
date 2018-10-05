@@ -25,9 +25,9 @@ $(MODULE)-objs += lzio.o
 
 objs = $($(MODULE)-objs)
 objs+= $($(MODULE)-x86)
-all: lua.a
+all: lua.ko
 
 include $(ZFSBASE)/Makefile.bsd.inc
 
-lua.a:  $(objs)
-	ar -rc $@ $(objs)
+lua.ko:  $(objs)
+	ld -r -d -o $@ $(objs)
