@@ -38,6 +38,9 @@ $(MODULE)-objs += opensolaris_vm.o
 $(MODULE)-objs += opensolaris_zone.o
 
 objs = $($(MODULE)-objs)
-all: $(objs)
+all: spl.a
 
 include $(ZFSBASE)/Makefile.bsd.inc
+
+spl.a:  $(objs)
+	ar -rc $@ $(objs)

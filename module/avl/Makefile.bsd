@@ -3,6 +3,10 @@ $(MODULE)-objs += avl.o
 
 objs = $($(MODULE)-objs)
 objs+= $($(MODULE)-x86)
-all: $(objs)
+all: avl.a
 
 include $(ZFSBASE)/Makefile.bsd.inc
+
+avl.a: $(objs)
+       ar -rc avl.a $(objs)
+

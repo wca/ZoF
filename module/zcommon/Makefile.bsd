@@ -12,6 +12,9 @@ $(MODULE)-objs += zprop_common.o
 
 objs = $($(MODULE)-objs)
 objs+= $($(MODULE)-x86)
-all: $(objs)
+all: zcommon.a
 
 include $(ZFSBASE)/Makefile.bsd.inc
+
+zcommon.a:  $(objs)
+	ar -rc $@ $(objs)
