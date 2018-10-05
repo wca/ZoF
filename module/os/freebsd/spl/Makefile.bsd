@@ -40,19 +40,4 @@ $(MODULE)-objs += opensolaris_zone.o
 objs = $($(MODULE)-objs)
 all: $(objs)
 
-CFLAGS = -D_KERNEL -D__KERNEL__  -D_SYS_VMEM_H_
-CFLAGS+= -DKLD_MODULE -DKLD_TIED -DHAVE_UIO_ZEROCOPY
-CFLAGS+= -Werror
-CFLAGS+= -Wall -Wno-unknown-pragmas
-CFLAGS+= -nostdinc -fno-common -fno-builtin
-CFLAGS+= -I$(ZFSBASE)/include
-CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/spl
-CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/zfs
-CFLAGS+= -include $(ZFSBASE)/include/os/freebsd/spl/sys/ccompile.h
-CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/internal
-CFLAGS+= -I$(KERNBASE)/sys
-$(objs): %.o: %.c
-	$(CC) -c $(CFLAGS) $< -o $@
-
-clean:
-	rm -f *.o *~
+include $(ZFSBASE)/Makefile.bsd.inc
