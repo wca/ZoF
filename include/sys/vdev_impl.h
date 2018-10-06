@@ -355,6 +355,11 @@ struct vdev {
 	uint64_t	vdev_leaf_zap;
 	hrtime_t	vdev_mmp_pending; /* 0 if write finished	*/
 	uint64_t	vdev_mmp_kstat_id;	/* to find kstat entry */
+#ifdef __FreeBSD__
+	uint16_t	vdev_rotation_rate; /* rotational rate of the media */
+#define	VDEV_RATE_UNKNOWN	0
+#define	VDEV_RATE_NON_ROTATING	1
+#endif
 
 	/*
 	 * For DTrace to work in userland (libzpool) context, these fields must
