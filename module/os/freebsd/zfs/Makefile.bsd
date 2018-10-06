@@ -27,6 +27,8 @@ $(MODULE)-objs += zfs_log.o
 $(MODULE)-objs += zfs_replay.o
 $(MODULE)-objs += zfs_vfsops.o
 $(MODULE)-objs += zfs_vnops.o
+$(MODULE)-objs += zfs_znode.o
+$(MODULE)-objs += zio_crypt.o
 $(MODULE)-objs += zvol.o
 
 objs = $($(MODULE)-objs)

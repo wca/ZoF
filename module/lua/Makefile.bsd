@@ -1,4 +1,4 @@
-MODULE)-objs += lapi.o
+$(MODULE)-objs += lapi.o
 $(MODULE)-objs += lauxlib.o
 $(MODULE)-objs += lbaselib.o
 $(MODULE)-objs += lcode.o
