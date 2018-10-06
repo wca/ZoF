@@ -2125,7 +2125,7 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 	return (ret_val);
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 static int __init
 unicode_init(void)
 {
