@@ -30,7 +30,6 @@ $(MODULE)-objs += opensolaris_kstat.o
 $(MODULE)-objs += opensolaris_lookup.o
 $(MODULE)-objs += opensolaris_misc.o
 $(MODULE)-objs += opensolaris_policy.o
-$(MODULE)-objs += opensolaris_proc.o
 $(MODULE)-objs += opensolaris_string.o
 $(MODULE)-objs += opensolaris_sunddi.o
 $(MODULE)-objs += opensolaris_taskq.o
