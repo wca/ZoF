@@ -17,6 +17,8 @@ endif
 ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
 
 $(MODULE)-objs += acl_common.o
+$(MODULE)-objs += callb.o
+$(MODULE)-objs += list.o
 $(MODULE)-objs += opensolaris.o
 $(MODULE)-objs += opensolaris_acl.o
 $(MODULE)-objs += opensolaris_atomic.o
