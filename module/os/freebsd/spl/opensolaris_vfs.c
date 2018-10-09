@@ -249,3 +249,25 @@ mount_snapshot(kthread_t *td, vnode_t **vpp, const char *fstype, char *fspath,
 	*vpp = mvp;
 	return (0);
 }
+
+/*
+ * Like vn_rele() except if we are going to call VOP_INACTIVE() then do it
+ * asynchronously using a taskq. This can avoid deadlocks caused by re-entering
+ * the file system as a result of releasing the vnode. Note, file systems
+ * already have to handle the race where the vnode is incremented before the
+ * inactive routine is called and does its locking.
+ *
+ * Warning: Excessive use of this routine can lead to performance problems.
+ * This is because taskqs throttle back allocation if too many are created.
+ */
+void
+vn_rele_async(vnode_t *vp, taskq_t *taskq)
+{
+	VERIFY(vp->v_count > 0);
+	if (refcount_release_if_not_last(&vp->v_usecount)) {
+		vdrop(vp);
+		return;
+	}
+	VERIFY(taskq_dispatch((taskq_t *)taskq,
+	    (task_func_t *)vrele, vp, TQ_SLEEP) != 0);
+}

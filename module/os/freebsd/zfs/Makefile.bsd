@@ -18,7 +18,10 @@ ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
 
 $(MODULE)-objs += abd.o
 $(MODULE)-objs += freebsd_crypto.o
+$(MODULE)-objs += freebsd_dmu.o
+$(MODULE)-objs += freebsd_kmod.o
 $(MODULE)-objs += freebsd_spa.o
+$(MODULE)-objs += freebsd_vdev.o
 $(MODULE)-objs += vdev_file.o
 $(MODULE)-objs += vdev_geom.o
 $(MODULE)-objs += zfs_acl.o

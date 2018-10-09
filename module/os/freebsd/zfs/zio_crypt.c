@@ -37,17 +37,11 @@
 #include <sys/hkdf.h>
 
 #ifdef __FreeBSD__
-/*
- * The only use for SHA2* in this file is for SHA2-512, so let's
- * just hide that via some defines and typedefs.
- */
+# undef FCRYPTO_DEBUG
 # define SHA2Update(c, d, l)	SHA512_Update(c, d, l)
 # define SHA2Init(t, c)	SHA512_Init(c)
 # define SHA2Final(b, c)	SHA512_Final(b, c)
-
 typedef SHA512_CTX SHA2_CTX;
-
-# undef FCRYPTO_DEBUG
 #endif
 
 /*

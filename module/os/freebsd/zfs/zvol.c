@@ -99,6 +99,7 @@
 
 #include "zfs_namecheck.h"
 
+struct proc *zfsproc;
 extern uint_t zfs_geom_probe_vdev_key;
 
 struct g_class zfs_zvol_class = {
@@ -1678,30 +1679,16 @@ zvol_read(struct cdev *dev, struct uio *uio, int ioflag)
 	return (error);
 }
 
-#ifdef illumos
-/*ARGSUSED*/
-int
-zvol_write(dev_t dev, uio_t *uio, cred_t *cr)
-{
-	minor_t minor = getminor(dev);
-#else	/* !illumos */
 int
 zvol_write(struct cdev *dev, struct uio *uio, int ioflag)
 {
-#endif	/* illumos */
 	zvol_state_t *zv;
 	uint64_t volsize;
 	rl_t *rl;
 	int error = 0;
 	boolean_t sync;
 
-#ifdef illumos
-	zv = zfsdev_get_soft_state(minor, ZSST_ZVOL);
-	if (zv == NULL)
-		return (SET_ERROR(ENXIO));
-#else
 	zv = dev->si_drv2;
-#endif
 
 	volsize = zv->zv_volsize;
 	/* uio_loffset == volsize isn't an error as its required for EOF processing. */
@@ -2382,4 +2369,33 @@ zvol_d_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int fflag, struct threa
 	}
 
 	return (error);
+}
+
+boolean_t
+zvol_is_zvol(const char *device)
+{
+	return (device && strncmp(device, ZVOL_DIR, strlen(ZVOL_DIR)) == 0);
+}
+
+int
+zvol_set_snapdev(const char *ddname, zprop_source_t source, uint64_t snapdev)
+{
+	return (ENOTSUP);
+}
+
+int
+zvol_set_volmode(const char *ddname, zprop_source_t source, uint64_t snapdev)
+{
+	return (ENOTSUP);
+}
+
+
+/*
+ * return the proper tag for rollback and recv
+ */
+void *
+zvol_tag(zvol_state_t *zv)
+{
+	ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
+	return (zv->zv_total_opens > 0 ? zv : NULL);
 }

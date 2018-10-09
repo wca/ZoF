@@ -996,6 +996,7 @@ extern void spa_evicting_os_deregister(spa_t *, objset_t *os);
 extern void spa_evicting_os_wait(spa_t *spa);
 extern int spa_max_replication(spa_t *spa);
 extern int spa_prev_software_version(spa_t *spa);
+extern int spa_busy(void);
 extern uint64_t spa_get_failmode(spa_t *spa);
 extern uint64_t spa_get_deadman_failmode(spa_t *spa);
 extern void spa_set_deadman_failmode(spa_t *spa, const char *failmode);

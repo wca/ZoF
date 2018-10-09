@@ -201,6 +201,8 @@ extern void vcmn_err(int, const char *, va_list);
 extern void panic(const char *, ...)  __NORETURN;
 extern void vpanic(const char *, va_list)  __NORETURN;
 
+#define spl_strdup(s)  strdup(s)
+
 #define	fm_panic	panic
 
 extern int aok;

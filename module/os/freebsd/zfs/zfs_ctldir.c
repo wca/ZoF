@@ -1349,3 +1349,25 @@ zfsctl_umount_snapshots(vfs_t *vfsp, int fflags, cred_t *cr)
 	return (error);
 }
 
+int
+zfsctl_snapshot_unmount(char *snapname, int flags __unused)
+{
+	vfs_t *vfsp = NULL;
+	zfsvfs_t *zfsvfs = NULL;
+
+	if (strchr(snapname, '@') == NULL)
+		return (0);
+
+	int err = getzfsvfs(snapname, &zfsvfs);
+	if (err != 0) {
+		ASSERT3P(zfsvfs, ==, NULL);
+		return (0);
+	}
+	vfsp = zfsvfs->z_vfs;
+
+	ASSERT(!dsl_pool_config_held(dmu_objset_pool(zfsvfs->z_os)));
+
+	vfs_ref(vfsp);
+	vfs_unbusy(vfsp);
+	return (dounmount(vfsp, MS_FORCE, curthread));
+}

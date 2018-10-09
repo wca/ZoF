@@ -4987,6 +4987,95 @@ arc_available_memory(void)
 
 	return (lowest);
 }
+#else
+/* vmem_size typemask */
+#define VMEM_ALLOC	0x01
+#define VMEM_FREE	0x02
+#define VMEM_MAXFREE	0x10
+typedef size_t		vmem_size_t;
+extern vmem_size_t vmem_size(vmem_t *vm, int typemask);
+
+u_int zfs_arc_free_target = 0;
+
+typedef enum free_memory_reason_t {
+	FMR_UNKNOWN,
+	FMR_NEEDFREE,
+	FMR_LOTSFREE,
+	FMR_SWAPFS_MINFREE,
+	FMR_PAGES_PP_MAXIMUM,
+	FMR_HEAP_ARENA,
+	FMR_ZIO_ARENA,
+} free_memory_reason_t;
+
+int64_t last_free_memory;
+free_memory_reason_t last_free_reason;
+
+int64_t
+arc_available_memory(void)
+{
+	int64_t lowest = INT64_MAX;
+	int64_t n;
+	free_memory_reason_t r = FMR_UNKNOWN;
+
+#ifdef _KERNEL
+	/*
+	 * Cooperate with pagedaemon when it's time for it to scan
+	 * and reclaim some pages.
+	 */
+	n = PAGESIZE * ((int64_t)freemem - zfs_arc_free_target);
+	if (n < lowest) {
+		lowest = n;
+		r = FMR_LOTSFREE;
+	}
+#if defined(__i386) || !defined(UMA_MD_SMALL_ALLOC)
+	/*
+	 * If we're on an i386 platform, it's possible that we'll exhaust the
+	 * kernel heap space before we ever run out of available physical
+	 * memory.  Most checks of the size of the heap_area compare against
+	 * tune.t_minarmem, which is the minimum available real memory that we
+	 * can have in the system.  However, this is generally fixed at 25 pages
+	 * which is so low that it's useless.  In this comparison, we seek to
+	 * calculate the total heap-size, and reclaim if more than 3/4ths of the
+	 * heap is allocated.  (Or, in the calculation, if less than 1/4th is
+	 * free)
+	 */
+	n = uma_avail() - (long)(uma_limit() / 4);
+	if (n < lowest) {
+		lowest = n;
+		r = FMR_HEAP_ARENA;
+	}
+#endif
+
+	/*
+	 * If zio data pages are being allocated out of a separate heap segment,
+	 * then enforce that the size of available vmem for this arena remains
+	 * above about 1/4th (1/(2^arc_zio_arena_free_shift)) free.
+	 *
+	 * Note that reducing the arc_zio_arena_free_shift keeps more virtual
+	 * memory (in the zio_arena) free, which can avoid memory
+	 * fragmentation issues.
+	 */
+	if (zio_arena != NULL) {
+		n = (int64_t)vmem_size(zio_arena, VMEM_FREE) -
+		    (vmem_size(zio_arena, VMEM_ALLOC) >>
+		    arc_zio_arena_free_shift);
+		if (n < lowest) {
+			lowest = n;
+			r = FMR_ZIO_ARENA;
+		}
+	}
+
+#else	/* _KERNEL */
+	/* Every 100 calls, free a small amount */
+	if (spa_get_random(100) == 0)
+		lowest = -1024;
+#endif	/* _KERNEL */
+
+	last_free_memory = lowest;
+	last_free_reason = r;
+	DTRACE_PROBE2(arc__available_memory, int64_t, lowest, int, r);
+	return (lowest);
+}
 #endif
 
 /*

@@ -75,7 +75,16 @@
 #define	KSTAT_READ	0
 #define	KSTAT_WRITE	1
 
-typedef struct kstat {
+struct kstat;
+typedef struct kstat kstat_t;
+
+typedef struct kstat_raw_ops {
+	int (*headers)(char *buf, size_t size);
+	int (*data)(char *buf, size_t size, void *data);
+	void *(*addr)(kstat_t *ksp, loff_t index);
+} kstat_raw_ops_t;
+
+struct kstat {
 	void	*ks_data;
 	u_int	 ks_ndata;
 	kmutex_t *ks_lock;
@@ -87,7 +96,8 @@ typedef struct kstat {
 #endif
 	int		(*ks_update)(struct kstat *, int); /* dynamic update */
 	void		*ks_private;	/* arbitrary provider-private data */
-} kstat_t;
+	kstat_raw_ops_t	ks_raw_ops;		/* ops table for raw type */
+};
 
 typedef struct kstat_named {
 #define	KSTAT_STRLEN	31
