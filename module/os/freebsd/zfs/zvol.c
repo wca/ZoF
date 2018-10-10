@@ -99,6 +99,7 @@
 
 #include "zfs_namecheck.h"
 
+struct proc *zfsproc;
 extern uint_t zfs_geom_probe_vdev_key;
 
 struct g_class zfs_zvol_class = {
@@ -2382,4 +2383,22 @@ zvol_d_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int fflag, struct threa
 	}
 
 	return (error);
+}
+
+boolean_t
+zvol_is_zvol(const char *device)
+{
+	return (device && strncmp(device, ZVOL_DIR, strlen(ZVOL_DIR)) == 0);
+}
+
+int
+zvol_set_snapdev(const char *ddname, zprop_source_t source, uint64_t snapdev)
+{
+	return (ENOTSUP);
+}
+
+int
+zvol_set_volmode(const char *ddname, zprop_source_t source, uint64_t snapdev)
+{
+	return (ENOTSUP);
 }
