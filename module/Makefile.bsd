@@ -3,7 +3,8 @@ ZFSBASE := $(shell pwd)/..
 all: zfs.ko
 
 archives := avl/avl.ko lua/lua.ko nvpair/nvpair.ko zcommon/zcommon.ko zfs/zfs_common.ko \
-	unicode/unicode.ko os/freebsd/zfs/zfs_os.ko os/freebsd/spl/spl.ko 
+	unicode/unicode.ko os/freebsd/zfs/zfs_os.ko os/freebsd/spl/spl.ko \
+	os/freebsd/zmod/zmod.ko 
 
 zfs.ko: ${archives}
 	ld -m elf_x86_64_fbsd -d -warn-common --build-id=sha1 -r -d -o zfs.ko ${archives}
@@ -22,8 +23,12 @@ zfs/zfs_common.ko:
 	$(MAKE) -f Makefile.bsd -C zfs
 
 
-os/freebsd/zfs/zfs_os.ko:
-	$(MAKE) -f Makefile.bsd -C os/freebsd/zfs
 
 os/freebsd/spl/spl.ko:
 	$(MAKE) -f Makefile.bsd -C os/freebsd/spl
+
+os/freebsd/zfs/zfs_os.ko:
+	$(MAKE) -f Makefile.bsd -C os/freebsd/zfs
+
+os/freebsd/zmod/zmod.ko:
+	$(MAKE) -f Makefile.bsd -C os/freebsd/zmod
