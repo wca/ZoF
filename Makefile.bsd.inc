@@ -5,7 +5,7 @@ CFLAGS+= -Wall
 CFLAGS+= -nostdinc -fno-common -fno-builtin -Wno-unknown-pragmas
 # remove once zfs_ioctl.c is fixed
 CFLAGS+= -Wno-unused-function
-CFLAGS+= -DKLD_MODULE -DKLD_TIED -DHAVE_UIO_ZEROCOPY
+CFLAGS+= -DKLD_MODULE -DKLD_TIED -DHAVE_UIO_ZEROCOPY -DHAVE_KSID
 CFLAGS+= -Werror
 CFLAGS+= -I$(ZFSBASE)/include
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/spl
