@@ -22,6 +22,7 @@ $(MODULE)-objs += inffast.o
 $(MODULE)-objs += inflate.o
 $(MODULE)-objs += inftrees.o
 $(MODULE)-objs += opensolaris_crc32.o
+$(MODULE)-objs += trees.o
 $(MODULE)-objs += zmod.o
 $(MODULE)-objs += zmod_subr.o
 $(MODULE)-objs += zutil.o
