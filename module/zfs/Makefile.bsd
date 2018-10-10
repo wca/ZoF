@@ -116,6 +116,7 @@ $(MODULE)-objs += zio.o
 $(MODULE)-objs += zio_checksum.o
 $(MODULE)-objs += zio_compress.o
 $(MODULE)-objs += zio_inject.o
+$(MODULE)-objs += zle.o
 $(MODULE)-objs += zrlock.o
 $(MODULE)-objs += zthr.o
 $(MODULE)-objs += dsl_destroy.o
