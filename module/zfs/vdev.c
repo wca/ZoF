@@ -190,6 +190,13 @@ static vdev_ops_t *vdev_ops_table[] = {
 	NULL
 };
 
+void
+vdev_default_xlate(vdev_t *vd, const range_seg_t *in, range_seg_t *res)
+{
+	res->rs_start = in->rs_start;
+	res->rs_end = in->rs_end;
+}
+
 /*
  * Given a vdev type, return the appropriate ops vector.
  */
