@@ -45,7 +45,6 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zap.h>
 #include <sys/zio_checksum.h>
-#include <sys/zfs_znode.h>
 #include <zfs_fletcher.h>
 #include <sys/avl.h>
 #include <sys/ddt.h>
@@ -58,6 +57,14 @@
 #include <sys/bqueue.h>
 #include <sys/zvol.h>
 #include <sys/policy.h>
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
+#endif
+
 
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
 int zfs_send_corrupt_data = B_FALSE;

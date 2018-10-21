@@ -35,11 +35,18 @@
 #include <sys/zcp_iter.h>
 #include <sys/zcp_global.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/zfs_znode.h>
 #include <sys/zvol.h>
 
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
+#endif
+
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
 #endif
 
 static int

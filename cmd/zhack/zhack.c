@@ -38,7 +38,7 @@
 #include <sys/spa_impl.h>
 #include <sys/dmu.h>
 #include <sys/zap.h>
-#include <sys/zfs_znode.h>
+#include <os/linux/zfs/sys/zfs_znode.h>
 #include <sys/dsl_synctask.h>
 #include <sys/vdev.h>
 #include <sys/fs/zfs.h>

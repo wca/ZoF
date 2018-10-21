@@ -48,7 +48,6 @@
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev.h>
-#include <sys/zfs_znode.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
 #include <sys/dsl_scan.h>
@@ -61,6 +60,14 @@
 #include <sys/zio_compress.h>
 #include <zfs_fletcher.h>
 #include <sys/zio_checksum.h>
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
+#endif
+
 
 /*
  * The SPA supports block sizes up to 16MB.  However, very large blocks

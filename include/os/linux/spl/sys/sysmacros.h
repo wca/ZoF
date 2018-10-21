@@ -21,7 +21,7 @@
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
-
+#warning _SPL_SYSMACROS_H ZoF
 #ifndef _SPL_SYSMACROS_H
 #define	_SPL_SYSMACROS_H
 

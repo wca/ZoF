@@ -54,7 +54,6 @@
 #endif
 #include <sys/time.h>
 #include <sys/zone.h>
-#include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/zfs_debug.h>
 #include <sys/sysevent.h>
@@ -65,13 +64,14 @@
 #include <sys/disp.h>
 #include <sys/trace.h>
 #if defined(__linux__)
+#include <os/linux/spl/sys/sdt.h>
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
 #elif defined(__FreeBSD__)
+#include <os/freebsd/spl/sys/sdt.h>
 #include <sys/kcondvar.h>
 #include <sys/rwlock.h>
 #include <sys/sig.h>
-#include_next <sys/sdt.h>
 #include <sys/misc.h>
 #include <sys/kdb.h>
 #include <sys/pathname.h>
@@ -159,7 +159,6 @@ extern int spa_import_rootpool(const char *name);
 #include <sys/list.h>
 #include <sys/uio.h>
 #include <sys/zfs_debug.h>
-#include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/u8_textprep.h>
 #include <sys/sysevent.h>
@@ -167,6 +166,17 @@ extern int spa_import_rootpool(const char *name);
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 #include <sys/utsname.h>
+
+#ifndef ZFS_PROBE
+#define	ZFS_PROBE(a)			((void) 0)
+#define	ZFS_PROBE1(a, c)		((void) 0)
+#define	ZFS_PROBE2(a, c, e)		((void) 0)
+#define	ZFS_PROBE3(a, c, e, g)		((void) 0)
+#define	ZFS_PROBE4(a, c, e, g, i)	((void) 0)
+#endif
+
+#undef SET_ERROR
+#define SET_ERROR(err) (err)
 
 /*
  * Stack

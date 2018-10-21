@@ -45,10 +45,16 @@
 #include <sys/sunddi.h>
 #include <sys/zfeature.h>
 #include <sys/policy.h>
-#include <sys/zfs_znode.h>
 #include <sys/zvol.h>
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
+#endif
 
 /*
  * Filesystem and Snapshot Limits

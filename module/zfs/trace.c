@@ -33,7 +33,6 @@
 #include <sys/dmu_tx.h>
 #include <sys/dnode.h>
 #include <sys/multilist.h>
-#include <sys/zfs_znode.h>
 #include <sys/zil_impl.h>
 #include <sys/zrlock.h>
 
@@ -50,3 +49,12 @@
 #include <sys/trace_zil.h>
 #include <sys/trace_zio.h>
 #include <sys/trace_zrlock.h>
+
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
+#endif
+

@@ -38,7 +38,13 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zap.h>
 #include <sys/zio_checksum.h>
-#include <sys/zfs_znode.h>
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
+#endif
 
 struct diffarg {
 	struct vnode *da_vp;		/* file to which we are reporting */

@@ -138,12 +138,30 @@ AC_CONFIG_FILES([
 	module/zfs/Makefile
 	module/lua/Makefile
 	module/icp/Makefile
-	module/spl/Makefile
+	module/os/linux/spl/Makefile
 	include/Makefile
 	include/linux/Makefile
-	include/spl/Makefile
-	include/spl/rpc/Makefile
-	include/spl/sys/Makefile
+	include/os/Makefile
+	include/os/linux/Makefile
+	include/os/linux/zfs/Makefile
+	include/os/linux/zfs/sys/Makefile
+	include/os/linux/spl/Makefile
+	include/os/linux/spl/rpc/Makefile
+	include/os/linux/spl/sys/Makefile
+	include/os/freebsd/Makefile
+	include/os/freebsd/internal/Makefile
+	include/os/freebsd/spl/Makefile
+	include/os/freebsd/zfs/Makefile
+	include/os/freebsd/internal/linux/Makefile
+	include/os/freebsd/spl/acl/Makefile
+	include/os/freebsd/spl/rpc/Makefile
+	include/os/freebsd/spl/sys/Makefile
+	include/os/freebsd/spl/sys/fm/Makefile
+	include/os/freebsd/spl/sys/fm/fs/Makefile
+	include/os/freebsd/spl/sys/crypto/Makefile
+	include/os/freebsd/spl/sys/fs/Makefile
+	include/os/freebsd/spl/sys/sysevent/Makefile
+	include/os/freebsd/zfs/sys/Makefile
 	include/sys/Makefile
 	include/sys/fs/Makefile
 	include/sys/fm/Makefile

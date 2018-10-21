@@ -2,6 +2,7 @@ include $(top_srcdir)/config/Rules.am
 
 VPATH = \
 	$(top_srcdir)/module/zfs \
+	$(top_srcdir)/module/os/linux/zfs \
 	$(top_srcdir)/module/zcommon \
 	$(top_srcdir)/module/lua \
 	$(top_srcdir)/lib/libzpool

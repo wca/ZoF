@@ -29,9 +29,16 @@
 #include <sys/dsl_bookmark.h>
 #include <sys/dsl_destroy.h>
 #include <sys/dmu_objset.h>
-#include <sys/zfs_znode.h>
 #include <sys/zfeature.h>
 #include <sys/metaslab.h>
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
+#endif
+
 
 #define	DST_AVG_BLKSHIFT 14
 

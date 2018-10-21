@@ -32,7 +32,6 @@
 #include <sys/u8_textprep.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/zfs_znode.h>
 #include <sys/dsl_crypt.h>
 
 #include "zfs_prop.h"
@@ -43,6 +42,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#endif
+
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
 #endif
 
 static zprop_desc_t zfs_prop_table[ZFS_NUM_PROPS];

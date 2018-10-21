@@ -32,7 +32,7 @@
 #include <linux/ioctl.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
-#include <sys/zfs_znode.h>
+#include <os/linux/zfs/sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 
 static int

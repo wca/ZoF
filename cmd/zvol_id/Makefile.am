@@ -6,7 +6,7 @@ AM_CFLAGS += -fno-stack-protector
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
+	-I$(top_srcdir)/lib/libspl/include 
 
 udev_PROGRAMS = zvol_id
 

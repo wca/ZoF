@@ -35,7 +35,6 @@
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_sysfs.h>
-#include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 
 #include "zfs_prop.h"
@@ -44,6 +43,7 @@
 #if defined(_KERNEL)
 #if defined(__linux__)
 #include <linux/sort.h>
+#include <os/linux/zfs/sys/zfs_znode.h>
 #define	qsort(base, num, size, cmp) \
     sort(base, num, size, cmp, NULL)
 #endif
@@ -52,6 +52,10 @@
 #include <string.h>
 #include <ctype.h>
 #include <sys/stat.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
 #endif
 
 static zprop_desc_t *

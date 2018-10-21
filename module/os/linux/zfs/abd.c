@@ -118,7 +118,7 @@
 #include <sys/param.h>
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
-#include <sys/zfs_znode.h>
+#include <os/linux/zfs/sys/zfs_znode.h>
 #ifdef _KERNEL
 #include <linux/scatterlist.h>
 #include <linux/kmap_compat.h>

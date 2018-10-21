@@ -40,7 +40,6 @@
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/fs/zfs.h>
-#include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/zil_impl.h>
@@ -53,6 +52,13 @@
 #include <sys/range_tree.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
+#endif
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
 #endif
 
 /*

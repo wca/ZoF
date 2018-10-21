@@ -50,13 +50,12 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/nvpair.h \
 	$(top_srcdir)/include/sys/nvpair_impl.h \
 	$(top_srcdir)/include/sys/pathname.h \
-	$(top_srcdir)/include/sys/policy.h \
 	$(top_srcdir)/include/sys/range_tree.h \
 	$(top_srcdir)/include/sys/refcount.h \
 	$(top_srcdir)/include/sys/rrwlock.h \
 	$(top_srcdir)/include/sys/sa.h \
 	$(top_srcdir)/include/sys/sa_impl.h \
-	$(top_srcdir)/include/sys/sdt.h \
+	$(top_srcdir)/include/os/linux/spl/sys/sdt.h \
 	$(top_srcdir)/include/sys/sha2.h \
 	$(top_srcdir)/include/sys/skein.h \
 	$(top_srcdir)/include/sys/spa_boot.h \
@@ -108,11 +107,10 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zcp_prop.h \
 	$(top_srcdir)/include/sys/zfeature.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
-	$(top_srcdir)/include/sys/zfs_context.h \
-	$(top_srcdir)/include/sys/zfs_ctldir.h \
+	$(top_srcdir)/include/os/linux/zfs/sys/zfs_ctldir.h \
 	$(top_srcdir)/include/sys/zfs_debug.h \
 	$(top_srcdir)/include/sys/zfs_delay.h \
-	$(top_srcdir)/include/sys/zfs_dir.h \
+	$(top_srcdir)/include/os/linux/zfs/sys/zfs_dir.h \
 	$(top_srcdir)/include/sys/zfs_fuid.h \
 	$(top_srcdir)/include/sys/zfs_project.h \
 	$(top_srcdir)/include/sys/zfs_ratelimit.h \
@@ -120,9 +118,9 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zfs_sa.h \
 	$(top_srcdir)/include/sys/zfs_stat.h \
 	$(top_srcdir)/include/sys/zfs_sysfs.h \
-	$(top_srcdir)/include/sys/zfs_vfsops.h \
-	$(top_srcdir)/include/sys/zfs_vnops.h \
-	$(top_srcdir)/include/sys/zfs_znode.h \
+	$(top_srcdir)/include/os/linux/zfs/sys/zfs_vfsops.h \
+	$(top_srcdir)/include/os/linux/zfs/sys/zfs_vnops.h \
+	$(top_srcdir)/include/os/linux/zfs/sys/zfs_znode.h \
 	$(top_srcdir)/include/sys/zil.h \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \
@@ -132,12 +130,14 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zio_impl.h \
 	$(top_srcdir)/include/sys/zio_priority.h \
 	$(top_srcdir)/include/sys/zrlock.h \
-	$(top_srcdir)/include/sys/zthr.h
+	$(top_srcdir)/include/sys/zthr.h \
+	$(top_srcdir)/lib/libspl/include/sys/cred.h \
+	$(top_srcdir)/include/sys/zfs_context.h 
 
 KERNEL_H = \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
-	${top_srcdir}/include/sys/zpl.h \
+	${top_srcdir}/include/os/linux/zfs/sys/zpl.h \
 	$(top_srcdir)/include/sys/zvol.h
 
 USER_H =

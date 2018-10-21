@@ -42,12 +42,18 @@
 #include <sys/spa.h>
 #include <sys/dmu.h>
 #include <sys/zfs_context.h>
-#include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 #include <sys/zap.h>
 #include <sys/refcount.h>
 #include <sys/zap_impl.h>
 #include <sys/zap_leaf.h>
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
+#endif
 
 int fzap_default_block_shift = 14; /* 16k blocksize */
 

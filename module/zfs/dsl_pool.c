@@ -40,7 +40,6 @@
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/fs/zfs.h>
-#include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/dsl_deadlist.h>
 #include <sys/vdev_impl.h>
@@ -51,6 +50,13 @@
 #include <sys/dsl_userhold.h>
 #include <sys/trace_txg.h>
 #include <sys/mmp.h>
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
+#endif
 
 /*
  * ZFS Write Throttle

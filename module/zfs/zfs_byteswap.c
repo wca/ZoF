@@ -26,9 +26,16 @@
 #include <sys/zfs_context.h>
 #include <sys/vfs.h>
 #include <sys/fs/zfs.h>
-#include <sys/zfs_znode.h>
+#ifdef __linux__
+#include <os/linux/zfs/sys/zfs_znode.h>
+#endif
+#ifdef __FreeBSD__
+#include <os/freebsd/zfs/sys/zfs_znode.h>
+#endif
 #include <sys/zfs_sa.h>
 #include <sys/zfs_acl.h>
+
+
 
 void
 zfs_oldace_byteswap(ace_t *ace, int ace_cnt)

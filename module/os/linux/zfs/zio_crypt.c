@@ -26,9 +26,8 @@
 #include <sys/zil.h>
 #include <sys/sha2.h>
 #include <sys/hkdf.h>
-#ifdef __linux__
 #include "qat.h"
-#endif
+
 
 /*
  * This file is responsible for handling all of the details of generating

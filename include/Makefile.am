@@ -1,4 +1,4 @@
-SUBDIRS = linux spl sys
+SUBDIRS = linux os sys
 
 COMMON_H = \
 	$(top_srcdir)/include/zfeature_common.h \

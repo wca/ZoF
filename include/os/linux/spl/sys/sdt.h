@@ -37,6 +37,10 @@
 
 #endif /* _KERNEL */
 
+#undef SET_ERROR
+#define SET_ERROR(err) (err)
+#endif
+
 /*
  * The set-error SDT probe is extra static, in that we declare its fake
  * function literally, rather than with the DTRACE_PROBE1() macro.  This is

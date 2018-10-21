@@ -31,11 +31,13 @@
 #include <string.h>
 #include <zlib.h>
 #include <libgen.h>
+#ifdef _KERNEL_
 #include <sys/signal.h>
+#endif
 #include <sys/spa.h>
+#include <sys/zfs_context.h>
 #include <sys/stat.h>
 #include <sys/processor.h>
-#include <sys/zfs_context.h>
 #include <sys/rrwlock.h>
 #include <sys/utsname.h>
 #include <sys/time.h>

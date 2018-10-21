@@ -1,6 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
 AM_CPPFLAGS += -I$(top_srcdir)/include
+AM_CPPFLAGS += -I$(top_srcdir)/include/os/linux
 AM_CPPFLAGS += -I$(top_srcdir)/lib/libspl/include
 LDADD = $(top_srcdir)/lib/libicp/libicp.la
 LDADD += $(top_srcdir)/lib/libzpool/libzpool.la
