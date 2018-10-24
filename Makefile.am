@@ -25,17 +25,17 @@ EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NOTICE README.md
 
 FLAGS = -D_KERNEL -D__KERNEL__  -DFREEBSD_NAMECACHE -DBUILDING_ZFS
 CFLAGS+=  -D_SYS_VMEM_H_
-#-D_SYS_UCRED_H_
 CFLAGS+= -Wall
 CFLAGS+= -nostdinc -fno-common -fno-builtin -Wno-unknown-pragmas
-# remove once zfs_ioctl.c is fixed
 CFLAGS+= -Wno-unused-function
-CFLAGS+= -DKLD_MODULE -DKLD_TIED -DHAVE_UIO_ZEROCOPY
+CFLAGS+= -DKLD_MODULE -DKLD_TIED -DHAVE_UIO_ZEROCOPY -DHAVE_KSID
 CFLAGS+= -Werror
 CFLAGS+= -I$(ZFSBASE)/include
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/spl
 CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/zfs
 CFLAGS+= -I$(KERNBASE)/sys
+CFLAGS+= -I$(ZFSBASE)/include/os/freebsd/internal
+CFLAGS+= -include $(ZFSBASE)/include/os/freebsd/spl/sys/ccompile.h
 CFLAGS+= -pipe
 
 @CODE_COVERAGE_RULES@
@@ -45,7 +45,7 @@ distclean-local::
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
 		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
 		\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
-		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
+"		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
 		-o -name '.*.rej' -o -size 0 -o -name '*%' -o -name '.*.cmd' \
 		-o -name 'core' -o -name 'Makefile' -o -name 'Module.symvers' \
 		-o -name '*.order' -o -name '*.markers' -o -name '*.gcda' \

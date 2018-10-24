@@ -34,9 +34,21 @@ AC_INIT(m4_esyscmd(grep ^Name: META | cut -d ':' -f 2 | tr -d ' \n'),
 	m4_esyscmd(grep ^Version: META | cut -d ':' -f 2 | tr -d ' \n'))
 AC_LANG(C)
 ZFS_AC_META
-AC_CONFIG_AUX_DIR([config])
-AC_CONFIG_MACRO_DIR([config])
+AC_CANONICAL_HOST
+case "$host" in
+*-*-linux*)
+	AC_CONFIG_AUX_DIR([config])
+	AC_CONFIG_MACRO_DIR([config])
+;;	
+*-*-freebsd*)
+	AC_CONFIG_AUX_DIR([config_bsd])
+	AC_CONFIG_MACRO_DIR([config_bsd])
+;;	
+esac
 AC_CANONICAL_SYSTEM
+AC_CANONICAL_HOST
+AC_MSG_ERROR([$host])
+
 AM_MAINTAINER_MODE
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AM_INIT_AUTOMAKE([subdir-objects])
@@ -44,7 +56,6 @@ AC_CONFIG_HEADERS([zfs_config.h], [
 	(mv zfs_config.h zfs_config.h.tmp &&
 	awk -f ${ac_srcdir}/config/config.awk zfs_config.h.tmp >zfs_config.h &&
 	rm zfs_config.h.tmp) || exit 1])
-
 AC_PROG_INSTALL
 AC_PROG_CC
 AC_PROG_LIBTOOL

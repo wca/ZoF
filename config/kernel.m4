@@ -180,7 +180,6 @@ AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 		], [
 			LINUX_SYMBOLS=Module.symvers
 		])
-
 		AS_IF([test ! -f "$LINUX_OBJ/$LINUX_SYMBOLS"], [
 			AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
