@@ -38,6 +38,17 @@ static MALLOC_DEFINE(M_KSTAT, "kstat_data", "Kernel statistics");
 
 SYSCTL_ROOT_NODE(OID_AUTO, kstat, CTLFLAG_RW, 0, "Kernel statistics");
 
+void
+__kstat_set_raw_ops(kstat_t *ksp,
+    int (*headers)(char *buf, size_t size),
+    int (*data)(char *buf, size_t size, void *data),
+    void *(*addr)(kstat_t *ksp, loff_t index))
+{
+	ksp->ks_raw_ops.headers = headers;
+	ksp->ks_raw_ops.data    = data;
+	ksp->ks_raw_ops.addr    = addr;
+}
+
 kstat_t *
 kstat_create(char *module, int instance, char *name, char *class, uchar_t type,
     ulong_t ndata, uchar_t flags)
