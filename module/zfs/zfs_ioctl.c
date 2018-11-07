@@ -6525,7 +6525,7 @@ zfs_ioctl_register_dataset_modify(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
 	    DATASET_NAME, B_TRUE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY);
 }
 
-static void
+void
 zfs_ioctl_init(void)
 {
 	zfs_ioctl_register("snapshot", ZFS_IOC_SNAPSHOT,
@@ -7069,20 +7069,29 @@ zfsdev_release(struct inode *ino, struct file *filp)
 
 	return (-error);
 }
-#endif
 
 static long
-zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
+zfsdev_ioctl_linux(struct file *filp, unsigned cmd, unsigned long arg)
+{
+	uint_t vecnum;
+
+	vecnum = cmd - ZFS_IOC_FIRST;
+	return (zfsdev_ioctl_common(vecnum, arg));
+}
+
+#endif
+
+long
+zfsdev_ioctl_common(uint_t vecnum, unsigned long arg)
 {
 	zfs_cmd_t *zc;
-	uint_t vecnum;
-	int error, rc, flag = 0;
+	int error, cmd, rc, flag = 0;
 	const zfs_ioc_vec_t *vec;
 	char *saved_poolname = NULL;
 	nvlist_t *innvl = NULL;
 	fstrans_cookie_t cookie;
 
-	vecnum = cmd - ZFS_IOC_FIRST;
+	cmd = vecnum;
 	if (vecnum >= sizeof (zfs_ioc_vec) / sizeof (zfs_ioc_vec[0]))
 		return (-SET_ERROR(ZFS_ERR_IOC_CMD_UNAVAIL));
 	vec = &zfs_ioc_vec[vecnum];

@@ -489,6 +489,7 @@ typedef struct zfs_creat {
 extern int zfs_secpolicy_snapshot_perms(const char *, cred_t *);
 extern int zfs_secpolicy_rename_perms(const char *, const char *, cred_t *);
 extern int zfs_secpolicy_destroy_perms(const char *, cred_t *);
+extern int zfs_busy(void);
 extern void zfs_unmount_snap(const char *);
 extern void zfs_destroy_unmount_origin(const char *);
 extern int getzfsvfs_impl(struct objset *, struct zfsvfs **);
@@ -518,6 +519,7 @@ typedef struct zfsdev_state {
 extern void *zfsdev_get_state(minor_t minor, enum zfsdev_state_type which);
 extern int zfsdev_getminor(struct file *filp, minor_t *minorp);
 extern minor_t zfsdev_minor_alloc(void);
+extern long zfsdev_ioctl_common(uint_t vecnum, unsigned long arg);
 
 #endif	/* _KERNEL */
 

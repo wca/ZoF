@@ -58,5 +58,6 @@ extern void *zvol_tag(zvol_state_t *);
 
 extern int zvol_init(void);
 extern void zvol_fini(void);
+extern int zvol_busy(void);
 #endif /* _KERNEL */
 #endif /* _SYS_ZVOL_H */

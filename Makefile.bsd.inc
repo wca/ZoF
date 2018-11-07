@@ -3,6 +3,9 @@ CFLAGS+=  -D_SYS_VMEM_H_
 #-D_SYS_UCRED_H_ 
 CFLAGS+= -Wall
 CFLAGS+= -nostdinc -fno-common -fno-builtin -Wno-unknown-pragmas
+CFLAGS+= -fno-strict-aliasing -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer
+CFLAGS+= -MD -mcmodel=kernel  -mno-red-zone -mno-mmx -mno-sse -msoft-float
+CFLAGS+= -fno-asynchronous-unwind-tables -ffreestanding -fwrapv -fstack-protector
 # remove once zfs_ioctl.c is fixed
 CFLAGS+= -Wno-unused-function
 CFLAGS+= -DKLD_MODULE -DKLD_TIED -DHAVE_UIO_ZEROCOPY -DHAVE_KSID

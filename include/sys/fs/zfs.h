@@ -36,6 +36,7 @@
 
 #include <sys/time.h>
 #include <sys/zio_priority.h>
+#include_next <sys/fs/zfs.h>
 
 #ifdef	__cplusplus
 extern "C" {
