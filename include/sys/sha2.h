@@ -94,12 +94,6 @@ typedef SHA2_CTX SHA256_CTX;
 typedef SHA2_CTX SHA384_CTX;
 typedef SHA2_CTX SHA512_CTX;
 
-extern void SHA2Init(uint64_t mech, SHA2_CTX *);
-
-extern void SHA2Update(SHA2_CTX *, const void *, size_t);
-
-extern void SHA2Final(void *, SHA2_CTX *);
-
 extern void SHA256Init(SHA256_CTX *);
 
 extern void SHA256Update(SHA256_CTX *, const void *, size_t);
@@ -117,6 +111,21 @@ extern void SHA512Init(SHA512_CTX *);
 extern void SHA512Update(SHA512_CTX *, const void *, size_t);
 
 extern void SHA512Final(void *, SHA512_CTX *);
+
+#ifdef __FreeBSD__
+extern void SHA512_Init(SHA512_CTX *);
+extern void SHA512_Update(SHA512_CTX *, const void *, size_t);
+extern void SHA512_Final(void *, SHA512_CTX *);
+# define SHA2Update(c, d, l)	SHA512_Update(c, d, l)
+# define SHA2Init(t, c)	SHA512_Init(c)
+# define SHA2Final(b, c)	SHA512_Final(b, c)
+#else
+extern void SHA2Init(uint64_t mech, SHA2_CTX *);
+
+extern void SHA2Update(SHA2_CTX *, const void *, size_t);
+
+extern void SHA2Final(void *, SHA2_CTX *);
+#endif
 
 #ifdef _SHA2_IMPL
 /*
