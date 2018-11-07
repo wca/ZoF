@@ -38,6 +38,10 @@
 
 #ifdef __FreeBSD__
 # undef FCRYPTO_DEBUG
+# define SHA2Update(c, d, l)	SHA512_Update(c, d, l)
+# define SHA2Init(t, c)	SHA512_Init(c)
+# define SHA2Final(b, c)	SHA512_Final(b, c)
+typedef SHA512_CTX SHA2_CTX;
 #endif
 
 /*
