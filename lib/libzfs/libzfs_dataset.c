@@ -748,6 +748,22 @@ zfs_open(libzfs_handle_t *hdl, const char *path, int types)
 		zfs_close(pzhp);
 	}
 
+	if (zhp == NULL) {
+		char *at = strchr(path, '@');
+
+		if (at != NULL)
+			*at = '\0';
+		errno = 0;
+		if ((zhp = make_dataset_handle(hdl, path)) == NULL) {
+			(void) zfs_standard_error(hdl, errno, errbuf);
+			return (NULL);
+		}
+		if (at != NULL)
+			*at = '@';
+		(void) strlcpy(zhp->zfs_name, path, sizeof (zhp->zfs_name));
+		zhp->zfs_type = ZFS_TYPE_SNAPSHOT;
+	}
+
 	if (!(types & zhp->zfs_type)) {
 		(void) zfs_error(hdl, EZFS_BADTYPE, errbuf);
 		zfs_close(zhp);

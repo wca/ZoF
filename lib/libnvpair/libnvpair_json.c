@@ -303,7 +303,11 @@ nvlist_print_json(FILE *fp, nvlist_t *nvl)
 			for (i = 0; i < valsz; i++) {
 				if (i > 0)
 					FPRINTF(fp, ",");
+#ifdef __FreeBSD__
+				FPRINTF(fp, "%hhd", val[i]);
+#else
 				FPRINTF(fp, "%hd", val[i]);
+#endif
 			}
 			FPRINTF(fp, "]");
 			break;

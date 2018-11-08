@@ -30,7 +30,11 @@
 #include <string.h>
 #include <sys/types.h>
 #include <stdio.h>
+#ifdef __FreeBSD__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #include <ctype.h>
 #include "libuutil.h"
 

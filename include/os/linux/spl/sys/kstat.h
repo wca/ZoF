@@ -24,11 +24,15 @@
 
 #ifndef _SPL_KSTAT_H
 #define	_SPL_KSTAT_H
-
+#ifdef __linux__
 #include <linux/module.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/kmem.h>
+#else
+#include <sys/sysctl.h>
+struct list_head {};
+#endif
 #include <sys/mutex.h>
 #include <sys/proc.h>
 

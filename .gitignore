@@ -58,3 +58,7 @@ cscope.*
 *.tar.gz
 *.patch
 *.orig
+*.so
+*.so.debug
+*.so.full
+*.tmp

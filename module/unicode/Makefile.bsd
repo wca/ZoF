@@ -6,7 +6,7 @@ objs = $($(MODULE)-objs)
 objs+= $($(MODULE)-x86)
 all: unicode.ko
 
-include $(ZFSBASE)/Makefile.bsd.inc
+include $(ZFSBASE)/module/Makefile.bsd.inc
 
 unicode.ko: $(objs)
 	ld -r -d -o unicode.ko $(objs)

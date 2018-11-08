@@ -79,7 +79,6 @@
 #include <sys/mntent.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
-#include <sys/vfs.h>
 #include <sys/dsl_crypt.h>
 
 #include <libzfs.h>
@@ -89,6 +88,10 @@
 
 #include <libshare.h>
 #include <sys/systeminfo.h>
+#ifdef __FreeBSD__
+#include <fsshare.h>
+#endif
+
 #define	MAXISALEN	257	/* based on sysinfo(2) man page */
 
 static int mount_tp_nthr = 512;	/* tpool threads for multi-threaded mounting */
@@ -972,6 +975,7 @@ static int
 unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
     zfs_share_proto_t proto)
 {
+#ifndef __FreeBSD__
 	sa_share_t share;
 	int err;
 	char *mntpt;
@@ -1006,6 +1010,22 @@ unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
 		    dgettext(TEXT_DOMAIN, "cannot unshare '%s': not found"),
 		    name));
 	}
+#else
+	int err;
+
+	if (proto != PROTO_NFS) {
+		fprintf(stderr, "No SMB support in FreeBSD yet.\n");
+		return (EOPNOTSUPP);
+	}
+
+	err = fsunshare(ZFS_EXPORTS_PATH, mountpoint);
+	if (err != 0) {
+		zfs_error_aux(hdl, "%s", strerror(err));
+		return (zfs_error_fmt(hdl, EZFS_UNSHARENFSFAILED,
+		    dgettext(TEXT_DOMAIN,
+		    "cannot unshare '%s'"), name));
+	}
+#endif
 	return (0);
 }
 

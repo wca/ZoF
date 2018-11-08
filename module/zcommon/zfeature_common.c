@@ -194,7 +194,8 @@ zfs_mod_supported_feature(const char *name)
 	 * query the running module, via sysfs, to determine which
 	 * features are supported.
 	 */
-#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+	/* XXX */
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || defined(__FreeBSD__)
 	return (B_TRUE);
 #else
 	return (zfs_mod_supported(ZFS_SYSFS_POOL_FEATURES, name));

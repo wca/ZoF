@@ -29,6 +29,8 @@
 #ifndef _SYS_MNTENT_H
 #define	_SYS_MNTENT_H
 
+#define	MNTMAXSTR	128
+
 #define	MNTTYPE_ZFS	"zfs"		/* ZFS file system */
 
 #define	MOUNT_SUCCESS	0x00		/* Success */

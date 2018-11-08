@@ -24,6 +24,7 @@
  * Use is subject to license terms.
  */
 
+#ifdef __linux__
 #ifndef _LIBSPL_SYS_SYSMACROS_H
 #define	_LIBSPL_SYS_SYSMACROS_H
 
@@ -101,3 +102,4 @@
 #define	_NOTE(x)
 
 #endif /* _LIBSPL_SYS_SYSMACROS_H */
+#endif

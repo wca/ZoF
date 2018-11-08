@@ -53,6 +53,36 @@ opensolaris_utsname_init(void *arg)
 	snprintf(hw_utsname.version, sizeof(hw_utsname.version), "%d", osreldate);
 }
 
+char *
+spl_strdup(const char *s)
+{
+	return strdup(s, M_SOLARIS);
+}
+
+int
+ddi_copyin(const void *from, void *to, size_t len, int flags)
+{
+	/* Fake ioctl() issued by kernel, 'from' is a kernel address */
+	if (flags & FKIOCTL) {
+		memcpy(to, from, len);
+		return (0);
+	}
+
+	return (copyin(from, to, len));
+}
+
+int
+ddi_copyout(const void *from, void *to, size_t len, int flags)
+{
+	/* Fake ioctl() issued by kernel, 'from' is a kernel address */
+	if (flags & FKIOCTL) {
+		memcpy(to, from, len);
+		return (0);
+	}
+
+	return (copyout(from, to, len));
+}
+
 utsname_t *
 utsname(void)
 {

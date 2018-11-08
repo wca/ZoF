@@ -42,7 +42,7 @@ void *safe_malloc(size_t);
 void zpool_no_memory(void);
 uint_t num_logs(nvlist_t *nv);
 uint64_t array64_max(uint64_t array[], unsigned int len);
-int isnumber(char *str);
+int zfs_isnumber(char *str);
 int highbit64(uint64_t i);
 int lowbit64(uint64_t i);
 

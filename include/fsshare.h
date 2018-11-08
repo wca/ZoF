@@ -26,47 +26,10 @@
  * $FreeBSD$
  */
 
-#ifndef _OPENSOLARIS_SYS_SUNDDI_H_
-#define	_OPENSOLARIS_SYS_SUNDDI_H_
+#ifndef _OPENSOLARIS_FSSHARE_H_
+#define _OPENSOLARIS_FSSHARE_H_
 
-typedef int ddi_devid_t;
+int fsshare(const char *, const char *, const char *);
+int fsunshare(const char *, const char *);
 
-#ifdef _KERNEL
-
-#include <sys/kmem.h>
-#include <sys/libkern.h>
-#include <sys/sysevent.h>
-#include <sys/u8_textprep.h>
-
-#define	ddi_driver_major(zfs_dip)		(0)
-#define	ddi_copyin(from, to, size, flag)				\
-	(copyin((from), (to), (size)), 0)
-#define	ddi_copyout(from, to, size, flag)				\
-	(copyout((from), (to), (size)), 0)
-int ddi_strtol(const char *str, char **nptr, int base, long *result);
-int ddi_strtoul(const char *str, char **nptr, int base, unsigned long *result);
-int ddi_strtoll(const char *str, char **nptr, int base, long long *result);
-int ddi_strtoull(const char *str, char **nptr, int base,
-    unsigned long long *result);
-
-#define	DDI_PROP_DONTPASS			0x0001
-#define	DDI_PROP_CANSLEEP			0x0002
-
-#define	DDI_SUCCESS	(0)
-#define	DDI_FAILURE	(-1)
-#define	DDI_SLEEP	0x666
-
-#define	ddi_prop_lookup_string(x1, x2, x3, x4, x5)	(*x5 = NULL)
-#define	ddi_prop_free(x)				(void)0
-#define	ddi_root_node()					(void)0
-
-int ddi_soft_state_init(void **statep, size_t size, size_t nitems);
-void ddi_soft_state_fini(void **statep);
-
-void *ddi_get_soft_state(void *state, int item);
-int ddi_soft_state_zalloc(void *state, int item);
-void ddi_soft_state_free(void *state, int item);
-
-#endif	/* _KERNEL */
-
-#endif	/* _OPENSOLARIS_SYS_SUNDDI_H_ */
+#endif	/* !_OPENSOLARIS_FSSHARE_H_ */

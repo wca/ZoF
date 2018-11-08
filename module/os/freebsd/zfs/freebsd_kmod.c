@@ -56,21 +56,29 @@
 #include <sys/vdev_removal.h>
 #include <sys/dsl_crypt.h>
 
+#include <zfs_ioctl_compat.h>
+
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
 #include "zfs_comutil.h"
+
+SYSCTL_DECL(_vfs_zfs);
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, vdev, CTLFLAG_RW, 0, "ZFS VDEV");
 
 static struct cdev *zfsdev;
 
 extern void zfs_init(void);
 extern void zfs_fini(void);
 extern void zfs_ioctl_init(void);
+extern int zcommon_init(void);
+extern void zcommon_fini(void);
+
 
 static struct root_hold_token *zfs_root_token;
 
 extern uint_t rrw_tsd_key;
-static uint_t zfs_allow_log_key;
+extern uint_t zfs_allow_log_key;
 extern uint_t zfs_geom_probe_vdev_key;
 
 static int zfs__init(void);
@@ -82,18 +90,42 @@ extern void *zfsdev_state;
 
 #define ZFS_MIN_KSTACK_PAGES 4
 
+boolean_t
+dataset_name_hidden(const char *name)
+{
+	/*
+	 * Skip over datasets that are not visible in this zone,
+	 * internal datasets (which have a $ in their name), and
+	 * temporary datasets (which have a % in their name).
+	 */
+	if (strchr(name, '$') != NULL)
+		return (B_TRUE);
+	if (strchr(name, '%') != NULL)
+		return (B_TRUE);
+	if (!INGLOBALZONE(curproc) && !zone_dataset_visible(name, NULL))
+		return (B_TRUE);
+	return (B_FALSE);
+}
+
 static int
 zfsdev_ioctl(struct cdev *dev, u_long zcmd, caddr_t arg, int flag,
     struct thread *td)
 {
 	uint_t len, vecnum;
+	zfs_iocparm_t *zp;
 	int rc;
 
 	len = IOCPARM_LEN(zcmd);
 	vecnum = zcmd & 0xff;
-	if (len != sizeof(zfs_cmd_t))
+	zp = (void *)arg;
+	if (len != sizeof(zfs_iocparm_t)) {
+		printf("len %d vecnum: %d sizeof(zfs_cmd_t) %lu\n",
+			   len, vecnum, sizeof(zfs_cmd_t));
 		return (EINVAL);
-	rc = zfsdev_ioctl_common(vecnum, (unsigned long) arg);
+	}
+	if (bootverbose)
+		printf("%s vecnum: %d\n", __func__, vecnum);
+	rc = zfsdev_ioctl_common(vecnum, (unsigned long) zp->zfs_cmd);
 	return (-rc);
 }
 
@@ -147,6 +179,18 @@ zfs_ctldev_init(struct cdev *devp)
 	zfs_onexit_init((zfs_onexit_t **)&zs->zss_data);
 
 	return (0);
+}
+
+void *
+zfsdev_get_soft_state(minor_t minor, enum zfs_soft_state_type which)
+{
+	zfs_soft_state_t *zp;
+
+	zp = ddi_get_soft_state(zfsdev_state, minor);
+	if (zp == NULL || zp->zss_type != which)
+		return (NULL);
+
+	return (zp->zss_data);
 }
 
 static int
@@ -227,6 +271,7 @@ zfs__init(void)
 	root_mount_rel(zfs_root_token);
 
 	zfsdev_init();
+	zcommon_init();
 
 	return (0);
 }
@@ -239,6 +284,7 @@ zfs__fini(void)
 		return (EBUSY);
 	}
 
+	zcommon_fini();
 	zfsdev_fini();
 	zvol_fini();
 	zfs_fini();

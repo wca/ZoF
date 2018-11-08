@@ -31,7 +31,7 @@ $(MODULE)-objs += zutil.o
 objs = $($(MODULE)-objs)
 all: zmod.ko
 
-include $(ZFSBASE)/Makefile.bsd.inc
+include $(ZFSBASE)/module/Makefile.bsd.inc
 
 zmod.ko:  $(objs)
 	ld -r -d -o $@ $(objs)

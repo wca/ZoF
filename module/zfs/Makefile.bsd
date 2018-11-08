@@ -51,7 +51,6 @@ $(MODULE)-objs += dsl_scan.o
 $(MODULE)-objs += dsl_synctask.o
 $(MODULE)-objs += fm.o
 $(MODULE)-objs += gzip.o
-$(MODULE)-objs += hkdf.o
 $(MODULE)-objs += lzjb.o
 $(MODULE)-objs += lz4.o
 $(MODULE)-objs += metaslab.o
@@ -142,7 +141,7 @@ all: zfs_common.ko
 #CFLAGS+= -D__x86_64 -DHAVE_AVX2
 #CFLAGS+= -D_SYS_UIO_H_
 
-include $(ZFSBASE)/Makefile.bsd.inc
+include $(ZFSBASE)/module/Makefile.bsd.inc
 
 zfs_common.ko:  $(objs)
 	ld -r -d -o $@ $(objs)

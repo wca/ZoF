@@ -1052,7 +1052,8 @@ vdev_geom_io_start(zio_t *zio)
 		zio_execute(zio);
 		return;
 	default:
-		panic("invalid zio->io_type: %d\n", zio->io_type);
+			;
+		/* PASSTHROUGH --- placate compiler */
 	}
 sendreq:
 	ASSERT(zio->io_type == ZIO_TYPE_READ ||

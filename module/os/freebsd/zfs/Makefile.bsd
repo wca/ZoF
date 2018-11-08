@@ -22,6 +22,7 @@ $(MODULE)-objs += freebsd_dmu.o
 $(MODULE)-objs += freebsd_kmod.o
 $(MODULE)-objs += freebsd_spa.o
 $(MODULE)-objs += freebsd_vdev.o
+$(MODULE)-objs += hkdf.o
 $(MODULE)-objs += vdev_file.o
 $(MODULE)-objs += vdev_geom.o
 $(MODULE)-objs += zfs_acl.o
@@ -38,7 +39,7 @@ $(MODULE)-objs += zvol.o
 objs = $($(MODULE)-objs)
 all: zfs_os.ko
 
-include $(ZFSBASE)/Makefile.bsd.inc
+include $(ZFSBASE)/module/Makefile.bsd.inc
 
 zfs_os.ko:  $(objs)
 	ld -r -d -o $@ $(objs)

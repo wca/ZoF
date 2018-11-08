@@ -79,6 +79,9 @@
 #include <sys/conf.h>
 /* XXX move us */
 
+#define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
+	    (taskq_create(a, b, maxclsyspri, d, e, f))
+
 #define tsd_create(keyp, destructor)    do {                            \
         *(keyp) = osd_thread_register((destructor));                    \
         KASSERT(*(keyp) > 0, ("cannot register OSD"));                  \
@@ -141,7 +144,9 @@ extern utsname_t *utsname(void);
 #include <pthread.h>
 #include <setjmp.h>
 #include <assert.h>
+#ifdef __linux__
 #include <alloca.h>
+#endif
 #include <umem.h>
 #include <limits.h>
 #include <atomic.h>
@@ -377,15 +382,7 @@ extern void cv_broadcast(kcondvar_t *cv);
  */
 #define	tsd_get(k) pthread_getspecific(k)
 #define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create(kp, d)
-#define	tsd_destroy(kp) /* nothing */
-
-/*
- * Thread-specific data
- */
-#define	tsd_get(k) pthread_getspecific(k)
-#define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create(kp, d)
+#define	tsd_create(kp, d) pthread_key_create((pthread_key_t *)kp, d)
 #define	tsd_destroy(kp) /* nothing */
 
 /*
@@ -829,6 +826,7 @@ extern fstrans_cookie_t spl_fstrans_mark(void);
 extern void spl_fstrans_unmark(fstrans_cookie_t);
 extern int __spl_pf_fstrans_check(void);
 
+#define	ZFS_EXPORTS_PATH	"/etc/zfs/exports"
 #define	____cacheline_aligned
 
 #endif /* _KERNEL */

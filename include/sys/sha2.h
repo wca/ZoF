@@ -112,7 +112,7 @@ extern void SHA512Update(SHA512_CTX *, const void *, size_t);
 
 extern void SHA512Final(void *, SHA512_CTX *);
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 extern void SHA512_Init(SHA512_CTX *);
 extern void SHA512_Update(SHA512_CTX *, const void *, size_t);
 extern void SHA512_Final(void *, SHA512_CTX *);

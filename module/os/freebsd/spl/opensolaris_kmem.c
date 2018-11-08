@@ -271,6 +271,20 @@ calloc(size_t n, size_t s)
 	return (kmem_zalloc(n * s, KM_NOSLEEP));
 }
 
+char *
+kmem_vasprintf(const char *fmt, va_list adx)
+{
+	char *msg;
+	va_list adx2;
+
+	va_copy(adx2, adx);
+	msg = kmem_alloc(vsnprintf(NULL, 0, fmt, adx) + 1, KM_SLEEP);
+	(void) vsprintf(msg, fmt, adx2);
+	va_end(adx2);
+
+	return (msg);
+}
+
 #ifdef KMEM_DEBUG
 void kmem_show(void *);
 void

@@ -14,7 +14,7 @@ objs = $($(MODULE)-objs)
 objs+= $($(MODULE)-x86)
 all: zcommon.ko
 
-include $(ZFSBASE)/Makefile.bsd.inc
+include $(ZFSBASE)/module/Makefile.bsd.inc
 
 zcommon.ko:  $(objs)
 	ld -r -d -o $@ $(objs)

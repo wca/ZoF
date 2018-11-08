@@ -72,8 +72,10 @@
 #include <libzutil.h>
 #include <limits.h>
 #include <sys/spa.h>
+#ifdef __linux__
 #include <scsi/scsi.h>
 #include <scsi/sg.h>
+#endif
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -81,8 +83,10 @@
 #include <sys/stat.h>
 #include <sys/vtoc.h>
 #include <sys/mntent.h>
+#ifdef __linux__
 #include <uuid/uuid.h>
 #include <blkid/blkid.h>
+#endif
 #include "zpool_util.h"
 #include <sys/zfs_context.h>
 

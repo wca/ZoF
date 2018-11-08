@@ -45,6 +45,9 @@
 #include <ctype.h>
 #endif
 
+int zcommon_init(void);
+void zcommon_fini(void);
+
 static zprop_desc_t zfs_prop_table[ZFS_NUM_PROPS];
 
 /* Note this is indexed by zfs_userquota_prop_t, keep the order the same */
@@ -849,20 +852,20 @@ zfs_prop_align_right(zfs_prop_t prop)
 
 #endif
 
-#if defined(_KERNEL) && defined(__linux__)
-static int __init
+int __init
 zcommon_init(void)
 {
 	fletcher_4_init();
 	return (0);
 }
 
-static void __exit
+void __exit
 zcommon_fini(void)
 {
 	fletcher_4_fini();
 }
 
+#if defined(_KERNEL) && defined(__linux__)
 module_init(zcommon_init);
 module_exit(zcommon_fini);
 

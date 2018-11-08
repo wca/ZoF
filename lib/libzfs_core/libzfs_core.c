@@ -89,6 +89,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
+#ifdef __FreeBSD__
+#include "libzfs_compat.h"
+#endif
 
 static int g_fd = -1;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;

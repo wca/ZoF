@@ -39,10 +39,13 @@
 #include <libshare.h>
 #include <libzfs_core.h>
 
+#ifdef __FreeBSD__
+#include <libzfs_compat.h>
+#endif
 #ifdef	__cplusplus
 extern "C" {
 #endif
-
+	
 struct libzfs_handle {
 	int libzfs_error;
 	int libzfs_fd;

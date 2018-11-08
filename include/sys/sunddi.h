@@ -55,4 +55,12 @@ extern int ddi_strtoll(const char *, char **, int, long long *);
 extern int ddi_copyin(const void *from, void *to, size_t len, int flags);
 extern int ddi_copyout(const void *from, void *to, size_t len, int flags);
 
+
+int ddi_soft_state_init(void **statep, size_t size, size_t nitems);
+void ddi_soft_state_fini(void **statep);
+
+void *ddi_get_soft_state(void *state, int item);
+int ddi_soft_state_zalloc(void *state, int item);
+void ddi_soft_state_free(void *state, int item);
+
 #endif /* SPL_SUNDDI_H */

@@ -8,7 +8,7 @@ objs = $($(MODULE)-objs)
 objs+= $($(MODULE)-x86)
 all: nvpair.ko
 
-include $(ZFSBASE)/Makefile.bsd.inc
+include $(ZFSBASE)/module/Makefile.bsd.inc
 
 nvpair.ko:  $(objs)
 	ld -r -d -o $@ $(objs)

@@ -27,6 +27,11 @@
 #ifndef	_SYS_FS_ZFS_ZNODE_H
 #define	_SYS_FS_ZFS_ZNODE_H
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
+#include_next <sys/zfs_znode.h>
+#endif
+
+#if defined(__linux__) || !defined(_KERNEL)
 #ifdef _KERNEL
 #include <sys/isa_defs.h>
 #include <sys/types32.h>
@@ -408,4 +413,5 @@ extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
 }
 #endif
 
+#endif /* defined(__linux__) || !defined(_KERNEL) */
 #endif	/* _SYS_FS_ZFS_ZNODE_H */

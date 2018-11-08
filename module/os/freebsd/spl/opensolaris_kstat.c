@@ -49,25 +49,78 @@ __kstat_set_raw_ops(kstat_t *ksp,
 	ksp->ks_raw_ops.addr    = addr;
 }
 
+static int
+kstat_default_update(kstat_t *ksp, int rw)
+{
+	ASSERT(ksp != NULL);
+
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
+
+	return (0);
+}
+
 kstat_t *
-kstat_create(char *module, int instance, char *name, char *class, uchar_t type,
-    ulong_t ndata, uchar_t flags)
+__kstat_create(const char *module, int instance, const char *name, const char *class, uchar_t ks_type,
+    uint_t ks_ndata, uchar_t flags)
 {
 	struct sysctl_oid *root;
 	kstat_t *ksp;
 
 	KASSERT(instance == 0, ("instance=%d", instance));
-	KASSERT(type == KSTAT_TYPE_NAMED, ("type=%hhu", type));
-	KASSERT(flags == KSTAT_FLAG_VIRTUAL, ("flags=%02hhx", flags));
+	if ((ks_type == KSTAT_TYPE_INTR) || (ks_type == KSTAT_TYPE_IO))
+		ASSERT(ks_ndata == 1);
 
 	/*
 	 * Allocate the main structure. We don't need to copy module/class/name
 	 * stuff in here, because it is only used for sysctl node creation
 	 * done in this function.
 	 */
-	ksp = malloc(sizeof(*ksp), M_KSTAT, M_WAITOK);
-	ksp->ks_ndata = ndata;
+	ksp = malloc(sizeof(*ksp), M_KSTAT, M_WAITOK|M_ZERO);
 
+	ksp->ks_crtime = gethrtime();
+	ksp->ks_snaptime = ksp->ks_crtime;
+	ksp->ks_instance = instance;
+	strncpy(ksp->ks_name, name, KSTAT_STRLEN);
+	strncpy(ksp->ks_class, class, KSTAT_STRLEN);
+	ksp->ks_type = ks_type;
+	ksp->ks_flags = flags;
+	ksp->ks_update = kstat_default_update;
+
+	switch (ksp->ks_type) {
+		case KSTAT_TYPE_RAW:
+			ksp->ks_ndata = 1;
+			ksp->ks_data_size = ks_ndata;
+			break;
+		case KSTAT_TYPE_NAMED:
+			ksp->ks_ndata = ks_ndata;
+			ksp->ks_data_size = ks_ndata * sizeof (kstat_named_t);
+			break;
+		case KSTAT_TYPE_INTR:
+			ksp->ks_ndata = ks_ndata;
+			ksp->ks_data_size = ks_ndata * sizeof (kstat_intr_t);
+			break;
+		case KSTAT_TYPE_IO:
+			ksp->ks_ndata = ks_ndata;
+			ksp->ks_data_size = ks_ndata * sizeof (kstat_io_t);
+			break;
+		case KSTAT_TYPE_TIMER:
+			ksp->ks_ndata = ks_ndata;
+			ksp->ks_data_size = ks_ndata * sizeof (kstat_timer_t);
+			break;
+		default:
+			panic("Undefined kstat type %d\n", ksp->ks_type);
+	}
+
+	if (ksp->ks_flags & KSTAT_FLAG_VIRTUAL) {
+		ksp->ks_data = NULL;
+	} else {
+		ksp->ks_data = kmem_zalloc(ksp->ks_data_size, KM_SLEEP);
+		if (ksp->ks_data == NULL) {
+			kmem_free(ksp, sizeof (*ksp));
+			ksp = NULL;
+		}
+	}
 	/*
 	 * Create sysctl tree for those statistics:
 	 *
@@ -120,16 +173,54 @@ void
 kstat_install(kstat_t *ksp)
 {
 	kstat_named_t *ksent;
-	u_int i;
+	char *namelast;
+	int typelast;
 
 	ksent = ksp->ks_data;
-	for (i = 0; i < ksp->ks_ndata; i++, ksent++) {
-		KASSERT(ksent->data_type == KSTAT_DATA_UINT64,
-		    ("data_type=%d", ksent->data_type));
-		SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
-		    SYSCTL_CHILDREN(ksp->ks_sysctl_root), OID_AUTO, ksent->name,
-		    CTLTYPE_U64 | CTLFLAG_RD, ksent, sizeof(*ksent),
-		    kstat_sysctl, "QU", ksent->desc);
+	if (ksp->ks_ndata == UINT32_MAX) {
+		printf("can't handle raw ops yet!!!\n");
+		return;
+	}
+	if (ksent == NULL) {
+		printf("%s ksp->ks_data == NULL!!!!\n", __func__);
+		return;		
+	}
+	typelast = 0;
+	namelast = NULL;
+	for (int i = 0; i < ksp->ks_ndata; i++, ksent++) {
+		if (ksent->data_type != 0) {
+			typelast = ksent->data_type;
+			namelast = ksent->name;
+		}
+		switch (typelast) {
+			case KSTAT_DATA_INT32:
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root), OID_AUTO, namelast,
+				    CTLTYPE_S32 | CTLFLAG_RD, ksent, sizeof(*ksent),
+					kstat_sysctl, "I", namelast);
+				break;
+			case KSTAT_DATA_UINT32:
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root), OID_AUTO, namelast,
+				    CTLTYPE_U32 | CTLFLAG_RD, ksent, sizeof(*ksent),
+					kstat_sysctl, "IU", namelast);
+				break;
+			case KSTAT_DATA_INT64:
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root), OID_AUTO, namelast,
+				    CTLTYPE_S64 | CTLFLAG_RD, ksent, sizeof(*ksent),
+					kstat_sysctl, "Q", namelast);
+				break;
+			case KSTAT_DATA_UINT64:
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root), OID_AUTO, namelast,
+				    CTLTYPE_U64 | CTLFLAG_RD, ksent, sizeof(*ksent),
+					kstat_sysctl, "QU", namelast);
+				break;
+			default:
+				panic("unsupported type: %d", typelast);
+		}
+
 	}
 }
 

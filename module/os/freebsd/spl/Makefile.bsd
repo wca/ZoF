@@ -37,11 +37,13 @@ $(MODULE)-objs += opensolaris_uio.o
 $(MODULE)-objs += opensolaris_vfs.o
 $(MODULE)-objs += opensolaris_vm.o
 $(MODULE)-objs += opensolaris_zone.o
+$(MODULE)-objs += sha256c.o
+$(MODULE)-objs += sha512c.o
 
 objs = $($(MODULE)-objs)
 all: spl.ko
 
-include $(ZFSBASE)/Makefile.bsd.inc
+include $(ZFSBASE)/module/Makefile.bsd.inc
 
 spl.ko:  $(objs)
 	ld -r -d -o $@ $(objs)
