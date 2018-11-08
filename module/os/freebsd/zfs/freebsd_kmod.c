@@ -61,6 +61,9 @@
 #include "zfs_deleg.h"
 #include "zfs_comutil.h"
 
+SYSCTL_DECL(_vfs_zfs);
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, vdev, CTLFLAG_RW, 0, "ZFS VDEV");
+
 static struct cdev *zfsdev;
 
 extern void zfs_init(void);
@@ -81,6 +84,23 @@ static eventhandler_tag zfs_shutdown_event_tag;
 extern void *zfsdev_state;
 
 #define ZFS_MIN_KSTACK_PAGES 4
+
+boolean_t
+dataset_name_hidden(const char *name)
+{
+	/*
+	 * Skip over datasets that are not visible in this zone,
+	 * internal datasets (which have a $ in their name), and
+	 * temporary datasets (which have a % in their name).
+	 */
+	if (strchr(name, '$') != NULL)
+		return (B_TRUE);
+	if (strchr(name, '%') != NULL)
+		return (B_TRUE);
+	if (!INGLOBALZONE(curproc) && !zone_dataset_visible(name, NULL))
+		return (B_TRUE);
+	return (B_FALSE);
+}
 
 static int
 zfsdev_ioctl(struct cdev *dev, u_long zcmd, caddr_t arg, int flag,
@@ -147,6 +167,18 @@ zfs_ctldev_init(struct cdev *devp)
 	zfs_onexit_init((zfs_onexit_t **)&zs->zss_data);
 
 	return (0);
+}
+
+void *
+zfsdev_get_soft_state(minor_t minor, enum zfs_soft_state_type which)
+{
+	zfs_soft_state_t *zp;
+
+	zp = ddi_get_soft_state(zfsdev_state, minor);
+	if (zp == NULL || zp->zss_type != which)
+		return (NULL);
+
+	return (zp->zss_data);
 }
 
 static int

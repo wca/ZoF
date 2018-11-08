@@ -3919,7 +3919,7 @@ static int
 zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	zfsvfs_t *zfsvfs;
-	zvol_state_t *zv;
+	zvol_state_t *zv __unused;
 	char *target = NULL;
 	int error;
 
@@ -3950,11 +3950,15 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 			error = error ? error : resume_err;
 		}
 		deactivate_super(zfsvfs->z_sb);
-	} else if ((zv = zvol_suspend(fsname)) != NULL) {
+	}
+#ifndef __FreeBSD__
+	else if ((zv = zvol_suspend(fsname)) != NULL) {
 		error = dsl_dataset_rollback(fsname, target, zvol_tag(zv),
 		    outnvl);
 		zvol_resume(zv);
-	} else {
+	}
+#endif
+	else {
 		error = dsl_dataset_rollback(fsname, target, NULL, outnvl);
 	}
 	return (error);
@@ -4599,7 +4603,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 
 	if (error == 0) {
 		zfsvfs_t *zfsvfs = NULL;
-		zvol_state_t *zv = NULL;
+		zvol_state_t *zv __unused = NULL;
 
 		if (getzfsvfs(tofs, &zfsvfs) == 0) {
 			/* online recv */
@@ -4617,10 +4621,14 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 				error = zfs_resume_fs(zfsvfs, ds);
 			error = error ? error : end_err;
 			deactivate_super(zfsvfs->z_sb);
-		} else if ((zv = zvol_suspend(tofs)) != NULL) {
+		}
+#ifndef __FreeBSD__
+		else if ((zv = zvol_suspend(tofs)) != NULL) {
 			error = dmu_recv_end(&drc, zvol_tag(zv));
 			zvol_resume(zv);
-		} else {
+		}
+#endif
+		else {
 			error = dmu_recv_end(&drc, NULL);
 		}
 

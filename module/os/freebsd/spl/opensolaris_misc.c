@@ -53,6 +53,12 @@ opensolaris_utsname_init(void *arg)
 	snprintf(hw_utsname.version, sizeof(hw_utsname.version), "%d", osreldate);
 }
 
+char *
+spl_strdup(const char *s)
+{
+	return strdup(s, M_SOLARIS);
+}
+
 utsname_t *
 utsname(void)
 {

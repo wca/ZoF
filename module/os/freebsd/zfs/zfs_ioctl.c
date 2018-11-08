@@ -2337,23 +2337,6 @@ zfs_ioc_objset_zplprops(zfs_cmd_t *zc)
 	return (err);
 }
 
-boolean_t
-dataset_name_hidden(const char *name)
-{
-	/*
-	 * Skip over datasets that are not visible in this zone,
-	 * internal datasets (which have a $ in their name), and
-	 * temporary datasets (which have a % in their name).
-	 */
-	if (strchr(name, '$') != NULL)
-		return (B_TRUE);
-	if (strchr(name, '%') != NULL)
-		return (B_TRUE);
-	if (!INGLOBALZONE(curproc) && !zone_dataset_visible(name, NULL))
-		return (B_TRUE);
-	return (B_FALSE);
-}
-
 /*
  * inputs:
  * zc_name		name of filesystem
@@ -6568,18 +6551,6 @@ zfs_ctldev_destroy(zfs_onexit_t *zo, minor_t minor)
 
 	zfs_onexit_destroy(zo);
 	ddi_soft_state_free(zfsdev_state, minor);
-}
-
-void *
-zfsdev_get_soft_state(minor_t minor, enum zfs_soft_state_type which)
-{
-	zfs_soft_state_t *zp;
-
-	zp = ddi_get_soft_state(zfsdev_state, minor);
-	if (zp == NULL || zp->zss_type != which)
-		return (NULL);
-
-	return (zp->zss_data);
 }
 
 static int
