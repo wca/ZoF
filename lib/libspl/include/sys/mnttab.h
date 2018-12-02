@@ -43,6 +43,10 @@
 #ifdef __FreeBSD__
 #include <paths.h>
 #define	MNTTAB		_PATH_DEVZERO
+#undef MS_OVERLAY
+#define MS_OVERLAY      0x0
+#define MS_NOMNTTAB     0x0
+#define MS_RDONLY       0x1
 #else
 #define	MNTTAB		"/proc/self/mounts"
 #endif

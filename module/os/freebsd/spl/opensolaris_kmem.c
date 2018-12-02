@@ -74,7 +74,7 @@ zfs_kmem_alloc(size_t size, int kmflags)
 
 	size += sizeof(struct kmem_item);
 #endif
-	p = malloc(size, M_SOLARIS, kmflags);
+	p = malloc(MAX(size, 16), M_SOLARIS, kmflags);
 #ifndef _KERNEL
 	if (kmflags & KM_SLEEP)
 		assert(p != NULL);
@@ -111,6 +111,7 @@ zfs_kmem_free(void *buf, size_t size __unused)
 	ASSERT(i != NULL);
 	LIST_REMOVE(i, next);
 	mtx_unlock(&kmem_items_mtx);
+	memset(buf, 0xDC, MAX(size, 16));
 #endif
 	free(buf, M_SOLARIS);
 }

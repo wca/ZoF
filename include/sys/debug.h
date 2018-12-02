@@ -116,14 +116,16 @@ void spl_dumpstack(void);
 		    "failed (0 == %lld)\n",				\
 		    (long long) (_verify3_right));			\
 	} while (0)
-
+#ifdef __FreeBSD__
+#define	CTASSERT_GLOBAL(x)		CTASSERT(x)
+#else
 #define	CTASSERT_GLOBAL(x)		_CTASSERT(x, __LINE__)
 #define	CTASSERT(x)			{ _CTASSERT(x, __LINE__); }
 #define	_CTASSERT(x, y)			__CTASSERT(x, y)
 #define	__CTASSERT(x, y)						\
 	typedef char __attribute__ ((unused))				\
 	__compile_time_assertion__ ## y[(x) ? 1 : -1]
-
+#endif
 /*
  * Debugging disabled (--disable-debug)
  */

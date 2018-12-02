@@ -31,9 +31,7 @@ USER_C = \
 	timestamp.c \
 	zone.c 
 
-USER_ASM = atomic.S
-# \
-#	$(USER_ASM)
+USER_ASM = asm-x86_64/atomic.S
 
 nodist_libspl_la_SOURCES = \
 	$(USER_C)
@@ -44,10 +42,8 @@ EXTRA_DIST = $(USER_C)
 
 LIB=libspl
 
-atomic.o: asm-x86_64/atomic.S
-	  $(CC) -c asm-x86_64/atomic.S
 objs := $(patsubst %.c,%.o, $(nodist_libspl_la_SOURCES))
-asm_objs := atomic.o
+asm_objs := $(patsubst %.S,%.o, $(USER_ASM))
 
 LDFLAGS+= -lthr -lmd -lz
 

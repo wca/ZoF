@@ -56,7 +56,11 @@ opensolaris_utsname_init(void *arg)
 char *
 spl_strdup(const char *s)
 {
-	return strdup(s, M_SOLARIS);
+	char *buf;
+
+	buf = kmem_alloc(strlen(s) + 1, KM_SLEEP);
+	strcpy(buf, s);
+	return (buf);
 }
 
 int
@@ -81,6 +85,15 @@ ddi_copyout(const void *from, void *to, size_t len, int flags)
 	}
 
 	return (copyout(from, to, len));
+}
+
+int
+spl_panic(const char *file, const char *func, int line, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vpanic(fmt, ap);
 }
 
 utsname_t *

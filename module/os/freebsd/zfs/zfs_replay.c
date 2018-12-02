@@ -846,35 +846,8 @@ top:
 static int
 zfs_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 {
-#ifdef illumos
-	zfsvfs_t *zfsvfs = arg1;
-	lr_truncate_t *lr = arg2;
-	znode_t *zp;
-	flock64_t fl;
-	int error;
-
-	if (byteswap)
-		byteswap_uint64_array(lr, sizeof (*lr));
-
-	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
-		return (error);
-
-	bzero(&fl, sizeof (fl));
-	fl.l_type = F_WRLCK;
-	fl.l_whence = 0;
-	fl.l_start = lr->lr_offset;
-	fl.l_len = lr->lr_length;
-
-	error = VOP_SPACE(ZTOV(zp), F_FREESP, &fl, FWRITE | FOFFMAX,
-	    lr->lr_offset, kcred, NULL);
-
-	VN_RELE(ZTOV(zp));
-
-	return (error);
-#else
-	ZFS_LOG(0, "Unexpected code path, report to pjd@FreeBSD.org");
+	ZFS_LOG(0, "Unexpected code path, report to fs@FreeBSD.org");
 	return (EOPNOTSUPP);
-#endif
 }
 
 static int

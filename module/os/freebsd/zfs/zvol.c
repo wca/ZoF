@@ -2080,8 +2080,7 @@ zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
 	while (dmu_dir_list_next(os, MAXPATHLEN - (p - osname), p, NULL,
 	    &cookie) == 0) {
 		dmu_objset_rele(os, FTAG);
-		panic("XXX implement this");
-		//(void)zvol_create_minors(osname);
+		(void)zvol_create_minors(spa, osname, async);
 		if ((error = dmu_objset_hold(name, FTAG, &os)) != 0) {
 			printf("ZFS WARNING: Unable to put hold on %s (error=%d).\n",
 			    name, error);
@@ -2396,6 +2395,6 @@ zvol_set_volmode(const char *ddname, zprop_source_t source, uint64_t snapdev)
 void *
 zvol_tag(zvol_state_t *zv)
 {
-	ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
+	//ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
 	return (zv->zv_total_opens > 0 ? zv : NULL);
 }

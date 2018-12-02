@@ -20,6 +20,10 @@ LDFLAGS+= $(DEFAULT_LDFLAGS)
 $(objs): %.o: %.c
 	 $(CC) -c $(CFLAGS) $< -o $@
 
+$(asm_objs): %.o: %.S
+	     $(CC) -c  $(ASM_CFLAGS) $< -o $@
+
+
 all: $(LIB).so
 
 

@@ -1103,10 +1103,6 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 		ASSERT(tx_bytes == nbytes);
 		n -= nbytes;
 
-#ifdef illumos
-		if (!xuio && n > 0)
-			uio_prefaultpages(MIN(n, max_blksz), uio);
-#endif
 	}
 
 	zfs_range_unlock(rl);
@@ -4243,16 +4239,7 @@ zfs_fid(vnode_t *vp, fid_t *fidp, caller_context_t *ct)
 	gen = (uint32_t)gen64;
 
 	size = (zfsvfs->z_parent != zfsvfs) ? LONG_FID_LEN : SHORT_FID_LEN;
-
-#ifdef illumos
-	if (fidp->fid_len < size) {
-		fidp->fid_len = size;
-		ZFS_EXIT(zfsvfs);
-		return (SET_ERROR(ENOSPC));
-	}
-#else
 	fidp->fid_len = size;
-#endif
 
 	zfid = (zfid_short_t *)fidp;
 

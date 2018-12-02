@@ -702,13 +702,8 @@ zfs_link_destroy(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 
 	if (!(flag & ZRENAMING)) {
 
-		if (zp_is_dir && !zfs_dirempty(zp)) {
-#ifdef illumos
-			return (SET_ERROR(EEXIST));
-#else
+		if (zp_is_dir && !zfs_dirempty(zp))
 			return (SET_ERROR(ENOTEMPTY));
-#endif
-		}
 
 		/*
 		 * If we get here, we are going to try to remove the object.
@@ -887,13 +882,8 @@ top:
 	}
 
 
-	if (!(flags & CREATE_XATTR_DIR)) {
-#ifdef illumos
-		return (SET_ERROR(ENOENT));
-#else
+	if (!(flags & CREATE_XATTR_DIR))
 		return (SET_ERROR(ENOATTR));
-#endif
-	}
 
 	if (zfsvfs->z_vfs->vfs_flag & VFS_RDONLY) {
 		return (SET_ERROR(EROFS));

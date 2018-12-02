@@ -106,6 +106,11 @@ int vdev_standard_sm_blksz = (1 << 17);
  */
 int zfs_nocacheflush = 0;
 
+
+static uint64_t zfs_max_auto_ashift = ASHIFT_MAX;
+
+static uint64_t zfs_min_auto_ashift = ASHIFT_MIN;
+
 /*PRINTFLIKE2*/
 void
 vdev_dbgmsg(vdev_t *vd, const char *fmt, ...)
@@ -1108,6 +1113,8 @@ vdev_add_parent(vdev_t *cvd, vdev_ops_t *ops)
 	mvd->vdev_max_asize = cvd->vdev_max_asize;
 	mvd->vdev_psize = cvd->vdev_psize;
 	mvd->vdev_ashift = cvd->vdev_ashift;
+	mvd->vdev_logical_ashift = cvd->vdev_logical_ashift;
+	mvd->vdev_physical_ashift = cvd->vdev_physical_ashift;
 	mvd->vdev_state = cvd->vdev_state;
 	mvd->vdev_crtxg = cvd->vdev_crtxg;
 
@@ -1139,7 +1146,8 @@ vdev_remove_parent(vdev_t *cvd)
 	    mvd->vdev_ops == &vdev_replacing_ops ||
 	    mvd->vdev_ops == &vdev_spare_ops);
 	cvd->vdev_ashift = mvd->vdev_ashift;
-
+	cvd->vdev_logical_ashift = mvd->vdev_logical_ashift;
+	cvd->vdev_physical_ashift = mvd->vdev_physical_ashift;
 	vdev_remove_child(mvd, cvd);
 	vdev_remove_child(pvd, mvd);
 
@@ -1599,7 +1607,7 @@ vdev_open(vdev_t *vd)
 	uint64_t osize = 0;
 	uint64_t max_osize = 0;
 	uint64_t asize, max_asize, psize;
-	uint64_t ashift = 0;
+	uint64_t pshift = 0, ashift = 0;
 
 	ASSERT(vd->vdev_open_thread == curthread ||
 	    spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
@@ -1629,7 +1637,7 @@ vdev_open(vdev_t *vd)
 		return (SET_ERROR(ENXIO));
 	}
 
-	error = vd->vdev_ops->vdev_op_open(vd, &osize, &max_osize, &ashift);
+	error = vd->vdev_ops->vdev_op_open(vd, &osize, &max_osize, &ashift, &pshift);
 
 	/*
 	 * Reset the vdev_reopening flag so that we actually close
@@ -1733,6 +1741,11 @@ vdev_open(vdev_t *vd)
 		    VDEV_AUX_BAD_LABEL);
 		return (SET_ERROR(EINVAL));
 	}
+
+	vd->vdev_physical_ashift =
+	    MAX(pshift, vd->vdev_physical_ashift);
+	vd->vdev_logical_ashift = MAX(ashift, vd->vdev_logical_ashift);
+	vd->vdev_ashift = MAX(vd->vdev_logical_ashift, vd->vdev_ashift);
 
 	if (vd->vdev_asize == 0) {
 		/*
@@ -2323,6 +2336,34 @@ vdev_metaslab_set_size(vdev_t *vd)
 	ASSERT3U(vd->vdev_ms_shift, >=, SPA_MAXBLOCKSHIFT);
 }
 
+/*
+ * Maximize performance by inflating the configured ashift for top level
+ * vdevs to be as close to the physical ashift as possible while maintaining
+ * administrator defined limits and ensuring it doesn't go below the
+ * logical ashift.
+ */
+void
+vdev_ashift_optimize(vdev_t *vd)
+{
+	if (vd == vd->vdev_top) {
+		if (vd->vdev_ashift < vd->vdev_physical_ashift) {
+			vd->vdev_ashift = MIN(
+			    MAX(zfs_max_auto_ashift, vd->vdev_ashift),
+			    MAX(zfs_min_auto_ashift, vd->vdev_physical_ashift));
+		} else {
+			/*
+			 * Unusual case where logical ashift > physical ashift
+			 * so we can't cap the calculated ashift based on max
+			 * ashift as that would cause failures.
+			 * We still check if we need to increase it to match
+			 * the min ashift.
+			 */
+			vd->vdev_ashift = MAX(zfs_min_auto_ashift,
+			    vd->vdev_ashift);
+		}
+	}
+}
+
 void
 vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg)
 {
@@ -2744,6 +2785,8 @@ vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx)
 	VERIFY0(zap_add_int(spa->spa_meta_objset, spa->spa_all_vdev_zaps,
 	    zap, tx));
 
+	printf("%s spa->spa_meta_objset %p, spa->spa_all_vdev_zaps %#lx\n",
+		   __func__, spa->spa_meta_objset, spa->spa_all_vdev_zaps);
 	return (zap);
 }
 
@@ -3869,6 +3912,11 @@ vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 			    vd->vdev_max_asize - vd->vdev_asize,
 			    1ULL << tvd->vdev_ms_shift);
 		}
+
+		vs->vs_configured_ashift = vd->vdev_top != NULL
+			? vd->vdev_top->vdev_ashift : vd->vdev_ashift;
+		vs->vs_logical_ashift = vd->vdev_logical_ashift;
+		vs->vs_physical_ashift = vd->vdev_physical_ashift;
 		if (vd->vdev_aux == NULL && vd == vd->vdev_top &&
 		    vdev_is_concrete(vd)) {
 			vs->vs_fragmentation = (vd->vdev_mg != NULL) ?

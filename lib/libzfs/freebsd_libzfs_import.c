@@ -66,6 +66,8 @@
 #include "libzfs.h"
 #include "libzfs_impl.h"
 
+#define LOG() printf("%s %s:%d\n", __func__, __FILE__, __LINE__)
+
 /*
  * Intermediate structures used to gather configuration information.
  */
@@ -90,6 +92,8 @@ typedef struct pool_entry {
 typedef struct name_entry {
 	char			*ne_name;
 	uint64_t		ne_guid;
+	uint64_t		ne_order;
+	uint64_t		ne_num_labels;
 	struct name_entry	*ne_next;
 } name_entry_t;
 
@@ -177,7 +181,30 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
 				best = ne;
 				break;
 			}
+			if ((strlen(path) == strlen(ne->ne_name)) &&
+			    strncmp(path, ne->ne_name, strlen(path)) == 0) {
+				best = ne;
+				break;
+			}
 
+			if (best == NULL) {
+				best = ne;
+				continue;
+			}
+
+			/* Prefer paths with move vdev labels. */
+			if (ne->ne_num_labels > best->ne_num_labels) {
+				best = ne;
+				continue;
+			}
+
+			/* Prefer paths earlier in the search order. */
+			if (ne->ne_num_labels == best->ne_num_labels &&
+			    ne->ne_order < best->ne_order) {
+				best = ne;
+				continue;
+			}
+			
 			src = ne->ne_name + strlen(ne->ne_name) - 1;
 			dst = path + strlen(path) - 1;
 			for (count = 0; src >= ne->ne_name && dst >= path;
@@ -220,7 +247,7 @@ fix_paths(nvlist_t *nv, name_entry_t *names)
  */
 static int
 add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
-    nvlist_t *config)
+    int order, int num_labels, nvlist_t *config)
 {
 	uint64_t pool_guid, vdev_guid, top_guid, txg, state;
 	pool_entry_t *pe;
@@ -244,8 +271,9 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 			free(ne);
 			return (-1);
 		}
-
 		ne->ne_guid = vdev_guid;
+		ne->ne_order = order;
+		ne->ne_num_labels = num_labels;
 		ne->ne_next = pl->names;
 		pl->names = ne;
 
@@ -342,6 +370,8 @@ add_config(libzfs_handle_t *hdl, pool_list_t *pl, const char *path,
 	}
 
 	ne->ne_guid = vdev_guid;
+	ne->ne_order = order;
+	ne->ne_num_labels = num_labels;
 	ne->ne_next = pl->names;
 	pl->names = ne;
 
@@ -382,13 +412,15 @@ refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 	zfs_cmd_t zc = {"\0"};
 	int err, dstbuf_size;
 
-	if (zcmd_write_conf_nvlist(hdl, &zc, config) != 0)
+	if (zcmd_write_conf_nvlist(hdl, &zc, config) != 0) {
+		LOG();
 		return (NULL);
-
+	}
 	dstbuf_size = MAX(CONFIG_BUF_MINSIZE, zc.zc_nvlist_conf_size * 4);
 
 	if (zcmd_alloc_dst_nvlist(hdl, &zc, dstbuf_size) != 0) {
 		zcmd_free_nvlists(&zc);
+		LOG();
 		return (NULL);
 	}
 
@@ -396,17 +428,20 @@ refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 	    &zc)) != 0 && errno == ENOMEM) {
 		if (zcmd_expand_dst_nvlist(hdl, &zc) != 0) {
 			zcmd_free_nvlists(&zc);
+		LOG();
 			return (NULL);
 		}
 	}
 
 	if (err) {
 		zcmd_free_nvlists(&zc);
+		LOG();
 		return (NULL);
 	}
 
 	if (zcmd_read_dst_nvlist(hdl, &zc, &nvl) != 0) {
 		zcmd_free_nvlists(&zc);
+		LOG();
 		return (NULL);
 	}
 
@@ -461,14 +496,17 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 	boolean_t found_one = B_FALSE;
 	boolean_t valid_top_config = B_FALSE;
 
-	if (nvlist_alloc(&ret, 0, 0) != 0)
+	if (nvlist_alloc(&ret, 0, 0) != 0) {
+		printf("%s, alloc failed\n", __func__);
 		goto nomem;
-
+	}
 	for (pe = pl->pools; pe != NULL; pe = pe->pe_next) {
 		uint64_t id, max_txg = 0;
 
-		if (nvlist_alloc(&config, NV_UNIQUE_NAME, 0) != 0)
+		if (nvlist_alloc(&config, NV_UNIQUE_NAME, 0) != 0) {
+			printf("%s, unique name alloc failed\n", __func__);
 			goto nomem;
+		}
 		config_seen = B_FALSE;
 
 		/*
@@ -595,9 +633,10 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 
 				newchild = zfs_alloc(hdl, (id + 1) *
 				    sizeof (nvlist_t *));
-				if (newchild == NULL)
+				if (newchild == NULL) {
+					printf("%s, newchild alloc failed\n", __func__);
 					goto nomem;
-
+				}
 				for (c = 0; c < children; c++)
 					newchild[c] = child[c];
 
@@ -605,8 +644,11 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				child = newchild;
 				children = id + 1;
 			}
-			if (nvlist_dup(nvtop, &child[id], 0) != 0)
+			if (nvlist_dup(nvtop, &child[id], 0) != 0) {
+				printf("%s, nvlist_dup failed\n", __func__);
+
 				goto nomem;
+			}
 
 		}
 
@@ -627,9 +669,10 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 
 				newchild = zfs_alloc(hdl, (max_id) *
 				    sizeof (nvlist_t *));
-				if (newchild == NULL)
+				if (newchild == NULL) {
+					printf("%s, newchild alloc failed\n", __func__);
 					goto nomem;
-
+				}
 				for (c = 0; c < children; c++)
 					newchild[c] = child[c];
 
@@ -654,13 +697,16 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				nvlist_t *holey;
 
 				if (child[c] != NULL ||
-				    !vdev_is_hole(hole_array, holes, c))
+				    !vdev_is_hole(hole_array, holes, c)) {
+					LOG();
 					continue;
-
+				}
 				if (nvlist_alloc(&holey, NV_UNIQUE_NAME,
-				    0) != 0)
+				    0) != 0)  
+				{
+					printf("%s, unique name alloc failed 2\n", __func__);
 					goto nomem;
-
+				}
 				/*
 				 * Holes in the namespace are treated as
 				 * "hole" top-level vdevs and have a
@@ -674,6 +720,8 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				    nvlist_add_uint64(holey,
 				    ZPOOL_CONFIG_GUID, 0ULL) != 0) {
 					nvlist_free(holey);
+					printf(" bad juju\n");
+							
 					goto nomem;
 				}
 				child[c] = holey;
@@ -691,8 +739,10 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 			if (child[c] == NULL) {
 				nvlist_t *missing;
 				if (nvlist_alloc(&missing, NV_UNIQUE_NAME,
-				    0) != 0)
+								 0) != 0) {
+			LOG();
 					goto nomem;
+				}
 				if (nvlist_add_string(missing,
 				    ZPOOL_CONFIG_TYPE,
 				    VDEV_TYPE_MISSING) != 0 ||
@@ -700,6 +750,8 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				    ZPOOL_CONFIG_ID, c) != 0 ||
 				    nvlist_add_uint64(missing,
 				    ZPOOL_CONFIG_GUID, 0ULL) != 0) {
+			LOG();
+
 					nvlist_free(missing);
 					goto nomem;
 				}
@@ -710,8 +762,11 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		/*
 		 * Put all of this pool's top-level vdevs into a root vdev.
 		 */
-		if (nvlist_alloc(&nvroot, NV_UNIQUE_NAME, 0) != 0)
+		if (nvlist_alloc(&nvroot, NV_UNIQUE_NAME, 0) != 0) {
+			LOG();
+
 			goto nomem;
+		}
 		if (nvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE,
 		    VDEV_TYPE_ROOT) != 0 ||
 		    nvlist_add_uint64(nvroot, ZPOOL_CONFIG_ID, 0ULL) != 0 ||
@@ -719,6 +774,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		    nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 		    child, children) != 0) {
 			nvlist_free(nvroot);
+					printf(" bad juju 2\n");
 			goto nomem;
 		}
 
@@ -734,6 +790,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		 */
 		if (fix_paths(nvroot, pl->names) != 0) {
 			nvlist_free(nvroot);
+					printf(" fix paths fail \n");
 			goto nomem;
 		}
 
@@ -743,6 +800,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		if (nvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 		    nvroot) != 0) {
 			nvlist_free(nvroot);
+					printf(" vdev tree fail \n");
 			goto nomem;
 		}
 		nvlist_free(nvroot);
@@ -753,6 +811,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		 */
 		if (active_ok)
 			goto add_pool;
+		LOG();
 
 		/*
 		 * Determine if this pool is currently active, in which case we
@@ -763,24 +822,29 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
 		    &guid) == 0);
 
-		if (pool_active(hdl, name, guid, &isactive) != 0)
+		if (pool_active(hdl, name, guid, &isactive) != 0) {
+			printf(" pool_active fail \n");
 			goto error;
-
+		}
 		if (isactive) {
 			nvlist_free(config);
 			config = NULL;
+			printf(" isactive \n");
 			continue;
 		}
 
 		if (policy != NULL) {
 			if (nvlist_add_nvlist(config, ZPOOL_LOAD_POLICY,
-			    policy) != 0)
+								  policy) != 0) {
+				printf(" policy fail \n");
 				goto nomem;
+			}
 		}
 
 		if ((nvl = refresh_config(hdl, config)) == NULL) {
 			nvlist_free(config);
 			config = NULL;
+			printf(" refresh config fail \n");
 			continue;
 		}
 
@@ -796,8 +860,10 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
 		    &spares, &nspares) == 0) {
 			for (i = 0; i < nspares; i++) {
-				if (fix_paths(spares[i], pl->names) != 0)
+				if (fix_paths(spares[i], pl->names) != 0) {
+					printf(" fix paths fail 3 \n");
 					goto nomem;
+				}
 			}
 		}
 
@@ -807,8 +873,10 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
 		    &l2cache, &nl2cache) == 0) {
 			for (i = 0; i < nl2cache; i++) {
-				if (fix_paths(l2cache[i], pl->names) != 0)
+				if (fix_paths(l2cache[i], pl->names) != 0) {
+					LOG();
 					goto nomem;
+				}
 			}
 		}
 
@@ -832,15 +900,18 @@ add_pool:
 		 */
 		verify(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
 		    &name) == 0);
-		if (nvlist_add_nvlist(ret, name, config) != 0)
+		if (nvlist_add_nvlist(ret, name, config) != 0) {
+			LOG();
 			goto nomem;
-
+		}
 		found_one = B_TRUE;
 		nvlist_free(config);
 		config = NULL;
 	}
 
 	if (!found_one) {
+		LOG();
+		
 		nvlist_free(ret);
 		ret = NULL;
 	}
@@ -848,6 +919,7 @@ add_pool:
 	return (ret);
 
 nomem:
+	printf("no mem\n");
 	(void) no_memory(hdl);
 error:
 	nvlist_free(config);
@@ -1062,51 +1134,9 @@ slice_cache_compare(const void *arg1, const void *arg2)
 	return (AVL_ISIGN(strcmp(nm1, nm2)));
 }
 
-#ifdef illumos
-static void
-check_one_slice(avl_tree_t *r, char *diskname, uint_t partno,
-    diskaddr_t size, uint_t blksz)
-{
-	rdsk_node_t tmpnode;
-	rdsk_node_t *node;
-	char sname[MAXNAMELEN];
-
-	tmpnode.rn_name = &sname[0];
-	(void) snprintf(tmpnode.rn_name, MAXNAMELEN, "%s%u",
-	    diskname, partno);
-	/*
-	 * protect against division by zero for disk labels that
-	 * contain a bogus sector size
-	 */
-	if (blksz == 0)
-		blksz = DEV_BSIZE;
-	/* too small to contain a zpool? */
-	if ((size < (SPA_MINDEVSIZE / blksz)) &&
-	    (node = avl_find(r, &tmpnode, NULL)))
-		node->rn_nozpool = B_TRUE;
-}
-#endif	/* illumos */
-
 static void
 nozpool_all_slices(avl_tree_t *r, const char *sname)
 {
-#ifdef illumos
-	char diskname[MAXNAMELEN];
-	char *ptr;
-	int i;
-
-	(void) strncpy(diskname, sname, MAXNAMELEN);
-	if (((ptr = strrchr(diskname, 's')) == NULL) &&
-	    ((ptr = strrchr(diskname, 'p')) == NULL))
-		return;
-	ptr[0] = 's';
-	ptr[1] = '\0';
-	for (i = 0; i < NDKMAP; i++)
-		check_one_slice(r, diskname, i, 0, 1);
-	ptr[0] = 'p';
-	for (i = 0; i <= FD_NUMPART; i++)
-		check_one_slice(r, diskname, i, 0, 1);
-#endif	/* illumos */
 }
 
 
@@ -1153,6 +1183,8 @@ zpool_open_func(void *arg)
 	}
 	(void) close(fd);
 
+	if (num_labels)
+		printf("%s has %d labels\n", rn->rn_name, num_labels);
 	rn->rn_config = config;
 	rn->rn_num_labels = num_labels;
 }
@@ -1188,6 +1220,182 @@ zpool_clear_label(int fd)
 }
 
 #if 0
+static void
+zpool_find_import_scan_add_slice(libzfs_handle_t *hdl, pthread_mutex_t *lock,
+    avl_tree_t *cache, char *path, const char *name, int order)
+{
+	avl_index_t where;
+	rdsk_node_t *slice;
+
+	slice = zfs_alloc(hdl, sizeof (rdsk_node_t));
+	if (asprintf(&slice->rn_name, "%s/%s", path, name) == -1) {
+		free(slice);
+		return;
+	}
+	slice->rn_vdev_guid = 0;
+	slice->rn_lock = lock;
+	slice->rn_avl = cache;
+	slice->rn_hdl = hdl;
+	slice->rn_order = order + IMPORT_ORDER_SCAN_OFFSET;
+	slice->rn_labelpaths = B_FALSE;
+
+	pthread_mutex_lock(lock);
+	if (avl_find(cache, slice, &where)) {
+		free(slice->rn_name);
+		free(slice);
+	} else {
+		avl_insert(cache, slice, where);
+	}
+	pthread_mutex_unlock(lock);
+}
+
+static int
+zpool_find_import_scan_dir(libzfs_handle_t *hdl, pthread_mutex_t *lock,
+    avl_tree_t *cache, char *dir, int order)
+{
+	int error;
+	char path[MAXPATHLEN];
+	struct dirent64 *dp;
+	DIR *dirp;
+
+	if (realpath(dir, path) == NULL) {
+		error = errno;
+		if (error == ENOENT)
+			return (0);
+
+		zfs_error_aux(hdl, strerror(error));
+		(void) zfs_error_fmt(hdl, EZFS_BADPATH, dgettext(
+		    TEXT_DOMAIN, "cannot resolve path '%s'"), dir);
+		return (error);
+	}
+
+	dirp = opendir(path);
+	if (dirp == NULL) {
+		error = errno;
+		zfs_error_aux(hdl, strerror(error));
+		(void) zfs_error_fmt(hdl, EZFS_BADPATH,
+		    dgettext(TEXT_DOMAIN, "cannot open '%s'"), path);
+		return (error);
+	}
+
+	while ((dp = readdir64(dirp)) != NULL) {
+		const char *name = dp->d_name;
+		if (name[0] == '.' &&
+		    (name[1] == 0 || (name[1] == '.' && name[2] == 0)))
+			continue;
+
+		zpool_find_import_scan_add_slice(hdl, lock, cache, path, name,
+		    order);
+	}
+
+	(void) closedir(dirp);
+	return (0);
+}
+
+static int
+zpool_find_import_scan_path(libzfs_handle_t *hdl, pthread_mutex_t *lock,
+    avl_tree_t *cache, char *dir, int order)
+{
+	int error = 0;
+	char path[MAXPATHLEN];
+	char *d, *b;
+	char *dpath, *name;
+
+	/*
+	 * Seperate the directory part and last part of the
+	 * path. We do this so that we can get the realpath of
+	 * the directory. We don't get the realpath on the
+	 * whole path because if it's a symlink, we want the
+	 * path of the symlink not where it points to.
+	 */
+	d = zfs_strdup(hdl, dir);
+	b = zfs_strdup(hdl, dir);
+	dpath = dirname(d);
+	name = basename(b);
+
+	if (realpath(dpath, path) == NULL) {
+		error = errno;
+		if (error == ENOENT) {
+			error = 0;
+			goto out;
+		}
+
+		zfs_error_aux(hdl, strerror(error));
+		(void) zfs_error_fmt(hdl, EZFS_BADPATH, dgettext(
+		    TEXT_DOMAIN, "cannot resolve path '%s'"), dir);
+		goto out;
+	}
+
+	zpool_find_import_scan_add_slice(hdl, lock, cache, path, name, order);
+
+out:
+	free(b);
+	free(d);
+	return (error);
+}
+
+/*
+ * Scan a list of directories for zfs devices.
+ */
+static int
+zpool_find_import_scan(libzfs_handle_t *hdl, pthread_mutex_t *lock,
+    avl_tree_t **slice_cache, char **dir, int dirs)
+{
+	avl_tree_t *cache;
+	rdsk_node_t *slice;
+	void *cookie;
+	int i, error;
+
+	*slice_cache = NULL;
+	cache = zfs_alloc(hdl, sizeof (avl_tree_t));
+	avl_create(cache, slice_cache_compare, sizeof (rdsk_node_t),
+	    offsetof(rdsk_node_t, rn_node));
+
+	for (i = 0; i < dirs; i++) {
+		struct stat sbuf;
+
+		if (stat(dir[i], &sbuf) != 0) {
+			error = errno;
+			if (error == ENOENT)
+				continue;
+
+			zfs_error_aux(hdl, strerror(error));
+			(void) zfs_error_fmt(hdl, EZFS_BADPATH, dgettext(
+			    TEXT_DOMAIN, "cannot resolve path '%s'"), dir[i]);
+			goto error;
+		}
+
+		/*
+		 * If dir[i] is a directory, we walk through it and add all
+		 * the entry to the cache. If it's not a directory, we just
+		 * add it to the cache.
+		 */
+		if (S_ISDIR(sbuf.st_mode)) {
+			if ((error = zpool_find_import_scan_dir(hdl, lock,
+			    cache, dir[i], i)) != 0)
+				goto error;
+		} else {
+			if ((error = zpool_find_import_scan_path(hdl, lock,
+			    cache, dir[i], i)) != 0)
+				goto error;
+		}
+	}
+
+	*slice_cache = cache;
+	return (0);
+
+error:
+	cookie = NULL;
+	while ((slice = avl_destroy_nodes(cache, &cookie)) != NULL) {
+		free(slice->rn_name);
+		free(slice);
+	}
+	free(cache);
+
+	return (error);
+}
+
+
 static void
 zpool_find_import_scan_add_slice(libzfs_handle_t *hdl, pthread_mutex_t *lock,
     avl_tree_t *cache, char *path, const char *name, int order)
@@ -1414,7 +1622,6 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 	 * and toplevel GUID.
 	 */
 	for (i = 0; i < dirs; i++) {
-		tpool_t *t;
 		char rdsk[MAXPATHLEN];
 		int dfd;
 		boolean_t config_failed = B_FALSE;
@@ -1430,18 +1637,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 		*end++ = '/';
 		*end = 0;
 		pathleft = &path[sizeof (path)] - end;
-
-#ifdef illumos
-		/*
-		 * Using raw devices instead of block devices when we're
-		 * reading the labels skips a bunch of slow operations during
-		 * close(2) processing, so we replace /dev/dsk with /dev/rdsk.
-		 */
-		if (strcmp(path, ZFS_DISK_ROOTD) == 0)
-			(void) strlcpy(rdsk, ZFS_RDISK_ROOTD, sizeof (rdsk));
-		else
-#endif
-			(void) strlcpy(rdsk, path, sizeof (rdsk));
+		(void) strlcpy(rdsk, path, sizeof (rdsk));
 
 		if ((dfd = open64(rdsk, O_RDONLY)) < 0 ||
 		    (dirp = fdopendir(dfd)) == NULL) {
@@ -1516,6 +1712,8 @@ skipdir:
 		 * locks in the kernel, so going beyond this doesn't
 		 * buy us much.
 		 */
+#ifdef notyet
+		tpool_t *t;
 		t = tpool_create(1, 2 * sysconf(_SC_NPROCESSORS_ONLN),
 		    0, NULL);
 		for (slice = avl_first(&slice_cache); slice;
@@ -1524,7 +1722,13 @@ skipdir:
 			(void) tpool_dispatch(t, zpool_open_func, slice);
 		tpool_wait(t);
 		tpool_destroy(t);
-
+#else
+		for (slice = avl_first(&slice_cache); slice;
+		    (slice = avl_walk(&slice_cache, slice,
+		    AVL_AFTER)))		
+			zpool_open_func(slice);
+#endif
+		
 		cookie = NULL;
 		while ((slice = avl_destroy_nodes(&slice_cache,
 		    &cookie)) != NULL) {
@@ -1553,8 +1757,10 @@ skipdir:
 					 */
 					(void) strlcpy(end, slice->rn_name,
 					    pathleft);
+					printf("%s rn_name: %s path: %s\n",
+						   __func__, slice->rn_name, path);
 					if (add_config(hdl, &pools, path,
-					    config) != 0)
+								   slice->rn_order, slice->rn_num_labels, config) != 0)
 						config_failed = B_TRUE;
 				}
 				nvlist_free(config);
@@ -1571,7 +1777,8 @@ skipdir:
 	}
 
 	ret = get_configs(hdl, &pools, iarg->can_be_active, iarg->policy);
-
+	printf("get_configs returned %p\n", ret);
+	
 error:
 	for (pe = pools.pools; pe != NULL; pe = penext) {
 		penext = pe->pe_next;
@@ -1595,6 +1802,162 @@ error:
 
 	return (ret);
 }
+
+#if 0
+static nvlist_t *
+zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
+{
+	nvlist_t *ret = NULL;
+	pool_list_t pools = { 0 };
+	pool_entry_t *pe, *penext;
+	vdev_entry_t *ve, *venext;
+	config_entry_t *ce, *cenext;
+	name_entry_t *ne, *nenext;
+	pthread_mutex_t lock;
+	avl_tree_t *cache;
+	rdsk_node_t *slice;
+	void *cookie;
+	tpool_t *t;
+
+#ifdef __FreeBSD__
+	iarg->scan = 1;
+#endif
+
+	verify(iarg->poolname == NULL || iarg->guid == 0);
+	pthread_mutex_init(&lock, NULL);
+
+	/*
+	 * Locate pool member vdevs using libblkid or by directory scanning.
+	 * On success a newly allocated AVL tree which is populated with an
+	 * entry for each discovered vdev will be returned as the cache.
+	 * It's the callers responsibility to consume and destroy this tree.
+	 */
+	if (iarg->scan || iarg->paths != 0) {
+		int dirs = iarg->paths;
+		char **dir = iarg->path;
+
+		if (dirs == 0) {
+			dir = zpool_default_import_path;
+			dirs = DEFAULT_IMPORT_PATH_SIZE;
+		}
+
+		if (zpool_find_import_scan(hdl, &lock, &cache, dir,  dirs) != 0)
+			return (NULL);
+	} else {
+#if 0
+		printf("blkid unsupported\n");
+		abort();
+		if (zpool_find_import_blkid(hdl, &lock, &cache) != 0)
+			return (NULL);
+#endif
+		return(NULL);
+	}
+
+	/*
+	 * Create a thread pool to parallelize the process of reading and
+	 * validating labels, a large number of threads can be used due to
+	 * minimal contention.
+	 */
+	t = tpool_create(1, 2 * sysconf(_SC_NPROCESSORS_ONLN), 0, NULL);
+	for (slice = avl_first(cache); slice;
+	    (slice = avl_walk(cache, slice, AVL_AFTER)))
+		(void) tpool_dispatch(t, zpool_open_func, slice);
+
+	tpool_wait(t);
+	tpool_destroy(t);
+
+	/*
+	 * Process the cache filtering out any entries which are not
+	 * for the specificed pool then adding matching label configs.
+	 */
+	cookie = NULL;
+	while ((slice = avl_destroy_nodes(cache, &cookie)) != NULL) {
+		if (slice->rn_config != NULL) {
+			nvlist_t *config = slice->rn_config;
+			boolean_t matched = B_TRUE;
+			boolean_t aux = B_FALSE;
+			int fd;
+
+			/*
+			 * Check if it's a spare or l2cache device. If it is,
+			 * we need to skip the name and guid check since they
+			 * don't exist on aux device label.
+			 */
+			if (iarg->poolname != NULL || iarg->guid != 0) {
+				uint64_t state;
+				aux = nvlist_lookup_uint64(config,
+				    ZPOOL_CONFIG_POOL_STATE, &state) == 0 &&
+				    (state == POOL_STATE_SPARE ||
+				    state == POOL_STATE_L2CACHE);
+			}
+
+			if (iarg->poolname != NULL && !aux) {
+				char *pname;
+
+				matched = nvlist_lookup_string(config,
+				    ZPOOL_CONFIG_POOL_NAME, &pname) == 0 &&
+				    strcmp(iarg->poolname, pname) == 0;
+			} else if (iarg->guid != 0 && !aux) {
+				uint64_t this_guid;
+
+				matched = nvlist_lookup_uint64(config,
+				    ZPOOL_CONFIG_POOL_GUID, &this_guid) == 0 &&
+				    iarg->guid == this_guid;
+			}
+			if (matched) {
+				/*
+				 * Verify all remaining entries can be opened
+				 * exclusively. This will prune all underlying
+				 * multipath devices which otherwise could
+				 * result in the vdev appearing as UNAVAIL.
+				 *
+				 * Under zdb, this step isn't required and
+				 * would prevent a zdb -e of active pools with
+				 * no cachefile.
+				 */
+				fd = open(slice->rn_name, O_RDONLY | O_EXCL);
+				if (fd >= 0 || iarg->can_be_active) {
+					if (fd >= 0)
+						close(fd);
+					add_config(hdl, &pools,
+					    slice->rn_name, slice->rn_order,
+					    slice->rn_num_labels, config);
+				}
+			}
+			nvlist_free(config);
+		}
+		free(slice->rn_name);
+		free(slice);
+	}
+	avl_destroy(cache);
+	free(cache);
+	pthread_mutex_destroy(&lock);
+
+	ret = get_configs(hdl, &pools, iarg->can_be_active, iarg->policy);
+
+	for (pe = pools.pools; pe != NULL; pe = penext) {
+		penext = pe->pe_next;
+		for (ve = pe->pe_vdevs; ve != NULL; ve = venext) {
+			venext = ve->ve_next;
+			for (ce = ve->ve_configs; ce != NULL; ce = cenext) {
+				cenext = ce->ce_next;
+				nvlist_free(ce->ce_config);
+				free(ce);
+			}
+			free(ve);
+		}
+		free(pe);
+	}
+
+	for (ne = pools.names; ne != NULL; ne = nenext) {
+		nenext = ne->ne_next;
+		free(ne->ne_name);
+		free(ne);
+	}
+
+	return (ret);
+}
+#endif
 
 nvlist_t *
 zpool_find_import(libzfs_handle_t *hdl, int argc, char **argv)

@@ -2054,12 +2054,6 @@ zfs_zaccess_dataset_check(znode_t *zp, uint32_t v4_mode)
 		return (SET_ERROR(EPERM));
 	}
 
-#ifdef illumos
-	if ((v4_mode & (ACE_DELETE | ACE_DELETE_CHILD)) &&
-	    (zp->z_pflags & ZFS_NOUNLINK)) {
-		return (SET_ERROR(EPERM));
-	}
-#else
 	/*
 	 * In FreeBSD we allow to modify directory's content is ZFS_NOUNLINK
 	 * (sunlnk) is set. We just don't allow directory removal, which is
@@ -2069,7 +2063,6 @@ zfs_zaccess_dataset_check(znode_t *zp, uint32_t v4_mode)
 	    (zp->z_pflags & ZFS_NOUNLINK)) {
 		return (EPERM);
 	}
-#endif
 
 	if (((v4_mode & (ACE_READ_DATA|ACE_EXECUTE)) &&
 	    (zp->z_pflags & ZFS_AV_QUARANTINED))) {

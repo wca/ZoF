@@ -101,17 +101,6 @@ krwlock_t zfsvfs_lock;
 
 static kmem_cache_t *znode_cache = NULL;
 
-/*ARGSUSED*/
-static void
-znode_evict_error(dmu_buf_t *dbuf, void *user_ptr)
-{
-	/*
-	 * We should never drop all dbuf refs without first clearing
-	 * the eviction callback.
-	 */
-	panic("evicting znode %p\n", user_ptr);
-}
-
 extern struct vop_vector zfs_vnodeops;
 extern struct vop_vector zfs_fifoops;
 extern struct vop_vector zfs_shareops;
@@ -1501,22 +1490,6 @@ zfs_grow_blocksize(znode_t *zp, uint64_t size, dmu_tx_t *tx)
 	/* What blocksize did we actually get? */
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &zp->z_blksz, &dummy);
 }
-
-#ifdef illumos
-/*
- * This is a dummy interface used when pvn_vplist_dirty() should *not*
- * be calling back into the fs for a putpage().  E.g.: when truncating
- * a file, the pages being "thrown away* don't need to be written out.
- */
-/* ARGSUSED */
-static int
-zfs_no_putpage(vnode_t *vp, page_t *pp, u_offset_t *offp, size_t *lenp,
-    int flags, cred_t *cr)
-{
-	ASSERT(0);
-	return (0);
-}
-#endif
 
 /*
  * Increase the file length

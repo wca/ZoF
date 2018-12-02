@@ -565,10 +565,6 @@ zfs_register_callbacks(vfs_t *vfsp)
 	boolean_t do_setuid = B_FALSE;
 	boolean_t exec = B_FALSE;
 	boolean_t do_exec = B_FALSE;
-#ifdef illumos
-	boolean_t devices = B_FALSE;
-	boolean_t do_devices = B_FALSE;
-#endif
 	boolean_t xattr = B_FALSE;
 	boolean_t do_xattr = B_FALSE;
 	boolean_t atime = B_FALSE;
@@ -679,10 +675,6 @@ zfs_register_callbacks(vfs_t *vfsp)
 	    zfs_prop_to_name(ZFS_PROP_RECORDSIZE), blksz_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_READONLY), readonly_changed_cb, zfsvfs);
-#ifdef illumos
-	error = error ? error : dsl_prop_register(ds,
-	    zfs_prop_to_name(ZFS_PROP_DEVICES), devices_changed_cb, zfsvfs);
-#endif
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_SETUID), setuid_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
@@ -690,7 +682,7 @@ zfs_register_callbacks(vfs_t *vfsp)
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_SNAPDIR), snapdir_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
-	    zfs_prop_to_name(ZFS_PROP_ACLMODE), acl_mode_changed_cb, zfsvfs);
+	    zfs_prop_to_name(ZFS_PROP_ACLTYPE), acl_mode_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_ACLINHERIT), acl_inherit_changed_cb,
 	    zfsvfs);
@@ -1484,18 +1476,6 @@ zfs_domount(vfs_t *vfsp, char *osname)
 		return (error);
 	zfsvfs->z_vfs = vfsp;
 
-#ifdef illumos
-	/* Initialize the generic filesystem structure. */
-	vfsp->vfs_bcount = 0;
-	vfsp->vfs_data = NULL;
-
-	if (zfs_create_unique_device(&mount_dev) == -1) {
-		error = SET_ERROR(ENODEV);
-		goto out;
-	}
-	ASSERT(vfs_devismounted(mount_dev) == 0);
-#endif
-
 	if ((error = dsl_prop_get_integer(osname, "recordsize", &recordsize, NULL)))
 		goto out;
 	zfsvfs->z_vfs->vfs_bsize = SPA_MINBLOCKSIZE;
@@ -1901,36 +1881,6 @@ zfs_mount(vfs_t *vfsp)
 	int		error = 0;
 	int		canwrite;
 
-#ifdef illumos
-	if (mvp->v_type != VDIR)
-		return (SET_ERROR(ENOTDIR));
-
-	mutex_enter(&mvp->v_lock);
-	if ((uap->flags & MS_REMOUNT) == 0 &&
-	    (uap->flags & MS_OVERLAY) == 0 &&
-	    (mvp->v_count != 1 || (mvp->v_flag & VROOT))) {
-		mutex_exit(&mvp->v_lock);
-		return (SET_ERROR(EBUSY));
-	}
-	mutex_exit(&mvp->v_lock);
-
-	/*
-	 * ZFS does not support passing unparsed data in via MS_DATA.
-	 * Users should use the MS_OPTIONSTR interface; this means
-	 * that all option parsing is already done and the options struct
-	 * can be interrogated.
-	 */
-	if ((uap->flags & MS_DATA) && uap->datalen > 0)
-		return (SET_ERROR(EINVAL));
-
-	/*
-	 * Get the objset name (the "special" mount argument).
-	 */
-	if (error = pn_get(uap->spec, fromspace, &spn))
-		return (error);
-
-	osname = spn.pn_path;
-#else	/* !illumos */
 	if (vfs_getopt(vfsp->mnt_optnew, "from", (void **)&osname, NULL))
 		return (SET_ERROR(EINVAL));
 
@@ -1942,7 +1892,6 @@ zfs_mount(vfs_t *vfsp)
 	    dsl_deleg_access(osname, ZFS_DELEG_PERM_MOUNT, cr) != ECANCELED) {
 		secpolicy_fs_mount_clearopts(cr, vfsp);
 	}
-#endif	/* illumos */
 
 	/*
 	 * Check for mount privilege?
@@ -2035,15 +1984,6 @@ zfs_mount(vfs_t *vfsp)
 	DROP_GIANT();
 	error = zfs_domount(vfsp, osname);
 	PICKUP_GIANT();
-
-#ifdef illumos
-	/*
-	 * Add an extra VFS_HOLD on our parent vfs so that it can't
-	 * disappear due to a forced unmount.
-	 */
-	if (error == 0 && ((zfsvfs_t *)vfsp->vfs_data)->z_issnap)
-		VFS_HOLD(mvp->v_vfsp);
-#endif
 
 out:
 	return (error);
@@ -2281,29 +2221,6 @@ zfs_umount(vfs_t *vfsp, int fflag)
 	ret = vflush(vfsp, 0, (fflag & MS_FORCE) ? FORCECLOSE : 0, td);
 	if (ret != 0)
 		return (ret);
-
-#ifdef illumos
-	if (!(fflag & MS_FORCE)) {
-		/*
-		 * Check the number of active vnodes in the file system.
-		 * Our count is maintained in the vfs structure, but the
-		 * number is off by 1 to indicate a hold on the vfs
-		 * structure itself.
-		 *
-		 * The '.zfs' directory maintains a reference of its
-		 * own, and any active references underneath are
-		 * reflected in the vnode count.
-		 */
-		if (zfsvfs->z_ctldir == NULL) {
-			if (vfsp->vfs_count > 1)
-				return (SET_ERROR(EBUSY));
-		} else {
-			if (vfsp->vfs_count > 2 ||
-			    zfsvfs->z_ctldir->v_count > 1)
-				return (SET_ERROR(EBUSY));
-		}
-	}
-#endif
 
 	while (taskqueue_cancel(zfsvfs_taskq->tq_queue,
 	    &zfsvfs->z_unlinked_drain_task, NULL) != 0)
@@ -2599,17 +2516,6 @@ static void
 zfs_freevfs(vfs_t *vfsp)
 {
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
-
-#ifdef illumos
-	/*
-	 * If this is a snapshot, we have an extra VFS_HOLD on our parent
-	 * from zfs_mount().  Release it here.  If we came through
-	 * zfs_mountroot() instead, we didn't grab an extra hold, so
-	 * skip the VFS_RELE for rootvfs.
-	 */
-	if (zfsvfs->z_issnap && (vfsp != rootvfs))
-		VFS_RELE(zfsvfs->z_parent->z_vfs);
-#endif
 
 	zfsvfs_free(zfsvfs);
 

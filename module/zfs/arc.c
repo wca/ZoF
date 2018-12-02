@@ -4791,7 +4791,7 @@ arc_shrink(int64_t to_free)
 static uint64_t
 arc_all_memory(void)
 {
-	return ((uint64_t)physmem * arc_lotsfree_percent / 100);
+	return ((uint64_t)ptob(physmem));
 }
 #endif
 #ifdef __linux__
@@ -9232,6 +9232,8 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	l2arc_dev_t *adddev;
 
 	ASSERT(!l2arc_vdev_present(vd));
+
+	vdev_ashift_optimize(vd);
 
 	/*
 	 * Create a new l2arc device entry.

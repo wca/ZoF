@@ -130,12 +130,17 @@ extern "C" {
 /* XXX */
 #define vmem_zalloc(size, flags) zfs_kmem_alloc(size, flags | M_ZERO)
 #define vmem_alloc zfs_kmem_alloc
+#define MUTEX_NOLOCKDEP 0
+#define RW_NOLOCKDEP 0
+
 #else
 typedef unsigned int uint_t;
 typedef long loff_t;
 typedef long rlim64_t;	
 typedef int bool_t;
 typedef int enum_t;
+#define __init
+#define __exit
 #define FALSE 0
 #define TRUE 1
 	/*

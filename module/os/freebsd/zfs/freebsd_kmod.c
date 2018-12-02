@@ -198,11 +198,6 @@ zfsdev_open(struct cdev *devp, int flag, int mode, struct thread *td)
 {
 	int error = 0;
 
-#ifdef illumos
-	if (getminor(*devp) != 0)
-		return (zvol_open(devp, flag, otyp, cr));
-#endif
-
 	/* This is the control device. Allocate a new minor if requested. */
 	if (flag & FEXCL) {
 		mutex_enter(&spa_namespace_lock);

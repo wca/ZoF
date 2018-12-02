@@ -39,6 +39,7 @@ $(MODULE)-objs += opensolaris_vm.o
 $(MODULE)-objs += opensolaris_zone.o
 $(MODULE)-objs += sha256c.o
 $(MODULE)-objs += sha512c.o
+$(MODULE)-objs += spl_zlib.o
 
 objs = $($(MODULE)-objs)
 all: spl.ko

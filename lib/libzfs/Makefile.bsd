@@ -28,15 +28,16 @@ USER_C = \
 	libzfs_diff.c \
 	libzfs_ioctl_compat.c \
 	libzfs_iter.c \
-	libzfs_mount.c \
 	libzfs_pool.c \
 	libzfs_sendrecv.c \
 	libzfs_status.c \
 	libzfs_util.c
 
 USER_C += freebsd_libzfs_import.c \
+       freebsd_libzfs_mount.c \
        freebsd_fsshare.c \
-       freebsd_mnttab.c
+       freebsd_mnttab.c \
+       zmount.c
 
 KERNEL_C = \
 	algs/sha2/sha2.c \
