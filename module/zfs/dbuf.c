@@ -1040,6 +1040,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 * partially fill in a hole.
 		 */
 		if (db->db_dirtycnt == 0) {
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 			if (db->db_level == 0) {
 				uint64_t *buf = db->db.db_data;
 				int i;
@@ -1076,6 +1077,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 					ASSERT0(bp->blk_phys_birth);
 				}
 			}
+#endif
 		}
 	}
 	DB_DNODE_EXIT(db);

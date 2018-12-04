@@ -54,6 +54,16 @@ int spl_panic(const char *file, const char *func, int line,
     const char *fmt, ...);
 void spl_dumpstack(void);
 
+#ifndef expect
+#define expect(expr, value) (__builtin_expect((expr), (value)))
+#endif
+#ifndef likely
+#define likely(expr)   expect((expr) != 0, 1)
+#endif
+#ifndef unlikely
+#define unlikely(expr) expect((expr) != 0, 0)
+#endif
+
 /* BEGIN CSTYLED */
 #define	PANIC(fmt, a...)						\
 	spl_panic(__FILE__, __FUNCTION__, __LINE__, fmt, ## a)

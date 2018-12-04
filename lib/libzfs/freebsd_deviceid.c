@@ -55,7 +55,6 @@ devid_deviceid_to_nmlist(char *search_path, ddi_devid_t devid, char *minor_name,
     devid_nmlist_t **retlist)
 {
 	char path[MAXPATHLEN];
-	char *dst;
 
 	if (g_get_name(devid.devid, path, sizeof(path)) == -1)
 		return (errno);

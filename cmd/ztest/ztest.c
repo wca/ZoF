@@ -118,7 +118,9 @@
 #include <sys/dsl_userhold.h>
 #include <sys/abd.h>
 #include <stdio.h>
+#ifdef __linux__
 #include <stdio_ext.h>
+#endif
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>

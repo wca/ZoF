@@ -134,7 +134,6 @@ extern "C" {
 #define RW_NOLOCKDEP 0
 
 #else
-typedef unsigned int uint_t;
 typedef long loff_t;
 typedef long rlim64_t;	
 typedef int bool_t;

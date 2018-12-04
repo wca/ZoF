@@ -31,7 +31,9 @@
 #include <sys/u8_textprep.h>
 #include <sys/vnode.h>
 
+#ifdef __linux__
 typedef int ddi_devid_t;
+#endif
 
 #define	DDI_DEV_T_NONE				((dev_t)-1)
 #define	DDI_DEV_T_ANY				((dev_t)-2)

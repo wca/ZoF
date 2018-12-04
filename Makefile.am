@@ -4,9 +4,16 @@ include config/rpm.am
 include config/deb.am
 include config/tgz.am
 
-SUBDIRS = include rpm
+SUBDIRS = include
+if BUILD_LINUX
+SUBDIRS+= rpm
+endif
+
 if CONFIG_USER
-SUBDIRS += udev etc man scripts lib tests cmd contrib
+SUBDIRS += etc man scripts lib tests cmd contrib
+if BUILD_LINUX
+SUBDIRS+= udev
+endif
 endif
 if CONFIG_KERNEL
 SUBDIRS += module

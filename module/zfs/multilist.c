@@ -33,7 +33,7 @@ int zfs_multilist_num_sublists = 0;
  * Given the object contained on the list, return a pointer to the
  * object's multilist_node_t structure it contains.
  */
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 static multilist_node_t *
 multilist_d2l(multilist_t *ml, void *obj)
 {

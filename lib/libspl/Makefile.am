@@ -18,7 +18,6 @@ noinst_LTLIBRARIES = libspl.la
 USER_C = \
 	getexecname.c \
 	gethostid.c \
-	getmntany.c \
 	list.c \
 	mkdirp.c \
 	page.c \
@@ -28,6 +27,10 @@ USER_C = \
 	zone.c \
 	include/sys/list.h \
 	include/sys/list_impl.h
+
+if BUILD_LINUX
+USER_C+=	getmntany.c
+endif
 
 USER_ASM = atomic.S
 

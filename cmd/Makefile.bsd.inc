@@ -1,5 +1,6 @@
 CFLAGS+= -Wall -g -pipe -Werror -Wno-unknown-pragmas
 CFLAGS+=  -D_SYS_VMEM_H_ -D_SYS_PROC_H_ -DVM_H -D_SYS_USER_H_
+CFLAGS+= -DHAVE_ISSETUGID
 CFLAGS+= -DSYSCONFDIR=
 CFLAGS+= -include $(ZFSBASE)/include/os/freebsd/spl/sys/ccompile.h
 CFLAGS+= -I/usr/include

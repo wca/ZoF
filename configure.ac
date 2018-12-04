@@ -38,7 +38,7 @@ AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([config])
 AC_CANONICAL_SYSTEM
 AM_MAINTAINER_MODE
-m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([no])])
 AM_INIT_AUTOMAKE([subdir-objects])
 AC_CONFIG_HEADERS([zfs_config.h], [
 	(mv zfs_config.h zfs_config.h.tmp &&
@@ -61,16 +61,42 @@ ZFS_AC_DEBUGINFO
 ZFS_AC_DEBUG_KMEM
 ZFS_AC_DEBUG_KMEM_TRACKING
 
-AC_CONFIG_FILES([
-	Makefile
+
+AM_COND_IF([BUILD_LINUX], [AC_CONFIG_FILES([
 	udev/Makefile
 	udev/rules.d/Makefile
-	etc/Makefile
-	etc/init.d/Makefile
-	etc/zfs/Makefile
+	include/linux/Makefile
 	etc/systemd/Makefile
 	etc/systemd/system/Makefile
 	etc/systemd/system-generators/Makefile
+	include/os/linux/spl/rpc/Makefile
+	include/os/linux/spl/sys/Makefile
+	module/os/linux/spl/Makefile
+	module/os/linux/zfs/Makefile
+	module/icp/Makefile
+	rpm/Makefile
+	rpm/redhat/Makefile
+	rpm/redhat/zfs.spec
+	rpm/redhat/zfs-kmod.spec
+	rpm/redhat/zfs-dkms.spec
+	rpm/generic/Makefile
+	rpm/generic/zfs.spec
+	rpm/generic/zfs-kmod.spec
+	rpm/generic/zfs-dkms.spec
+	])
+])
+
+AM_COND_IF([BUILD_FREEBSD], [AC_CONFIG_FILES([
+	module/os/freebsd/spl/Makefile
+	module/os/freebsd/zfs/Makefile
+	])
+])
+
+AC_CONFIG_FILES([
+	Makefile
+	etc/Makefile
+	etc/init.d/Makefile
+	etc/zfs/Makefile
 	etc/sudoers.d/Makefile
 	etc/modules-load.d/Makefile
 	man/Makefile
@@ -138,13 +164,7 @@ AC_CONFIG_FILES([
 	module/zcommon/Makefile
 	module/zfs/Makefile
 	module/lua/Makefile
-	module/icp/Makefile
-	module/spl/Makefile
 	include/Makefile
-	include/linux/Makefile
-	include/spl/Makefile
-	include/spl/rpc/Makefile
-	include/spl/sys/Makefile
 	include/sys/Makefile
 	include/sys/fs/Makefile
 	include/sys/fm/Makefile
@@ -341,15 +361,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/perf/regression/Makefile
 	tests/zfs-tests/tests/perf/scripts/Makefile
 	tests/zfs-tests/tests/stress/Makefile
-	rpm/Makefile
-	rpm/redhat/Makefile
-	rpm/redhat/zfs.spec
-	rpm/redhat/zfs-kmod.spec
-	rpm/redhat/zfs-dkms.spec
-	rpm/generic/Makefile
-	rpm/generic/zfs.spec
-	rpm/generic/zfs-kmod.spec
-	rpm/generic/zfs-dkms.spec
 	zfs.release
 ])
 

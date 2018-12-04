@@ -274,6 +274,7 @@ dnode_verify(dnode_t *dn)
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		drop_struct_lock = TRUE;
 	}
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 	if (dn->dn_phys->dn_type != DMU_OT_NONE || dn->dn_allocated_txg != 0) {
 		int i;
 		int max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
@@ -300,6 +301,7 @@ dnode_verify(dnode_t *dn)
 	if (dn->dn_phys->dn_type != DMU_OT_NONE)
 		ASSERT3U(dn->dn_phys->dn_nlevels, <=, dn->dn_nlevels);
 	ASSERT(DMU_OBJECT_IS_SPECIAL(dn->dn_object) || dn->dn_dbuf != NULL);
+#endif
 	if (dn->dn_dbuf != NULL) {
 		ASSERT3P(dn->dn_phys, ==,
 		    (dnode_phys_t *)dn->dn_dbuf->db.db_data +

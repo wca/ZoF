@@ -210,9 +210,21 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		[Path to kernel build objects]),
 		[kernelbuild="$withval"])
 
+	AC_ARG_WITH([freebsd],
+		AS_HELP_STRING([--with-freebsd=PATH],
+		[Path to FreeBSD source]),
+		[kernelsrc="$withval/sys"])
+
+	AC_ARG_WITH(freebsd-obj,
+		AS_HELP_STRING([--with-freebsd-obj=PATH],
+		[Path to FreeBSD build objects]),
+		[kernelbuild="$withval/$kernelsrc"])
+
 	AC_MSG_CHECKING([kernel source directory])
 	AS_IF([test -z "$kernelsrc"], [
-		AS_IF([test -e "/lib/modules/$(uname -r)/source"], [
+		AS_IF([BUILD_FREEBSD], [
+			sourcelink="/usr/src/sys"
+		], [test -e "/lib/modules/$(uname -r)/source"], [
 			headersdir="/lib/modules/$(uname -r)/source"
 			sourcelink=$(readlink -f "$headersdir")
 		], [test -e "/lib/modules/$(uname -r)/build"], [
@@ -241,12 +253,15 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
 	*** is installed and then try again.  If that fails, you can specify the
-	*** location of the kernel source with the '--with-linux=PATH' option.])
+	*** location of the kernel source with the '--with-linux=PATH' option.
+	*** If you are configuring for FreeBSD, use '--with-freebsd=PATH'.])
 	])
 
 	AC_MSG_CHECKING([kernel build directory])
 	AS_IF([test -z "$kernelbuild"], [
-		AS_IF([test x$withlinux != xyes -a -e "/lib/modules/$(uname -r)/build"], [
+		AS_IF([BUILD_FREEBSD], [
+			kernelbuild="/usr/obj/${kernelsrc}"
+		], [test x$withlinux != xyes -a -e "/lib/modules/$(uname -r)/build"], [
 			kernelbuild=`readlink -f /lib/modules/$(uname -r)/build`
 		], [test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}], [
 			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
@@ -261,6 +276,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_MSG_RESULT([$kernelbuild])
 
 	AC_MSG_CHECKING([kernel source version])
+	dnl # TODO: FreeBSD
 	utsrelease1=$kernelbuild/include/linux/version.h
 	utsrelease2=$kernelbuild/include/linux/utsrelease.h
 	utsrelease3=$kernelbuild/include/generated/utsrelease.h

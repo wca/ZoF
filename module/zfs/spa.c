@@ -2388,7 +2388,7 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type)
 	return (error);
 }
 
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 /*
  * Count the number of per-vdev ZAPs associated with all of the vdevs in the
  * vdev tree rooted in the given vd, and ensure that each ZAP is present in the
@@ -7881,7 +7881,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 
 	} while (dmu_objset_is_dirty(mos, txg));
 
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 	if (!list_is_empty(&spa->spa_config_dirty_list)) {
 		/*
 		 * Make sure that the number of ZAPs for all the vdevs matches
