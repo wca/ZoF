@@ -25,7 +25,6 @@ SUBDIRS = \
 	features \
 	grow \
 	history \
-	hkdf \
 	inheritance \
 	inuse \
 	io \
@@ -66,7 +65,6 @@ SUBDIRS = \
 	snapused \
 	sparse \
 	threadsappend \
-	tmpfile \
 	truncate \
 	upgrade \
 	user_namespace \
@@ -75,3 +73,9 @@ SUBDIRS = \
 	write_dirs \
 	xattr \
 	zvol
+
+if BUILD_LINUX
+SUBDIRS+= \
+	hkdf \
+	tmpfile
+endif

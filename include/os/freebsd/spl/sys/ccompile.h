@@ -154,8 +154,12 @@ typedef int enum_t;
 #define __POSIX_VISIBLE 201808
 #define        ARRAY_SIZE(a) (sizeof (a) / sizeof (a[0]))
 #define O_LARGEFILE 0
+#define O_RSYNC 0
+#define O_DSYNC 0
 #define open64 open
 #define pwrite64 pwrite
+#define ftruncate64 ftruncate
+#define lseek64 lseek
 #define pread64 pread	
 #define stat64 stat
 #define statfs64 statfs

@@ -30,7 +30,9 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#ifdef __linux__
 #include <stdio_ext.h>
+#endif
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/zfs_context.h>
@@ -3088,10 +3090,12 @@ dump_label(const char *dev)
 		exit(1);
 	}
 
+#ifdef __linux__
 	if (S_ISBLK(statbuf.st_mode) && ioctl(fd, BLKFLSBUF) != 0)
 		(void) printf("failed to invalidate cache '%s' : %s\n", path,
 		    strerror(errno));
 
+#endif
 	avl_create(&config_tree, cksum_record_compare,
 	    sizeof (cksum_record_t), offsetof(cksum_record_t, link));
 	avl_create(&uberblock_tree, cksum_record_compare,

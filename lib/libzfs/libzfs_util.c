@@ -56,7 +56,6 @@
 #include <libzutil.h>
 
 #ifdef __FreeBSD__
-extern void statfs2mnttab(struct statfs *sfs, struct extmnttab *mp);
 #define execvpe exect
 #define ESTRPIPE EPIPE
 #endif
@@ -1081,34 +1080,12 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 		return (zfs_open(hdl, path, argtype));
 	}
 
-	if (stat64(path, &statbuf) != 0) {
-		(void) fprintf(stderr, "%s: %s\n", path, strerror(errno));
-		return (NULL);
-	}
 
 	/* Reopen MNTTAB to prevent reading stale data from open file */
 	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
 		return (NULL);
-#ifndef __FreeBSD__
-	while ((ret = getextmntent(hdl->libzfs_mnttab, &entry, 0)) == 0) {
-		if (makedevice(entry.mnt_major, entry.mnt_minor) ==
-		    statbuf.st_dev) {
-			break;
-		}
-	}
-#else
-	{
-		struct statfs sfs;
 
-		ret = statfs(path, &sfs);
-		if (ret == 0)
-			statfs2mnttab(&sfs, &entry);
-		else {
-			(void) fprintf(stderr, "%s: %s\n", path,
-			    strerror(errno));
-		}
-	}
-#endif	/* illumos */
+	ret = getextmntent(path, &entry, &statbuf);
 	if (ret != 0) {
 		return (NULL);
 	}

@@ -4,6 +4,7 @@ dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_ARCH], [
 	AC_MSG_CHECKING(for target asm dir)
 	TARGET_ARCH=`echo ${target_cpu} | sed -e s/i.86/i386/`
+	TARGET_ARCH=`echo ${target_cpu} | sed -e s/amd64/x86_64/`
 
 	case $TARGET_ARCH in
 	i386|x86_64)

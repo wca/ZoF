@@ -24,10 +24,12 @@
  * Use is subject to license terms.
  */
 
-#include_next <sys/mount.h>
 
 #ifndef _LIBSPL_SYS_MOUNT_H
 #define	_LIBSPL_SYS_MOUNT_H
+
+#undef _SYS_MOUNT_H_
+#include_next <sys/mount.h>
 
 #include <assert.h>
 #include <string.h>
@@ -59,6 +61,16 @@
 #define	MS_POSIXACL		(1<<16)
 #endif
 
+#ifdef __FreeBSD__
+#define	MS_NOSUID	MNT_NOSUID
+#define	MS_NOEXEC	MNT_NOEXEC
+#define	MS_NODEV	0
+#define	S_WRITE		0
+#define	MS_BIND		0
+#define	MS_REMOUNT	0
+#define	MS_SYNCHRONOUS	MNT_SYNCHRONOUS
+#endif
+
 #define	MS_USERS	(MS_NOEXEC|MS_NOSUID|MS_NODEV)
 #define	MS_OWNER	(MS_NOSUID|MS_NODEV)
 #define	MS_GROUP	(MS_NOSUID|MS_NODEV)
@@ -86,8 +98,11 @@
  * compatibility, MS_OVERLAY is defined to explicitly have the user
  * provide a flag (-O) to mount over a non empty directory.
  */
+#ifdef __FreeBSD__
+#define MS_OVERLAY      0x0
+#else
 #define	MS_OVERLAY	0x00000004
-
+#endif
 /*
  * MS_CRYPT indicates that encryption keys should be loaded if they are not
  * already available. This is not defined in glibc, but it is never seen by

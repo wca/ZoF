@@ -42,11 +42,11 @@
 
 #ifdef __FreeBSD__
 #include <paths.h>
+#include <sys/mount.h>
 #define	MNTTAB		_PATH_DEVZERO
-#undef MS_OVERLAY
-#define MS_OVERLAY      0x0
 #define MS_NOMNTTAB     0x0
 #define MS_RDONLY       0x1
+#define	umount2(p, f)	unmount(p, f)
 #else
 #define	MNTTAB		"/proc/self/mounts"
 #endif
@@ -78,9 +78,14 @@ struct extmnttab {
 	uint_t mnt_minor;
 };
 
+struct stat64;
+struct statfs;
+
 extern int getmntany(FILE *fp, struct mnttab *mp, struct mnttab *mpref);
 extern int _sol_getmntent(FILE *fp, struct mnttab *mp);
-extern int getextmntent(FILE *fp, struct extmnttab *mp, int len);
+extern int getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf);
+extern void statfs2mnttab(struct statfs *sfs, struct mnttab *mp);
+
 #ifdef __linux__
 static inline char *_sol_hasmntopt(struct mnttab *mnt, char *opt)
 {

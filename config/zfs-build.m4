@@ -165,7 +165,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG], [
-	ZFS_CONFIG=user
+	ZFS_CONFIG=all
 	AC_ARG_WITH([config],
 		AS_HELP_STRING([--with-config=CONFIG],
 		[Config file 'kernel|user|all|srpm']),

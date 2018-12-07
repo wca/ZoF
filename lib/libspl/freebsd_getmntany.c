@@ -30,9 +30,8 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <mntent.h>
+#include <sys/errno.h>
 #include <sys/mnttab.h>
-
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <sys/stat.h>
@@ -42,61 +41,27 @@
 
 __thread char buf[BUFSIZE];
 
-#define	DIFF(xx)	( \
-	    (mrefp->xx != NULL) && \
-	    (mgetp->xx == NULL || strcmp(mrefp->xx, mgetp->xx) != 0))
-
 int
-getmntany(FILE *fp, struct mnttab *mgetp, struct mnttab *mrefp)
+getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 {
-	int ret;
+	struct statfs sfs;
 
-	while (
-	    ((ret = _sol_getmntent(fp, mgetp)) == 0) && (
-	    DIFF(mnt_special) || DIFF(mnt_mountp) ||
-	    DIFF(mnt_fstype) || DIFF(mnt_mntopts))) { }
-
-	return (ret);
-}
-
-int
-_sol_getmntent(FILE *fp, struct mnttab *mgetp)
-{
-	struct mntent mntbuf;
-	struct mntent *ret;
-
-	ret = getmntent_r(fp, &mntbuf, buf, BUFSIZE);
-
-	if (ret != NULL) {
-		mgetp->mnt_special = mntbuf.mnt_fsname;
-		mgetp->mnt_mountp = mntbuf.mnt_dir;
-		mgetp->mnt_fstype = mntbuf.mnt_type;
-		mgetp->mnt_mntopts = mntbuf.mnt_opts;
-		return (0);
-	}
-
-	if (feof(fp))
+	if (strlen(path) >= MAXPATHLEN) {
+		(void) fprintf(stderr, "invalid object; pathname too long\n");
 		return (-1);
-
-	return (MNT_TOOLONG);
-}
-
-int
-getextmntent(FILE *fp, struct extmnttab *mp, int len)
-{
-	int ret;
-	struct stat64 st;
-
-	ret = _sol_getmntent(fp, (struct mnttab *)mp);
-	if (ret == 0) {
-		if (stat64(mp->mnt_mountp, &st) != 0) {
-			mp->mnt_major = 0;
-			mp->mnt_minor = 0;
-			return (ret);
-		}
-		mp->mnt_major = major(st.st_dev);
-		mp->mnt_minor = minor(st.st_dev);
 	}
 
-	return (ret);
+	if (stat64(path, statbuf) != 0) {
+		(void) fprintf(stderr, "cannot open '%s': %s\n",
+		    path, strerror(errno));
+		return (-1);
+	}
+
+	if (statfs(path, &sfs) != 0) {
+		(void) fprintf(stderr, "%s: %s\n", path,
+			    strerror(errno));
+		return (-1);
+	}
+	statfs2mnttab(&sfs, (struct mnttab *)entry);
+	return (0);
 }

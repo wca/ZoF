@@ -609,7 +609,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 			rep.zprl_children = 1;
 			rep.zprl_parity = 0;
 		} else {
-			uint64_t vdev_size;
+			int64_t vdev_size;
 
 			/*
 			 * This is a mirror or RAID-Z vdev.  Go through and make
@@ -645,7 +645,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				nvlist_t *cnv = child[c];
 				char *path;
 				struct stat64 statbuf;
-				uint64_t size = -1ULL;
+				int64_t size = -1ULL;
 				char *childtype;
 				int fd, err;
 
