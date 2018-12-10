@@ -40,9 +40,12 @@ if BUILD_FREEBSD
 USER_C+= \
 	freebsd_deviceid.c \
 	freebsd_fsshare.c \
+	freebsd_libzfs_compat.c \
+	freebsd_libzfs_ioctl_compat.c \
 	freebsd_libzfs_import.c \
 	freebsd_libzfs_mount.c \
-	freebsd_mnttab.c
+	freebsd_mnttab.c \
+	zmount.c
 endif
 
 KERNEL_C = \

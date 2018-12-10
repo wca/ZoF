@@ -27,7 +27,6 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
-#include <sys/endian.h>
 #include <sys/types.h>
 
 #ifdef _KERNEL
@@ -36,6 +35,9 @@ __FBSDID("$FreeBSD$");
 #include <string.h>
 #endif
 
+
+#include <sys/byteorder.h>
+#include <sys/endian.h>
 #include "sha224.h"
 #include "sha256.h"
 

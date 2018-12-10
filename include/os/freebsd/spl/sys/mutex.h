@@ -47,8 +47,6 @@ typedef enum {
 #define	MUTEX_HELD(x)		(mutex_owned(x))
 #define	MUTEX_NOT_HELD(x)	(!mutex_owned(x) || panicstr)
 
-typedef struct sx	kmutex_t;
-
 #ifndef OPENSOLARIS_WITNESS
 #define	MUTEX_FLAGS	(SX_DUPOK | SX_NEW | SX_NOWITNESS)
 #else

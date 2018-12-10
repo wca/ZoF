@@ -145,7 +145,7 @@ typedef struct zvol_extent {
 /*
  * The in-core state of each volume.
  */
-typedef struct zvol_state {
+struct zvol_state {
 	LIST_ENTRY(zvol_state)	zv_links;
 	char		zv_name[MAXPATHLEN]; /* pool/dd name */
 	uint64_t	zv_volsize;	/* amount of space we advertise */
@@ -165,7 +165,7 @@ typedef struct zvol_state {
 	int		zv_volmode;	/* Provide GEOM or cdev */
 	struct bio_queue_head zv_queue;
 	struct mtx	zv_queue_mtx;	/* zv_queue mutex */
-} zvol_state_t;
+};
 
 static LIST_HEAD(, zvol_state) all_zvols;
 /*

@@ -79,10 +79,6 @@
 #include <sys/conf.h>
 /* XXX move us */
 
-#if BYTE_ORDER != BIG_ENDIAN
-#undef _BIG_ENDIAN
-#endif
-
 #define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
 	    (taskq_create(a, b, maxclsyspri, d, e, f))
 

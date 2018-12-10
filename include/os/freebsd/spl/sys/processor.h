@@ -35,8 +35,6 @@
 #define	_SYS_PROCESSOR_H
 
 #include <sys/types.h>
-#include <sys/procset.h>
-
 #ifdef	__cplusplus
 extern "C" {
 #endif

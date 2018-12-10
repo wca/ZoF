@@ -40,7 +40,91 @@
 #ifndef _SYS_BYTEORDER_H
 #define	_SYS_BYTEORDER_H
 
+#ifdef __FreeBSD__
+/*
+ * XXX FIXME
+ * on FreeBSD _BIG_ENDIAN is defined on all architectures so we have
+ * to exclude _MACHINE_ENDIAN_H_ and define the bulk of it here 
+ */
 
+#include <sys/cdefs.h>
+#include <sys/_types.h>
+
+/*
+ * Define the order of 32-bit words in 64-bit words.
+ */
+#define _QUAD_HIGHWORD 1
+#define _QUAD_LOWWORD 0
+
+/*
+ * Definitions for byte order, according to byte significance from low
+ * address to high.
+ */
+#undef _LITTLE_ENDIAN
+#define _LITTLE_ENDIAN  1234    /* LSB first: i386, vax */
+#define _PDP_ENDIAN     3412    /* LSB first in word, MSW first in long */
+
+#define _BYTE_ORDER     _LITTLE_ENDIAN
+
+/*
+ * Deprecated variants that don't have enough underscores to be useful in more
+ * strict namespaces.
+ */
+#if __BSD_VISIBLE
+#define LITTLE_ENDIAN   _LITTLE_ENDIAN
+#define PDP_ENDIAN      _PDP_ENDIAN
+#define BYTE_ORDER      _BYTE_ORDER
+#endif
+
+#define __bswap16_gen(x)        (__uint16_t)((x) << 8 | (x) >> 8)
+#define __bswap32_gen(x)                \
+        (((__uint32_t)__bswap16((x) & 0xffff) << 16) | __bswap16((x) >> 16))
+#define __bswap64_gen(x)                \
+        (((__uint64_t)__bswap32((x) & 0xffffffff) << 32) | __bswap32((x) >> 32))
+
+#ifdef __GNUCLIKE_BUILTIN_CONSTANT_P
+#define __bswap16(x)                            \
+        ((__uint16_t)(__builtin_constant_p(x) ? \
+            __bswap16_gen((__uint16_t)(x)) : __bswap16_var(x)))
+#define __bswap32(x)                    \
+        (__builtin_constant_p(x) ?      \
+            __bswap32_gen((__uint32_t)(x)) : __bswap32_var(x))
+#define __bswap64(x)                    \
+        (__builtin_constant_p(x) ?      \
+            __bswap64_gen((__uint64_t)(x)) : __bswap64_var(x))
+#else
+/* XXX these are broken for use in static initializers. */
+#define __bswap16(x)    __bswap16_var(x)
+#define __bswap32(x)    __bswap32_var(x)
+#define __bswap64(x)    __bswap64_var(x)
+#endif
+
+/* These are defined as functions to avoid multiple evaluation of x. */
+
+static __inline __uint16_t
+__bswap16_var(__uint16_t _x)
+{
+
+        return (__bswap16_gen(_x));
+}
+
+static __inline __uint32_t
+__bswap32_var(__uint32_t _x)
+{
+
+#ifdef __GNUCLIKE_ASM
+        __asm("bswap %0" : "+r" (_x));
+        return (_x);
+#else
+        return (__bswap32_gen(_x));
+#endif
+}
+#define __htonl(x)      __bswap32(x)
+#define __htons(x)      __bswap16(x)
+#define __ntohl(x)      __bswap32(x)
+#define __ntohs(x)      __bswap16(x)
+
+#endif
 
 #include <sys/isa_defs.h>
 #include <sys/int_types.h>
@@ -60,6 +144,10 @@ extern "C" {
 
 #if defined(_BIG_ENDIAN) && !defined(ntohl) && !defined(__lint)
 /* big-endian */
+#if defined(_BIG_ENDIAN)
+#warning ERRRRRRRRRRRRr
+#error bleh
+#endif
 #define	ntohl(x)	(x)
 #define	ntohs(x)	(x)
 #define	htonl(x)	(x)

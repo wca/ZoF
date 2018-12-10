@@ -3762,9 +3762,9 @@ zfs_ioc_channel_program(const char *poolname, nvlist_t *innvl,
 	nvarg = fnvlist_lookup_nvpair(innvl, ZCP_ARG_ARGLIST);
 
 	if (instrlimit == 0 || instrlimit > zfs_lua_max_instrlimit)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	if (memlimit == 0 || memlimit > zfs_lua_max_memlimit)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	return (zcp_eval(poolname, program, sync_flag, instrlimit, memlimit,
 	    nvarg, outnvl));

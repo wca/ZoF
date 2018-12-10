@@ -2785,8 +2785,6 @@ vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx)
 	VERIFY0(zap_add_int(spa->spa_meta_objset, spa->spa_all_vdev_zaps,
 	    zap, tx));
 
-	printf("%s spa->spa_meta_objset %p, spa->spa_all_vdev_zaps %#lx\n",
-		   __func__, spa->spa_meta_objset, spa->spa_all_vdev_zaps);
 	return (zap);
 }
 

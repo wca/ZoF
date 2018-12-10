@@ -41,6 +41,7 @@ typedef	int64_t		clock_t;
 #endif
 
 #include_next <sys/types.h>
+#include <sys/types32.h>
 #include <sys/_stdarg.h>
 
 #define	MAXNAMELEN	256
@@ -100,10 +101,7 @@ typedef	short		pri_t;
 
 #endif	/* !_KERNEL */
 
-typedef	uint32_t	size32_t;
-typedef	int32_t		time32_t;
 typedef	longlong_t	diskaddr_t;
-typedef	int32_t		daddr32_t;
-typedef	uint32_t	caddr32_t;
+
 
 #endif	/* !_OPENSOLARIS_SYS_TYPES_H_ */

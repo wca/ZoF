@@ -30,6 +30,8 @@
 #define	_OPENSOLARIS_SYS_VFS_H_
 
 #include <sys/param.h>
+#include <sys/proc.h>
+#include <sys/vnode.h>
 
 #ifdef _KERNEL
 
@@ -37,8 +39,6 @@
 
 struct thread;
 struct vnode;
-typedef struct vnode vnode_t;
-typedef struct thread kthread_t;
 typedef	struct mount	vfs_t;
 
 typedef	int	umode_t;

@@ -30,8 +30,8 @@
 #define	_OPENSOLARIS_SYS_MOUNT_H_
 
 #include <sys/param.h>
-#include <sys/vfs.h>
 #include_next <sys/mount.h>
+#include <sys/vfs.h>
 
 #define	MS_FORCE	MNT_FORCE
 #define	MS_REMOUNT	MNT_UPDATE

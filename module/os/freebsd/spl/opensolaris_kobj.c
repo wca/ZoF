@@ -29,6 +29,7 @@ __FBSDID("$FreeBSD$");
 
 #include <sys/types.h>
 #include <sys/systm.h>
+#include <sys/byteorder.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
 #include <sys/kthread.h>

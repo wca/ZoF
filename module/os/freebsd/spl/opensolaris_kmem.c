@@ -28,6 +28,7 @@
 __FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
+#include <sys/byteorder.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
 #include <sys/malloc.h>
@@ -35,6 +36,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/debug.h>
 #include <sys/mutex.h>
 #include <sys/vmmeter.h>
+
 
 #include <vm/vm_page.h>
 #include <vm/vm_object.h>
