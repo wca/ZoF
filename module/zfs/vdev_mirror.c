@@ -129,13 +129,13 @@ static int vdev_mirror_shift = 21;
  */
 
 /* Rotating media load calculation configuration. */
-static int zfs_vdev_mirror_rotating_inc = 0;
-static int zfs_vdev_mirror_rotating_seek_inc = 5;
-static int zfs_vdev_mirror_rotating_seek_offset = 1 * 1024 * 1024;
+int zfs_vdev_mirror_rotating_inc = 0;
+int zfs_vdev_mirror_rotating_seek_inc = 5;
+int zfs_vdev_mirror_rotating_seek_offset = 1 * 1024 * 1024;
 
 /* Non-rotating media load calculation configuration. */
-static int zfs_vdev_mirror_non_rotating_inc = 0;
-static int zfs_vdev_mirror_non_rotating_seek_inc = 1;
+int zfs_vdev_mirror_non_rotating_inc = 0;
+int zfs_vdev_mirror_non_rotating_seek_inc = 1;
 
 static inline size_t
 vdev_mirror_map_size(int children)

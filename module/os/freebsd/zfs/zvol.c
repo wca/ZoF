@@ -236,19 +236,6 @@ static int zvol_get_data(void *arg, lr_write_t *lr, char *buf,
 static void
 zvol_size_changed(zvol_state_t *zv, uint64_t volsize)
 {
-#ifdef illumos
-	dev_t dev = makedevice(ddi_driver_major(zfs_dip), zv->zv_minor);
-
-	zv->zv_volsize = volsize;
-	VERIFY(ddi_prop_update_int64(dev, zfs_dip,
-	    "Size", volsize) == DDI_SUCCESS);
-	VERIFY(ddi_prop_update_int64(dev, zfs_dip,
-	    "Nblocks", lbtodb(volsize)) == DDI_SUCCESS);
-
-	/* Notify specfs to invalidate the cached size */
-	spec_size_invalidate(dev, VBLK);
-	spec_size_invalidate(dev, VCHR);
-#else	/* !illumos */
 	zv->zv_volsize = volsize;
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct g_provider *pp;
@@ -269,7 +256,6 @@ zvol_size_changed(zvol_state_t *zv, uint64_t volsize)
 			g_resize_provider(pp, zv->zv_volsize);
 		g_topology_unlock();
 	}
-#endif	/* illumos */
 }
 
 int
@@ -348,21 +334,11 @@ zvol_get_stats(objset_t *os, nvlist_t *nv)
 static zvol_state_t *
 zvol_minor_lookup(const char *name)
 {
-#ifdef illumos
-	minor_t minor;
-#endif
 	zvol_state_t *zv;
 
 	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 
-#ifdef illumos
-	for (minor = 1; minor <= ZFSDEV_MAX_MINOR; minor++) {
-		zv = zfsdev_get_soft_state(minor, ZSST_ZVOL);
-		if (zv == NULL)
-			continue;
-#else
 	LIST_FOREACH(zv, &all_zvols, zv_links) {
-#endif
 		if (strcmp(zv->zv_name, name) == 0)
 			return (zv);
 	}
@@ -509,21 +485,6 @@ zil_replay_func_t *zvol_replay_vector[TX_MAX_TYPE] = {
 	zvol_replay_err,	/* TX_WRITE2 */
 };
 
-#ifdef illumos
-int
-zvol_name2minor(const char *name, minor_t *minor)
-{
-	zvol_state_t *zv;
-
-	mutex_enter(&zfsdev_state_lock);
-	zv = zvol_minor_lookup(name);
-	if (minor && zv)
-		*minor = zv->zv_minor;
-	mutex_exit(&zfsdev_state_lock);
-	return (zv ? 0 : -1);
-}
-#endif	/* illumos */
-
 /*
  * Create a minor node (plus a whole lot more) for the specified volume.
  */
@@ -637,22 +598,10 @@ zvol_create_minor(const char *name)
 static int
 zvol_remove_zv(zvol_state_t *zv)
 {
-#ifdef illumos
-	char nmbuf[20];
-	minor_t minor = zv->zv_minor;
-#endif
-
 	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 	if (zv->zv_total_opens != 0)
 		return (SET_ERROR(EBUSY));
 
-#ifdef illumos
-	(void) snprintf(nmbuf, sizeof (nmbuf), "%u,raw", minor);
-	ddi_remove_minor_node(zfs_dip, nmbuf);
-
-	(void) snprintf(nmbuf, sizeof (nmbuf), "%u", minor);
-	ddi_remove_minor_node(zfs_dip, nmbuf);
-#else
 	ZFS_LOG(1, "ZVOL %s destroyed.", zv->zv_name);
 
 	LIST_REMOVE(zv, zv_links);
@@ -664,12 +613,8 @@ zvol_remove_zv(zvol_state_t *zv)
 		if (zv->zv_dev != NULL)
 			destroy_dev(zv->zv_dev);
 	}
-#endif
 
 	kmem_free(zv, sizeof (zvol_state_t));
-#ifdef illumos
-	ddi_soft_state_free(zfsdev_state, minor);
-#endif
 	zvol_minors--;
 	return (0);
 }
@@ -761,47 +706,6 @@ zvol_last_close(zvol_state_t *zv)
 	zv->zv_objset = NULL;
 }
 
-#ifdef illumos
-int
-zvol_prealloc(zvol_state_t *zv)
-{
-	objset_t *os = zv->zv_objset;
-	dmu_tx_t *tx;
-	uint64_t refd, avail, usedobjs, availobjs;
-	uint64_t resid = zv->zv_volsize;
-	uint64_t off = 0;
-
-	/* Check the space usage before attempting to allocate the space */
-	dmu_objset_space(os, &refd, &avail, &usedobjs, &availobjs);
-	if (avail < zv->zv_volsize)
-		return (SET_ERROR(ENOSPC));
-
-	/* Free old extents if they exist */
-	zvol_free_extents(zv);
-
-	while (resid != 0) {
-		int error;
-		uint64_t bytes = MIN(resid, SPA_OLD_MAXBLOCKSIZE);
-
-		tx = dmu_tx_create(os);
-		dmu_tx_hold_write(tx, ZVOL_OBJ, off, bytes);
-		error = dmu_tx_assign(tx, TXG_WAIT);
-		if (error) {
-			dmu_tx_abort(tx);
-			(void) dmu_free_long_range(os, ZVOL_OBJ, 0, off);
-			return (error);
-		}
-		dmu_prealloc(os, ZVOL_OBJ, off, bytes, tx);
-		dmu_tx_commit(tx);
-		off += bytes;
-		resid -= bytes;
-	}
-	txg_wait_synced(dmu_objset_pool(os), 0);
-
-	return (0);
-}
-#endif	/* illumos */
-
 static int
 zvol_update_volsize(objset_t *os, uint64_t volsize)
 {
@@ -832,27 +736,6 @@ zvol_update_volsize(objset_t *os, uint64_t volsize)
 void
 zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
 {
-#ifdef illumos
-	zvol_state_t *zv;
-	char *namebuf;
-	minor_t minor;
-
-	namebuf = kmem_zalloc(strlen(name) + 2, KM_SLEEP);
-	(void) strncpy(namebuf, name, strlen(name));
-	(void) strcat(namebuf, "/");
-	mutex_enter(&zfsdev_state_lock);
-	for (minor = 1; minor <= ZFSDEV_MAX_MINOR; minor++) {
-
-		zv = zfsdev_get_soft_state(minor, ZSST_ZVOL);
-		if (zv == NULL)
-			continue;
-		if (strncmp(namebuf, zv->zv_name, strlen(namebuf)) == 0)
-			(void) zvol_remove_zv(zv);
-	}
-	kmem_free(namebuf, strlen(name) + 2);
-
-	mutex_exit(&zfsdev_state_lock);
-#else	/* !illumos */
 	zvol_state_t *zv, *tzv;
 	size_t namelen;
 
@@ -872,7 +755,6 @@ zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
 
 	mutex_exit(&zfsdev_state_lock);
 	PICKUP_GIANT();
-#endif	/* illumos */
 }
 
 static int
@@ -907,28 +789,6 @@ zvol_update_live_volsize(zvol_state_t *zv, uint64_t volsize)
 	}
 #endif	/* ZVOL_DUMP */
 
-#ifdef illumos
-	/*
-	 * Generate a LUN expansion event.
-	 */
-	if (error == 0) {
-		sysevent_id_t eid;
-		nvlist_t *attr;
-		char *physpath = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
-
-		(void) snprintf(physpath, MAXPATHLEN, "%s%u", ZVOL_PSEUDO_DEV,
-		    zv->zv_minor);
-
-		VERIFY(nvlist_alloc(&attr, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-		VERIFY(nvlist_add_string(attr, DEV_PHYS_PATH, physpath) == 0);
-
-		(void) ddi_log_sysevent(zfs_dip, SUNW_VENDOR, EC_DEV_STATUS,
-		    ESC_DEV_DLE, attr, &eid, DDI_SLEEP);
-
-		nvlist_free(attr);
-		kmem_free(physpath, MAXPATHLEN);
-	}
-#endif	/* illumos */
 	return (error);
 }
 
@@ -984,33 +844,11 @@ out:
 }
 
 /*ARGSUSED*/
-#ifdef illumos
-int
-zvol_open(dev_t *devp, int flag, int otyp, cred_t *cr)
-#else
 static int
 zvol_open(struct g_provider *pp, int flag, int count)
-#endif
 {
 	zvol_state_t *zv;
 	int err = 0;
-#ifdef illumos
-
-	mutex_enter(&zfsdev_state_lock);
-
-	zv = zfsdev_get_soft_state(getminor(*devp), ZSST_ZVOL);
-	if (zv == NULL) {
-		mutex_exit(&zfsdev_state_lock);
-		return (SET_ERROR(ENXIO));
-	}
-
-	if (zv->zv_total_opens == 0)
-		err = zvol_first_open(zv);
-	if (err) {
-		mutex_exit(&zfsdev_state_lock);
-		return (err);
-	}
-#else	/* !illumos */
 	boolean_t locked = B_FALSE;
 
 	if (!zpool_on_zvol && tsd_get(zfs_geom_probe_vdev_key) != NULL) {
@@ -1058,7 +896,7 @@ zvol_open(struct g_provider *pp, int flag, int count)
 		pp->stripeoffset = 0;
 		pp->stripesize = zv->zv_volblocksize;
 	}
-#endif	/* illumos */
+
 	/*
 	 * Check for a bad on-disk format version now since we
 	 * lied about owning the dataset readonly before.
@@ -1082,46 +920,20 @@ zvol_open(struct g_provider *pp, int flag, int count)
 	}
 #endif
 
-#ifdef illumos
-	if (zv->zv_open_count[otyp] == 0 || otyp == OTYP_LYR) {
-		zv->zv_open_count[otyp]++;
-		zv->zv_total_opens++;
-	}
-	mutex_exit(&zfsdev_state_lock);
-#else
 	zv->zv_total_opens += count;
 	if (locked)
 		mutex_exit(&zfsdev_state_lock);
-#endif
 
 	return (err);
 out:
 	if (zv->zv_total_opens == 0)
 		zvol_last_close(zv);
-#ifdef illumos
-	mutex_exit(&zfsdev_state_lock);
-#else
 	if (locked)
 		mutex_exit(&zfsdev_state_lock);
-#endif
 	return (err);
 }
 
 /*ARGSUSED*/
-#ifdef illumos
-int
-zvol_close(dev_t dev, int flag, int otyp, cred_t *cr)
-{
-	minor_t minor = getminor(dev);
-	zvol_state_t *zv;
-	int error = 0;
-
-	mutex_enter(&zfsdev_state_lock);
-
-	zv = zfsdev_get_soft_state(minor, ZSST_ZVOL);
-	if (zv == NULL) {
-		mutex_exit(&zfsdev_state_lock);
-#else	/* !illumos */
 static int
 zvol_close(struct g_provider *pp, int flag, int count)
 {
@@ -1139,7 +951,6 @@ zvol_close(struct g_provider *pp, int flag, int count)
 	if (zv == NULL) {
 		if (locked)
 			mutex_exit(&zfsdev_state_lock);
-#endif	/* illumos */
 		return (SET_ERROR(ENXIO));
 	}
 
@@ -1152,30 +963,18 @@ zvol_close(struct g_provider *pp, int flag, int count)
 	 * If the open count is zero, this is a spurious close.
 	 * That indicates a bug in the kernel / DDI framework.
 	 */
-#ifdef illumos
-	ASSERT(zv->zv_open_count[otyp] != 0);
-#endif
 	ASSERT(zv->zv_total_opens != 0);
 
 	/*
 	 * You may get multiple opens, but only one close.
 	 */
-#ifdef illumos
-	zv->zv_open_count[otyp]--;
-	zv->zv_total_opens--;
-#else
 	zv->zv_total_opens -= count;
-#endif
 
 	if (zv->zv_total_opens == 0)
 		zvol_last_close(zv);
 
-#ifdef illumos
-	mutex_exit(&zfsdev_state_lock);
-#else
 	if (locked)
 		mutex_exit(&zfsdev_state_lock);
-#endif
 	return (error);
 }
 
@@ -1335,109 +1134,9 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, offset_t off, ssize_t resid,
 	}
 }
 
-#ifdef illumos
-static int
-zvol_dumpio_vdev(vdev_t *vd, void *addr, uint64_t offset, uint64_t origoffset,
-    uint64_t size, boolean_t doread, boolean_t isdump)
-{
-	vdev_disk_t *dvd;
-	int c;
-	int numerrors = 0;
-
-	if (vd->vdev_ops == &vdev_mirror_ops ||
-	    vd->vdev_ops == &vdev_replacing_ops ||
-	    vd->vdev_ops == &vdev_spare_ops) {
-		for (c = 0; c < vd->vdev_children; c++) {
-			int err = zvol_dumpio_vdev(vd->vdev_child[c],
-			    addr, offset, origoffset, size, doread, isdump);
-			if (err != 0) {
-				numerrors++;
-			} else if (doread) {
-				break;
-			}
-		}
-	}
-
-	if (!vd->vdev_ops->vdev_op_leaf && vd->vdev_ops != &vdev_raidz_ops)
-		return (numerrors < vd->vdev_children ? 0 : EIO);
-
-	if (doread && !vdev_readable(vd))
-		return (SET_ERROR(EIO));
-	else if (!doread && !vdev_writeable(vd))
-		return (SET_ERROR(EIO));
-
-	if (vd->vdev_ops == &vdev_raidz_ops) {
-		return (vdev_raidz_physio(vd,
-		    addr, size, offset, origoffset, doread, isdump));
-	}
-
-	offset += VDEV_LABEL_START_SIZE;
-
-	if (ddi_in_panic() || isdump) {
-		ASSERT(!doread);
-		if (doread)
-			return (SET_ERROR(EIO));
-		dvd = vd->vdev_tsd;
-		ASSERT3P(dvd, !=, NULL);
-		return (ldi_dump(dvd->vd_lh, addr, lbtodb(offset),
-		    lbtodb(size)));
-	} else {
-		dvd = vd->vdev_tsd;
-		ASSERT3P(dvd, !=, NULL);
-		return (vdev_disk_ldi_physio(dvd->vd_lh, addr, size,
-		    offset, doread ? B_READ : B_WRITE));
-	}
-}
-
-static int
-zvol_dumpio(zvol_state_t *zv, void *addr, uint64_t offset, uint64_t size,
-    boolean_t doread, boolean_t isdump)
-{
-	vdev_t *vd;
-	int error;
-	zvol_extent_t *ze;
-	spa_t *spa = dmu_objset_spa(zv->zv_objset);
-
-	/* Must be sector aligned, and not stradle a block boundary. */
-	if (P2PHASE(offset, DEV_BSIZE) || P2PHASE(size, DEV_BSIZE) ||
-	    P2BOUNDARY(offset, size, zv->zv_volblocksize)) {
-		return (SET_ERROR(EINVAL));
-	}
-	ASSERT(size <= zv->zv_volblocksize);
-
-	/* Locate the extent this belongs to */
-	ze = list_head(&zv->zv_extents);
-	while (offset >= ze->ze_nblks * zv->zv_volblocksize) {
-		offset -= ze->ze_nblks * zv->zv_volblocksize;
-		ze = list_next(&zv->zv_extents, ze);
-	}
-
-	if (ze == NULL)
-		return (SET_ERROR(EINVAL));
-
-	if (!ddi_in_panic())
-		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
-
-	vd = vdev_lookup_top(spa, DVA_GET_VDEV(&ze->ze_dva));
-	offset += DVA_GET_OFFSET(&ze->ze_dva);
-	error = zvol_dumpio_vdev(vd, addr, offset, DVA_GET_OFFSET(&ze->ze_dva),
-	    size, doread, isdump);
-
-	if (!ddi_in_panic())
-		spa_config_exit(spa, SCL_STATE, FTAG);
-
-	return (error);
-}
-
-int
-zvol_strategy(buf_t *bp)
-{
-	zfs_soft_state_t *zs = NULL;
-#else	/* !illumos */
 void
 zvol_strategy(struct bio *bp)
 {
-#endif	/* illumos */
 	zvol_state_t *zv;
 	uint64_t off, volsize;
 	size_t resid;
@@ -1445,41 +1144,10 @@ zvol_strategy(struct bio *bp)
 	objset_t *os;
 	rl_t *rl;
 	int error = 0;
-#ifdef illumos
-	boolean_t doread = bp->b_flags & B_READ;
-#else
 	boolean_t doread = 0;
-#endif
 	boolean_t is_dumpified;
 	boolean_t sync;
 
-#ifdef illumos
-	if (getminor(bp->b_edev) == 0) {
-		error = SET_ERROR(EINVAL);
-	} else {
-		zs = ddi_get_soft_state(zfsdev_state, getminor(bp->b_edev));
-		if (zs == NULL)
-			error = SET_ERROR(ENXIO);
-		else if (zs->zss_type != ZSST_ZVOL)
-			error = SET_ERROR(EINVAL);
-	}
-
-	if (error) {
-		bioerror(bp, error);
-		biodone(bp);
-		return (0);
-	}
-
-	zv = zs->zss_data;
-
-	if (!(bp->b_flags & B_READ) && (zv->zv_flags & ZVOL_RDONLY)) {
-		bioerror(bp, EROFS);
-		biodone(bp);
-		return (0);
-	}
-
-	off = ldbtob(bp->b_blkno);
-#else	/* !illumos */
 	if (bp->bio_to)
 		zv = bp->bio_to->private;
 	else
@@ -1509,29 +1177,11 @@ zvol_strategy(struct bio *bp)
 	}
 
 	off = bp->bio_offset;
-#endif	/* illumos */
 	volsize = zv->zv_volsize;
 
 	os = zv->zv_objset;
 	ASSERT(os != NULL);
 
-#ifdef illumos
-	bp_mapin(bp);
-	addr = bp->b_un.b_addr;
-	resid = bp->b_bcount;
-
-	if (resid > 0 && (off < 0 || off >= volsize)) {
-		bioerror(bp, EIO);
-		biodone(bp);
-		return (0);
-	}
-
-	is_dumpified = zv->zv_flags & ZVOL_DUMPIFIED;
-	sync = ((!(bp->b_flags & B_ASYNC) &&
-	    !(zv->zv_flags & ZVOL_WCE)) ||
-	    (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)) &&
-	    !doread && !is_dumpified;
-#else	/* !illumos */
 	addr = bp->bio_data;
 	resid = bp->bio_length;
 
@@ -1543,7 +1193,6 @@ zvol_strategy(struct bio *bp)
 	is_dumpified = B_FALSE;
 	sync = !doread && !is_dumpified &&
 	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
-#endif	/* illumos */
 
 	/*
 	 * There must be no buffer changes when doing a dmu_sync() because
@@ -1552,7 +1201,6 @@ zvol_strategy(struct bio *bp)
 	rl = zfs_range_lock(&zv->zv_range_lock, off, resid,
 	    doread ? RL_READER : RL_WRITER);
 
-#ifndef illumos
 	if (bp->bio_cmd == BIO_DELETE) {
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 		error = dmu_tx_assign(tx, TXG_WAIT);
@@ -1567,18 +1215,9 @@ zvol_strategy(struct bio *bp)
 		}
 		goto unlock;
 	}
-#endif
 	while (resid != 0 && off < volsize) {
 		size_t size = MIN(resid, zvol_maxphys);
-#ifdef illumos
-		if (is_dumpified) {
-			size = MIN(size, P2END(off, zv->zv_volblocksize) - off);
-			error = zvol_dumpio(zv, addr, off, size,
-			    doread, B_FALSE);
-		} else if (doread) {
-#else
 		if (doread) {
-#endif
 			error = dmu_read(os, ZVOL_OBJ, off, size, addr,
 			    DMU_READ_PREFETCH);
 		} else {
@@ -1603,21 +1242,9 @@ zvol_strategy(struct bio *bp)
 		addr += size;
 		resid -= size;
 	}
-#ifndef illumos
 unlock:
-#endif
 	zfs_range_unlock(rl);
 
-#ifdef illumos
-	if ((bp->b_resid = resid) == bp->b_bcount)
-		bioerror(bp, off > volsize ? EINVAL : error);
-
-	if (sync)
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
-	biodone(bp);
-
-	return (0);
-#else	/* !illumos */
 	bp->bio_completed = bp->bio_length - resid;
 	if (bp->bio_completed < bp->bio_length && off > volsize)
 		error = EINVAL;
@@ -1631,7 +1258,6 @@ out:
 		g_io_deliver(bp, error);
 	else
 		biofinish(bp, NULL, error);
-#endif	/* illumos */
 }
 
 int
@@ -1649,14 +1275,6 @@ zvol_read(struct cdev *dev, struct uio *uio, int ioflag)
 	if (uio->uio_resid > 0 &&
 	    (uio->uio_loffset < 0 || uio->uio_loffset > volsize))
 		return (SET_ERROR(EIO));
-
-#ifdef illumos
-	if (zv->zv_flags & ZVOL_DUMPIFIED) {
-		error = physio(zvol_strategy, NULL, dev, B_READ,
-		    zvol_minphys, uio);
-		return (error);
-	}
-#endif
 
 	rl = zfs_range_lock(&zv->zv_range_lock, uio->uio_loffset, uio->uio_resid,
 	    RL_READER);
@@ -1764,20 +1382,13 @@ zvol_init(void)
 {
 	VERIFY(ddi_soft_state_init(&zfsdev_state, sizeof (zfs_soft_state_t),
 	    1) == 0);
-#ifdef illumos
-	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
-#else
 	ZFS_LOG(1, "ZVOL Initialized.");
-#endif
 	return (0);
 }
 
 void
 zvol_fini(void)
 {
-#ifdef illumos
-	mutex_destroy(&zfsdev_state_lock);
-#endif
 	ddi_soft_state_fini(&zfsdev_state);
 	ZFS_LOG(1, "ZVOL Deinitialized.");
 }

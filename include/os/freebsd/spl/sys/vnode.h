@@ -315,11 +315,17 @@ vn_rename(char *from, char *to, enum uio_seg seg)
 static __inline int
 vn_remove(char *fnamep, enum uio_seg seg, enum rm dirflag)
 {
+	int rc;
 
 	ASSERT(seg == UIO_SYSSPACE);
 	ASSERT(dirflag == RMFILE);
 
-	return (kern_unlinkat(curthread, AT_FDCWD, fnamep, seg, 0, 0));
+#ifdef AT_BENEATH
+	rc = kern_unlinkat(curthread, AT_FDCWD, fnamep, seg, 0, 0);
+#else
+	rc = kern_unlinkat(curthread, AT_FDCWD, fnamep, seg, 0);
+#endif
+	return (rc);
 }
 
 #include <sys/vfs.h>

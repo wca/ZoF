@@ -37,39 +37,40 @@ __FBSDID("$FreeBSD$");
 #include <sys/policy.h>
 #include <sys/zfs_vfsops.h>
 
+
 int
 secpolicy_nfs(cred_t *cr)
 {
 
-	return (priv_check_cred(cr, PRIV_NFS_DAEMON));
+	return (spl_priv_check_cred(cr, PRIV_NFS_DAEMON));
 }
 
 int
 secpolicy_zfs(cred_t *cr)
 {
 
-	return (priv_check_cred(cr, PRIV_VFS_MOUNT));
+	return (spl_priv_check_cred(cr, PRIV_VFS_MOUNT));
 }
 
 int
 secpolicy_sys_config(cred_t *cr, int checkonly __unused)
 {
 
-	return (priv_check_cred(cr, PRIV_ZFS_POOL_CONFIG));
+	return (spl_priv_check_cred(cr, PRIV_ZFS_POOL_CONFIG));
 }
 
 int
 secpolicy_zinject(cred_t *cr)
 {
 
-	return (priv_check_cred(cr, PRIV_ZFS_INJECT));
+	return (spl_priv_check_cred(cr, PRIV_ZFS_INJECT));
 }
 
 int
 secpolicy_fs_unmount(cred_t *cr, struct mount *vfsp __unused)
 {
 
-	return (priv_check_cred(cr, PRIV_VFS_UNMOUNT));
+	return (spl_priv_check_cred(cr, PRIV_VFS_UNMOUNT));
 }
 
 int
@@ -97,7 +98,7 @@ secpolicy_basic_link(vnode_t *vp, cred_t *cr)
 		return (0);
 	if (secpolicy_fs_owner(vp->v_mount, cr) == 0)
 		return (0);
-	return (priv_check_cred(cr, PRIV_VFS_LINK));
+	return (spl_priv_check_cred(cr, PRIV_VFS_LINK));
 }
 
 int
@@ -113,7 +114,7 @@ secpolicy_vnode_remove(vnode_t *vp, cred_t *cr)
 
 	if (secpolicy_fs_owner(vp->v_mount, cr) == 0)
 		return (0);
-	return (priv_check_cred(cr, PRIV_VFS_ADMIN));
+	return (spl_priv_check_cred(cr, PRIV_VFS_ADMIN));
 }
 
 int
@@ -123,18 +124,18 @@ secpolicy_vnode_access(cred_t *cr, vnode_t *vp, uid_t owner, accmode_t accmode)
 	if (secpolicy_fs_owner(vp->v_mount, cr) == 0)
 		return (0);
 
-	if ((accmode & VREAD) && priv_check_cred(cr, PRIV_VFS_READ) != 0)
+	if ((accmode & VREAD) && spl_priv_check_cred(cr, PRIV_VFS_READ) != 0)
 		return (EACCES);
 	if ((accmode & VWRITE) &&
-	    priv_check_cred(cr, PRIV_VFS_WRITE) != 0) {
+	    spl_priv_check_cred(cr, PRIV_VFS_WRITE) != 0) {
 		return (EACCES);
 	}
 	if (accmode & VEXEC) {
 		if (vp->v_type == VDIR) {
-			if (priv_check_cred(cr, PRIV_VFS_LOOKUP) != 0)
+			if (spl_priv_check_cred(cr, PRIV_VFS_LOOKUP) != 0)
 				return (EACCES);
 		} else {
-			if (priv_check_cred(cr, PRIV_VFS_EXEC) != 0)
+			if (spl_priv_check_cred(cr, PRIV_VFS_EXEC) != 0)
 				return (EACCES);
 		}
 	}
@@ -191,7 +192,7 @@ secpolicy_vnode_any_access(cred_t *cr, vnode_t *vp, uid_t owner)
 				continue;
 			break;
 		}
-		if (priv_check_cred(cr, priv) == 0)
+		if (spl_priv_check_cred(cr, priv) == 0)
 			return (0);
 	}
 	return (EPERM);
@@ -205,7 +206,7 @@ secpolicy_vnode_setdac(vnode_t *vp, cred_t *cr, uid_t owner)
 		return (0);
 	if (secpolicy_fs_owner(vp->v_mount, cr) == 0)
 		return (0);
-	return (priv_check_cred(cr, PRIV_VFS_ADMIN));
+	return (spl_priv_check_cred(cr, PRIV_VFS_ADMIN));
 }
 
 int
@@ -255,7 +256,7 @@ secpolicy_vnode_setattr(cred_t *cr, vnode_t *vp, struct vattr *vap,
 		    ((mask & AT_GID) && vap->va_gid != ovap->va_gid &&
 		     !groupmember(vap->va_gid, cr))) {
 			if (secpolicy_fs_owner(vp->v_mount, cr) != 0) {
-				error = priv_check_cred(cr, PRIV_VFS_CHOWN);
+				error = spl_priv_check_cred(cr, PRIV_VFS_CHOWN);
 				if (error)
 					return (error);
 			}
@@ -299,7 +300,7 @@ secpolicy_vnode_setids_setgids(vnode_t *vp, cred_t *cr, gid_t gid)
 		return (0);
 	if (secpolicy_fs_owner(vp->v_mount, cr) == 0)
 		return (0);
-	return (priv_check_cred(cr, PRIV_VFS_SETGID));
+	return (spl_priv_check_cred(cr, PRIV_VFS_SETGID));
 }
 
 int
@@ -309,7 +310,7 @@ secpolicy_vnode_setid_retain(vnode_t *vp, cred_t *cr,
 
 	if (secpolicy_fs_owner(vp->v_mount, cr) == 0)
 		return (0);
-	return (priv_check_cred(cr, PRIV_VFS_RETAINSUGID));
+	return (spl_priv_check_cred(cr, PRIV_VFS_RETAINSUGID));
 }
 
 void
@@ -320,7 +321,7 @@ secpolicy_setid_clear(struct vattr *vap, vnode_t *vp, cred_t *cr)
 		return;
 
 	if ((vap->va_mode & (S_ISUID | S_ISGID)) != 0) {
-		if (priv_check_cred(cr, PRIV_VFS_RETAINSUGID)) {
+		if (spl_priv_check_cred(cr, PRIV_VFS_RETAINSUGID)) {
 			vap->va_mask |= AT_MODE;
 			vap->va_mode &= ~(S_ISUID|S_ISGID);
 		}
@@ -342,7 +343,7 @@ secpolicy_setid_setsticky_clear(vnode_t *vp, struct vattr *vap,
 	 * is not a member of. Both of these are allowed in jail(8).
 	 */
 	if (vp->v_type != VDIR && (vap->va_mode & S_ISTXT)) {
-		if (priv_check_cred(cr, PRIV_VFS_STICKYFILE))
+		if (spl_priv_check_cred(cr, PRIV_VFS_STICKYFILE))
 			return (EFTYPE);
 	}
 	/*
@@ -358,7 +359,7 @@ secpolicy_setid_setsticky_clear(vnode_t *vp, struct vattr *vap,
 	 * Deny setting setuid if we are not the file owner.
 	 */
 	if ((vap->va_mode & S_ISUID) && ovap->va_uid != cr->cr_uid) {
-		error = priv_check_cred(cr, PRIV_VFS_ADMIN);
+		error = spl_priv_check_cred(cr, PRIV_VFS_ADMIN);
 		if (error)
 			return (error);
 	}
@@ -369,7 +370,7 @@ int
 secpolicy_fs_mount(cred_t *cr, vnode_t *mvp, struct mount *vfsp)
 {
 
-	return (priv_check_cred(cr, PRIV_VFS_MOUNT));
+	return (spl_priv_check_cred(cr, PRIV_VFS_MOUNT));
 }
 
 int
@@ -382,7 +383,7 @@ secpolicy_vnode_owner(vnode_t *vp, cred_t *cr, uid_t owner)
 		return (0);
 
 	/* XXX: vfs_suser()? */
-	return (priv_check_cred(cr, PRIV_VFS_MOUNT_OWNER));
+	return (spl_priv_check_cred(cr, PRIV_VFS_MOUNT_OWNER));
 }
 
 int
@@ -391,14 +392,14 @@ secpolicy_vnode_chown(vnode_t *vp, cred_t *cr, uid_t owner)
 
 	if (secpolicy_fs_owner(vp->v_mount, cr) == 0)
 		return (0);
-	return (priv_check_cred(cr, PRIV_VFS_CHOWN));
+	return (spl_priv_check_cred(cr, PRIV_VFS_CHOWN));
 }
 
 void
 secpolicy_fs_mount_clearopts(cred_t *cr, struct mount *vfsp)
 {
 
-	if (priv_check_cred(cr, PRIV_VFS_MOUNT_NONUSER) != 0) {
+	if (spl_priv_check_cred(cr, PRIV_VFS_MOUNT_NONUSER) != 0) {
 		MNT_ILOCK(vfsp);
 		vfsp->vfs_flag |= VFS_NOSETUID | MNT_USER;
 		vfs_clearmntopt(vfsp, MNTOPT_SETUID);
@@ -417,12 +418,12 @@ secpolicy_xvattr(vnode_t *vp, xvattr_t *xvap, uid_t owner, cred_t *cr,
 
 	if (secpolicy_fs_owner(vp->v_mount, cr) == 0)
 		return (0);
-	return (priv_check_cred(cr, PRIV_VFS_SYSFLAGS));
+	return (spl_priv_check_cred(cr, PRIV_VFS_SYSFLAGS));
 }
 
 int
 secpolicy_smb(cred_t *cr)
 {
 
-	return (priv_check_cred(cr, PRIV_NETSMB));
+	return (spl_priv_check_cred(cr, PRIV_NETSMB));
 }

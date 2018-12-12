@@ -2160,6 +2160,8 @@ dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
  */
 int zfs_redundant_metadata_most_ditto_level = 2;
 
+int zfs_mdcomp_disable = 0;
+
 void
 dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 {
@@ -2189,6 +2191,8 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		 */
 		compress = zio_compress_select(os->os_spa,
 		    ZIO_COMPRESS_ON, ZIO_COMPRESS_ON);
+		if (zfs_mdcomp_disable)
+			compress = ZIO_COMPRESS_EMPTY;
 
 		/*
 		 * Metadata always gets checksummed.  If the data

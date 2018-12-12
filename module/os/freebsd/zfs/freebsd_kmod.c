@@ -64,7 +64,7 @@
 #include "zfs_comutil.h"
 
 SYSCTL_DECL(_vfs_zfs);
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, vdev, CTLFLAG_RW, 0, "ZFS VDEV");
+SYSCTL_DECL(_vfs_zfs_vdev);
 
 static struct cdev *zfsdev;
 

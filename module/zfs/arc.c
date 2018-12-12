@@ -360,8 +360,8 @@ int			arc_no_grow_shift = 5;
  * minimum lifespan of a prefetch block in clock ticks
  * (initialized in arc_init())
  */
-static int		arc_min_prefetch_ms;
-static int		arc_min_prescient_prefetch_ms;
+int		arc_min_prefetch_ms;
+int		arc_min_prescient_prefetch_ms;
 
 /*
  * If this percent of memory is free, don't throttle.
@@ -430,12 +430,12 @@ int zfs_arc_meta_adjust_restarts = 4096;
 int zfs_arc_lotsfree_percent = 10;
 
 /* The 6 states: */
-static arc_state_t ARC_anon;
-static arc_state_t ARC_mru;
-static arc_state_t ARC_mru_ghost;
-static arc_state_t ARC_mfu;
-static arc_state_t ARC_mfu_ghost;
-static arc_state_t ARC_l2c_only;
+arc_state_t ARC_anon;
+arc_state_t ARC_mru;
+arc_state_t ARC_mru_ghost;
+arc_state_t ARC_mfu;
+arc_state_t ARC_mfu_ghost;
+arc_state_t ARC_l2c_only;
 
 typedef struct arc_stats {
 	kstat_named_t arcstat_hits;

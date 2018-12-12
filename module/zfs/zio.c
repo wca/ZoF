@@ -112,6 +112,7 @@ int zio_buf_debug_limit = 16384;
 #else
 int zio_buf_debug_limit = 0;
 #endif
+int zio_exclude_metadata;
 
 static inline void __zio_execute(zio_t *zio);
 
@@ -137,7 +138,14 @@ zio_init(void)
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
 		size_t p2 = size;
 		size_t align = 0;
-		size_t cflags = (size > zio_buf_debug_limit) ? KMC_NODEBUG : 0;
+		size_t data_cflags, cflags;
+
+		data_cflags = cflags = (size > zio_buf_debug_limit) ? KMC_NODEBUG : 0;
+
+#ifdef __FreeBSD__
+		data_cflags = KMC_NODEBUG;
+		cflags |= (zio_exclude_metadata) ? KMC_NODEBUG : 0;
+#endif
 
 #if defined(_ILP32) && defined(_KERNEL)
 		/*
@@ -185,7 +193,7 @@ zio_init(void)
 			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL,
-			    data_alloc_arena, cflags);
+			    data_alloc_arena, data_cflags);
 		}
 	}
 
@@ -3620,6 +3628,25 @@ zio_vdev_io_start(zio_t *zio)
 		}
 	}
 
+	/*
+	 * We keep track of time-sensitive I/Os so that the scan thread
+	 * can quickly react to certain workloads.  In particular, we care
+	 * about non-scrubbing, top-level reads and writes with the following
+	 * characteristics:
+	 *      - synchronous writes of user data to non-slog devices
+	 *      - any reads of user data
+	 * When these conditions are met, adjust the timestamp of spa_last_io
+	 * which allows the scan thread to adjust its workload accordingly.
+	 */
+	if (!(zio->io_flags & ZIO_FLAG_SCAN_THREAD) && zio->io_bp != NULL &&
+		vd == vd->vdev_top && !vd->vdev_islog &&
+		zio->io_bookmark.zb_objset != DMU_META_OBJSET &&
+		zio->io_txg != spa_syncing_txg(spa)) {
+		uint64_t old = spa->spa_last_io;
+		uint64_t new = ddi_get_lbolt64();
+		if (old != new)
+			(void) atomic_cas_64(&spa->spa_last_io, old, new);
+	}
 	align = 1ULL << vd->vdev_top->vdev_ashift;
 
 	if (!(zio->io_flags & ZIO_FLAG_PHYSICAL) &&

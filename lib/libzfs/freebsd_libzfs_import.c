@@ -496,17 +496,13 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 	boolean_t found_one = B_FALSE;
 	boolean_t valid_top_config = B_FALSE;
 
-	if (nvlist_alloc(&ret, 0, 0) != 0) {
-		printf("%s, alloc failed\n", __func__);
+	if (nvlist_alloc(&ret, 0, 0) != 0)
 		goto nomem;
-	}
 	for (pe = pl->pools; pe != NULL; pe = pe->pe_next) {
 		uint64_t id, max_txg = 0;
 
-		if (nvlist_alloc(&config, NV_UNIQUE_NAME, 0) != 0) {
-			printf("%s, unique name alloc failed\n", __func__);
+		if (nvlist_alloc(&config, NV_UNIQUE_NAME, 0) != 0)
 			goto nomem;
-		}
 		config_seen = B_FALSE;
 
 		/*
@@ -633,10 +629,8 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 
 				newchild = zfs_alloc(hdl, (id + 1) *
 				    sizeof (nvlist_t *));
-				if (newchild == NULL) {
-					printf("%s, newchild alloc failed\n", __func__);
+				if (newchild == NULL)
 					goto nomem;
-				}
 				for (c = 0; c < children; c++)
 					newchild[c] = child[c];
 
@@ -644,12 +638,8 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				child = newchild;
 				children = id + 1;
 			}
-			if (nvlist_dup(nvtop, &child[id], 0) != 0) {
-				printf("%s, nvlist_dup failed\n", __func__);
-
+			if (nvlist_dup(nvtop, &child[id], 0) != 0)
 				goto nomem;
-			}
-
 		}
 
 		/*
@@ -669,10 +659,8 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 
 				newchild = zfs_alloc(hdl, (max_id) *
 				    sizeof (nvlist_t *));
-				if (newchild == NULL) {
-					printf("%s, newchild alloc failed\n", __func__);
+				if (newchild == NULL)
 					goto nomem;
-				}
 				for (c = 0; c < children; c++)
 					newchild[c] = child[c];
 
@@ -703,10 +691,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				}
 				if (nvlist_alloc(&holey, NV_UNIQUE_NAME,
 				    0) != 0)  
-				{
-					printf("%s, unique name alloc failed 2\n", __func__);
 					goto nomem;
-				}
 				/*
 				 * Holes in the namespace are treated as
 				 * "hole" top-level vdevs and have a
@@ -720,7 +705,6 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				    nvlist_add_uint64(holey,
 				    ZPOOL_CONFIG_GUID, 0ULL) != 0) {
 					nvlist_free(holey);
-					printf(" bad juju\n");
 							
 					goto nomem;
 				}
@@ -774,7 +758,6 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		    nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 		    child, children) != 0) {
 			nvlist_free(nvroot);
-					printf(" bad juju 2\n");
 			goto nomem;
 		}
 
@@ -790,7 +773,6 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		 */
 		if (fix_paths(nvroot, pl->names) != 0) {
 			nvlist_free(nvroot);
-					printf(" fix paths fail \n");
 			goto nomem;
 		}
 
@@ -800,7 +782,6 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		if (nvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 		    nvroot) != 0) {
 			nvlist_free(nvroot);
-					printf(" vdev tree fail \n");
 			goto nomem;
 		}
 		nvlist_free(nvroot);
@@ -823,20 +804,17 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		    &guid) == 0);
 
 		if (pool_active(hdl, name, guid, &isactive) != 0) {
-			printf(" pool_active fail \n");
 			goto error;
 		}
 		if (isactive) {
 			nvlist_free(config);
 			config = NULL;
-			printf(" isactive \n");
 			continue;
 		}
 
 		if (policy != NULL) {
 			if (nvlist_add_nvlist(config, ZPOOL_LOAD_POLICY,
 								  policy) != 0) {
-				printf(" policy fail \n");
 				goto nomem;
 			}
 		}
@@ -844,7 +822,6 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		if ((nvl = refresh_config(hdl, config)) == NULL) {
 			nvlist_free(config);
 			config = NULL;
-			printf(" refresh config fail \n");
 			continue;
 		}
 
@@ -861,7 +838,6 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		    &spares, &nspares) == 0) {
 			for (i = 0; i < nspares; i++) {
 				if (fix_paths(spares[i], pl->names) != 0) {
-					printf(" fix paths fail 3 \n");
 					goto nomem;
 				}
 			}
@@ -919,7 +895,6 @@ add_pool:
 	return (ret);
 
 nomem:
-	printf("no mem\n");
 	(void) no_memory(hdl);
 error:
 	nvlist_free(config);
@@ -1183,8 +1158,6 @@ zpool_open_func(void *arg)
 	}
 	(void) close(fd);
 
-	if (num_labels)
-		printf("%s has %d labels\n", rn->rn_name, num_labels);
 	rn->rn_config = config;
 	rn->rn_num_labels = num_labels;
 }
@@ -1757,8 +1730,6 @@ skipdir:
 					 */
 					(void) strlcpy(end, slice->rn_name,
 					    pathleft);
-					printf("%s rn_name: %s path: %s\n",
-						   __func__, slice->rn_name, path);
 					if (add_config(hdl, &pools, path,
 								   slice->rn_order, slice->rn_num_labels, config) != 0)
 						config_failed = B_TRUE;
@@ -1777,7 +1748,6 @@ skipdir:
 	}
 
 	ret = get_configs(hdl, &pools, iarg->can_be_active, iarg->policy);
-	printf("get_configs returned %p\n", ret);
 	
 error:
 	for (pe = pools.pools; pe != NULL; pe = penext) {

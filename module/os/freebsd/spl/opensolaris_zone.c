@@ -41,6 +41,8 @@ __FBSDID("$FreeBSD$");
 #include <sys/priv.h>
 #include <sys/zone.h>
 
+#include <sys/policy.h>
+
 static MALLOC_DEFINE(M_ZONES, "zones_data", "Zones data");
 
 /*
@@ -63,7 +65,7 @@ zone_dataset_attach(struct ucred *cred, const char *dataset, int jailid)
 	struct prison *pr;
 	int dofree, error;
 
-	if ((error = priv_check_cred(cred, PRIV_ZFS_JAIL)) != 0)
+	if ((error = spl_priv_check_cred(cred, PRIV_ZFS_JAIL)) != 0)
 		return (error);
 
 	/* Allocate memory before we grab prison's mutex. */
@@ -115,7 +117,7 @@ zone_dataset_detach(struct ucred *cred, const char *dataset, int jailid)
 	struct prison *pr;
 	int error;
 
-	if ((error = priv_check_cred(cred, PRIV_ZFS_JAIL)) != 0)
+	if ((error = spl_priv_check_cred(cred, PRIV_ZFS_JAIL)) != 0)
 		return (error);
 
 	sx_slock(&allprison_lock);

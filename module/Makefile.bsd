@@ -22,7 +22,7 @@ CFLAGS+= -I${INCDIR}/os/freebsd/zfs
 CFLAGS+= -include ${INCDIR}/os/freebsd/spl/sys/ccompile.h
 
 CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1
-CFLAGS+= -DZFS_DEBUG  -DKMEM_DEBUG  -DHAVE_UIO_ZEROCOPY -DHAVE_KSID
+CFLAGS+= -DZFS_DEBUG -DHAVE_UIO_ZEROCOPY -DHAVE_KSID
 CFLAGS+=  -D_SYS_VMEM_H_ -D_MACHINE_ENDIAN_H_
 
 CFLAGS+= -DINVARIANTS -DWITNESS -g -O0
@@ -108,6 +108,7 @@ SRCS+=	abd.c \
 	freebsd_dmu.c \
 	freebsd_kmod.c \
 	freebsd_spa.c \
+	freebsd_sysctl.c \
 	hkdf.c \
 	vdev_file.c \
 	vdev_geom.c \
