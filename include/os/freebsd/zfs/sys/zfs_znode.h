@@ -193,7 +193,7 @@ typedef struct znode {
 	krwlock_t	z_name_lock;	/* "master" lock for dirent locks */
 	zfs_dirlock_t	*z_dirlocks;	/* directory entry lock list */
 #endif
-	zfs_rlock_t	z_range_lock;	/* file range lock */
+	rangelock_t	z_rangelock;	/* file range locks */
 	uint8_t		z_unlinked;	/* file has been unlinked */
 	uint8_t		z_atime_dirty;	/* atime needs to be synced */
 	uint8_t		z_zn_prefetch;	/* Prefetch znodes? */

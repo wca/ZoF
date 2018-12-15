@@ -274,9 +274,9 @@ SYSCTL_PROC(_vfs_zfs, OID_AUTO, dirty_data_max_percent,
     sysctl_zfs_dirty_data_max_percent, "I",
     "The percent of physical memory used to auto calculate dirty_data_max");
 
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, dirty_data_sync, CTLFLAG_RWTUN,
-    &zfs_dirty_data_sync, 0,
-    "Force a txg if the number of dirty buffer bytes exceed this value");
+SYSCTL_INT(_vfs_zfs, OID_AUTO, dirty_data_sync_percent, CTLFLAG_RWTUN,
+    &zfs_dirty_data_sync_percent, 0,
+    "Force a txg if the percent of dirty buffer bytes exceed this value");
 
 static int sysctl_zfs_delay_min_dirty_percent(SYSCTL_HANDLER_ARGS);
 /* No zfs_delay_min_dirty_percent tunable due to limit requirements */

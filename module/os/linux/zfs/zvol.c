@@ -1685,7 +1685,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_open_count = 0;
 	strlcpy(zv->zv_name, name, MAXNAMELEN);
 
-	rangelock_init(&zv->zv_rangelock, NULL, NULL);
+	zfs_rangelock_init(&zv->zv_rangelock, NULL, NULL);
 	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
 
 	zv->zv_disk->major = zvol_major;
@@ -1743,7 +1743,7 @@ zvol_free(void *arg)
 	ASSERT(zv->zv_disk->private_data == NULL);
 
 	rw_destroy(&zv->zv_suspend_lock);
-	rangelock_fini(&zv->zv_rangelock);
+	zfs_rangelock_fini(&zv->zv_rangelock);
 
 	del_gendisk(zv->zv_disk);
 	blk_cleanup_queue(zv->zv_queue);

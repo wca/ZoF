@@ -1350,7 +1350,7 @@ MODULE_PARM_DESC(zfs_dirty_data_max_max,
 	"zfs_dirty_data_max upper bound in bytes");
 
 module_param(zfs_dirty_data_sync_percent, int, 0644);
-MODULE_PARM_DESC(zfs_dirty_data_sync, "sync txg when this much dirty data");
+MODULE_PARM_DESC(zfs_dirty_data_sync_percent, "sync txg when this much dirty data");
 
 module_param(zfs_delay_scale, ulong, 0644);
 MODULE_PARM_DESC(zfs_delay_scale, "how quickly delay approaches infinity");

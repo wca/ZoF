@@ -118,7 +118,7 @@ rangelock_compare(const void *arg1, const void *arg2)
  * and may increase the range that's locked for RL_WRITER.
  */
 void
-rangelock_init(rangelock_t *rl, rangelock_cb_t *cb, void *arg)
+zfs_rangelock_init(rangelock_t *rl, rangelock_cb_t *cb, void *arg)
 {
 	mutex_init(&rl->rl_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&rl->rl_tree, rangelock_compare,
@@ -128,7 +128,7 @@ rangelock_init(rangelock_t *rl, rangelock_cb_t *cb, void *arg)
 }
 
 void
-rangelock_fini(rangelock_t *rl)
+zfs_rangelock_fini(rangelock_t *rl)
 {
 	mutex_destroy(&rl->rl_lock);
 	avl_destroy(&rl->rl_tree);

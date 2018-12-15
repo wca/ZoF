@@ -117,10 +117,11 @@ typedef int fstrans_cookie_t;
 #define sys_shutdown rebooting
 typedef struct opensolaris_utsname     utsname_t;
 extern utsname_t *utsname(void);
+extern int spa_import_rootpool(const char *name);
+
 #else
 #error "unknown OS"
 #endif
-
 
 #else /* _KERNEL */
 
