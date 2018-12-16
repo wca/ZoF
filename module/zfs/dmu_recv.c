@@ -1877,7 +1877,7 @@ objlist_insert(struct objlist *list, uint64_t object)
 {
 	struct receive_objnode *node = kmem_zalloc(sizeof (*node), KM_SLEEP);
 	node->object = object;
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 	{
 	struct receive_objnode *last_object = list_tail(&list->list);
 	uint64_t last_objnum = (last_object != NULL ? last_object->object : 0);
