@@ -878,7 +878,7 @@ typedef struct spa_history_kstat {
 
 typedef struct spa_history_list {
 	uint64_t		size;
-#ifdef __linux__
+#if defined(__linux_) || !defined(_KERNEL)
 	procfs_list_t		procfs_list;
 #endif
 } spa_history_list_t;
