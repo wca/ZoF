@@ -1,7 +1,7 @@
-SUBDIRS = sys
+SUBDIRS = sys spl
 
 if BUILD_LINUX
-SUBDIRS+= linux spl
+SUBDIRS+= linux 
 endif
 
 COMMON_H = \
