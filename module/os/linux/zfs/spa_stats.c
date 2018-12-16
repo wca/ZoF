@@ -126,13 +126,8 @@ spa_read_history_init(spa_t *spa)
 
 	shl->size = 0;
 
-#ifdef __FreeBSD__
-	printf("XXX FIXME %s\n", __func__);
-	return;
-#endif
-	
 	module = kmem_asprintf("zfs/%s", spa_name(spa));
-#ifndef __FreeBSD__
+
 	shl->procfs_list.pl_private = shl;
 	procfs_list_install(module,
 	    "reads",
@@ -141,7 +136,7 @@ spa_read_history_init(spa_t *spa)
 	    spa_read_history_show_header,
 	    spa_read_history_clear,
 	    offsetof(spa_read_history_t, srh_node));
-#endif
+
 	strfree(module);
 }
 
@@ -300,12 +295,9 @@ spa_txg_history_init(spa_t *spa)
 	char *module;
 
 	shl->size = 0;
-#ifdef __FreeBSD__
-	printf("XXX FIXME %s\n", __func__);
-	return;
-#endif
+
 	module = kmem_asprintf("zfs/%s", spa_name(spa));
-#ifndef __FreeBSD__
+
 	shl->procfs_list.pl_private = shl;
 	procfs_list_install(module,
 	    "txgs",
@@ -314,7 +306,7 @@ spa_txg_history_init(spa_t *spa)
 	    spa_txg_history_show_header,
 	    spa_txg_history_clear,
 	    offsetof(spa_txg_history_t, sth_node));
-#endif
+
 	strfree(module);
 }
 
@@ -512,10 +504,6 @@ spa_tx_assign_init(spa_t *spa)
 	shk->size = shk->count * sizeof (kstat_named_t);
 	shk->private = kmem_alloc(shk->size, KM_SLEEP);
 
-#ifdef __FreeBSD__
-	printf("XXX FIXME %s\n", __func__);
-	return;
-#endif
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	for (i = 0; i < shk->count; i++) {
@@ -590,10 +578,7 @@ spa_io_history_init(spa_t *spa)
 	kstat_t *ksp;
 
 	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
-#ifdef __FreeBSD__
-	printf("XXX FIXME %s\n", __func__);
-	return;
-#endif
+
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	ksp = kstat_create(name, 0, "io", "disk", KSTAT_TYPE_IO, 1, 0);
@@ -715,12 +700,9 @@ spa_mmp_history_init(spa_t *spa)
 	char *module;
 
 	shl->size = 0;
-#ifdef __FreeBSD__
-	printf("XXX FIXME %s\n", __func__);
-	return;
-#endif
+
 	module = kmem_asprintf("zfs/%s", spa_name(spa));
-#ifndef __FreeBSD__
+
 	shl->procfs_list.pl_private = shl;
 	procfs_list_install(module,
 	    "multihost",
@@ -729,7 +711,7 @@ spa_mmp_history_init(spa_t *spa)
 	    spa_mmp_history_show_header,
 	    spa_mmp_history_clear,
 	    offsetof(spa_mmp_history_t, smh_node));
-#endif
+
 	strfree(module);
 }
 
@@ -877,10 +859,6 @@ spa_state_init(spa_t *spa)
 
 	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
 
-#ifdef __FreeBSD__
-	printf("XXX FIXME %s\n", __func__);
-	return;
-#endif
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
 	ksp = kstat_create(name, 0, "state", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
