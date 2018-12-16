@@ -825,6 +825,9 @@ libzfs_load_module(const char *module)
 	int load = 0, fd;
 	hrtime_t start;
 
+#ifdef __FreeBSD__
+	return (0);
+#endif
 	/* Optionally request module loading */
 	if (!libzfs_module_loaded(module)) {
 		load_str = getenv("ZFS_MODULE_LOADING");
