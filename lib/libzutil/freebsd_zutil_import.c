@@ -64,7 +64,11 @@
 
 #include <sys/vdev_impl.h>
 
+#ifndef NDEBUG
 #define LOG() printf("%s %s:%d\n", __func__, __FILE__, __LINE__)
+#else
+#define LOG()
+#endif
 
 /*
  * Intermediate structures used to gather configuration information.
