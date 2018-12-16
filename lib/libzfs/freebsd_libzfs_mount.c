@@ -84,12 +84,10 @@
 #include <libzfs.h>
 
 #include "libzfs_impl.h"
+#include <thread_pool.h>
 
 #include <libshare.h>
-#include <fsshare.h>
-extern int zmount(const char *, const char *, int, char *, char *, int, char *,
-    int);
-
+#include <sys/systeminfo.h>
 #define	MAXISALEN	257	/* based on sysinfo(2) man page */
 
 static int zfs_share_proto(zfs_handle_t *, zfs_share_proto_t *);

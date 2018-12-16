@@ -67,7 +67,9 @@
 #include <sys/fs/zfs.h>
 #include <sys/vdev_impl.h>
 
+#ifdef __linux__
 #include <blkid/blkid.h>
+#endif
 #include <thread_pool.h>
 #include <libzutil.h>
 #include <libnvpair.h>
@@ -83,17 +85,17 @@
 #define	EZFS_NOMEM	"out of memory"
 #define	EZFS_EACESS	"some devices require root privileges"
 
-typedef struct libpc_handle {
+struct libpc_handle {
 	boolean_t lpc_printerr;
 	boolean_t lpc_open_access_error;
 	boolean_t lpc_desc_active;
 	char lpc_desc[1024];
 	const pool_config_ops_t *lpc_ops;
 	void *lpc_lib_handle;
-} libpc_handle_t;
+};
 
 /*PRINTFLIKE2*/
-static void
+void
 zfs_error_aux(libpc_handle_t *hdl, const char *fmt, ...)
 {
 	va_list ap;
@@ -127,7 +129,7 @@ zfs_verror(libpc_handle_t *hdl, const char *error, const char *fmt, va_list ap)
 }
 
 /*PRINTFLIKE3*/
-static int
+int
 zfs_error_fmt(libpc_handle_t *hdl, const char *error, const char *fmt, ...)
 {
 	va_list ap;
@@ -141,20 +143,20 @@ zfs_error_fmt(libpc_handle_t *hdl, const char *error, const char *fmt, ...)
 	return (-1);
 }
 
-static int
+int
 zfs_error(libpc_handle_t *hdl, const char *error, const char *msg)
 {
 	return (zfs_error_fmt(hdl, error, "%s", msg));
 }
 
-static int
+int
 no_memory(libpc_handle_t *hdl)
 {
 	zfs_error(hdl, EZFS_NOMEM, "internal error");
 	exit(1);
 }
 
-static void *
+void *
 zfs_alloc(libpc_handle_t *hdl, size_t size)
 {
 	void *data;
@@ -165,7 +167,7 @@ zfs_alloc(libpc_handle_t *hdl, size_t size)
 	return (data);
 }
 
-static char *
+char *
 zfs_strdup(libpc_handle_t *hdl, const char *str)
 {
 	char *ret;
@@ -676,6 +678,7 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	}
 }
 
+#ifdef __linux__
 /*
  * Go through and fix up any path and/or devid information for the given vdev
  * configuration.
@@ -894,8 +897,9 @@ add_config(libpc_handle_t *hdl, pool_list_t *pl, const char *path,
 
 	return (0);
 }
+#endif
 
-static int
+int
 pool_active(libpc_handle_t *hdl, const char *name, uint64_t guid,
     boolean_t *isactive)
 {
@@ -907,7 +911,7 @@ pool_active(libpc_handle_t *hdl, const char *name, uint64_t guid,
 	return (error);
 }
 
-static nvlist_t *
+nvlist_t *
 refresh_config(libpc_handle_t *hdl, nvlist_t *tryconfig)
 {
 	ASSERT(hdl->lpc_ops->pco_refresh_config != NULL);
@@ -916,6 +920,7 @@ refresh_config(libpc_handle_t *hdl, nvlist_t *tryconfig)
 	    tryconfig));
 }
 
+#ifdef __linux__
 /*
  * Determine if the vdev id is a hole in the namespace.
  */
@@ -1356,6 +1361,7 @@ error:
 
 	return (NULL);
 }
+#endif
 
 /*
  * Return the offset of the given label.
@@ -1457,6 +1463,7 @@ typedef struct rdsk_node {
 	boolean_t rn_labelpaths;
 } rdsk_node_t;
 
+#ifdef __linux__
 /*
  * Sorted by vdev guid and full path to allow for multiple entries with
  * the same full path name.  This is required because it's possible to
@@ -2170,6 +2177,9 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 
 	return (ret);
 }
+#else 
+nvlist_t *zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg);
+#endif
 
 /*
  * Given a cache file, return the contents as a list of importable pools.

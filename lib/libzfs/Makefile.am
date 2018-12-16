@@ -24,17 +24,13 @@ USER_C = \
 	libzfs_crypto.c \
 	libzfs_dataset.c \
 	libzfs_diff.c \
+	libzfs_import.c \
 	libzfs_iter.c \
+	libzfs_mount.c \
 	libzfs_pool.c \
 	libzfs_sendrecv.c \
 	libzfs_status.c \
 	libzfs_util.c
-
-if BUILD_LINUX
-USER_C+= \
-	linux_libzfs_import.c \
-	linux_libzfs_mount.c
-endif
 
 if BUILD_FREEBSD
 USER_C+= \
@@ -42,8 +38,6 @@ USER_C+= \
 	freebsd_fsshare.c \
 	freebsd_libzfs_compat.c \
 	freebsd_libzfs_ioctl_compat.c \
-	freebsd_libzfs_import.c \
-	freebsd_libzfs_mount.c \
 	freebsd_mnttab.c \
 	zmount.c
 endif
