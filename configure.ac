@@ -86,12 +86,6 @@ AM_COND_IF([BUILD_LINUX], [AC_CONFIG_FILES([
 	])
 ])
 
-AM_COND_IF([BUILD_FREEBSD], [AC_CONFIG_FILES([
-	module/os/freebsd/spl/Makefile
-	module/os/freebsd/zfs/Makefile
-	])
-])
-
 AC_CONFIG_FILES([
 	Makefile
 	etc/Makefile
