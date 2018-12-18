@@ -1,7 +1,10 @@
-SUBDIRS = sys spl
+SUBDIRS = sys
 
 if BUILD_LINUX
 SUBDIRS+= linux 
+
+# XXX - add Makefile.in
+SUBDIRS+= spl
 endif
 
 COMMON_H = \
