@@ -2028,7 +2028,7 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 			 * value is reflected.
 			 */
 			(void) get_stats(zhp);
-
+#ifndef __FreeBSD__
 			/*
 			 * Remount the filesystem to propagate the change
 			 * if one of the options handled by the generic
@@ -2037,6 +2037,7 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 			if (zfs_is_namespace_prop(prop) &&
 			    zfs_is_mounted(zhp, NULL))
 				ret = zfs_mount(zhp, MNTOPT_REMOUNT, 0);
+#endif
 		}
 	}
 
