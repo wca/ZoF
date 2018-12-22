@@ -71,8 +71,12 @@ libzfs_la_LIBADD = \
 	$(top_builddir)/lib/libzutil/libzutil.la
 
 if BUILD_LINUX
-libzfs_la_LIBADD+= \
+libzfs_la_LIBADD += \
 	$(top_builddir)/lib/libshare/libshare.la
+endif
+
+if BUILD_FREEBSD
+libzfs_la_LIBADD += -lutil
 endif
 
 libzfs_la_LIBADD += -lm $(LIBSSL)

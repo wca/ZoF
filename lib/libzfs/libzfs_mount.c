@@ -1047,6 +1047,7 @@ zfs_init_libshare(libzfs_handle_t *zhandle, int service)
 {
 	int ret = SA_OK;
 
+#ifndef __FreeBSD__
 	if (ret == SA_OK && zhandle->libzfs_shareflags & ZFSSHARE_MISS) {
 		/*
 		 * We had a cache miss. Most likely it is a new ZFS
@@ -1068,7 +1069,7 @@ zfs_init_libshare(libzfs_handle_t *zhandle, int service)
 
 	if (ret == SA_OK && zhandle->libzfs_sharehdl == NULL)
 		ret = SA_NO_MEMORY;
-
+#endif
 	return (ret);
 }
 
@@ -1081,10 +1082,12 @@ zfs_init_libshare(libzfs_handle_t *zhandle, int service)
 void
 zfs_uninit_libshare(libzfs_handle_t *zhandle)
 {
+#ifndef __FreeBSD__
 	if (zhandle != NULL && zhandle->libzfs_sharehdl != NULL) {
 		sa_fini(zhandle->libzfs_sharehdl);
 		zhandle->libzfs_sharehdl = NULL;
 	}
+#endif
 }
 
 /*
@@ -1096,8 +1099,12 @@ zfs_uninit_libshare(libzfs_handle_t *zhandle)
 int
 zfs_parse_options(char *options, zfs_share_proto_t proto)
 {
+#ifdef __FreeBSD__
+	return (SA_OK);
+#else
 	return (sa_parse_legacy_options(NULL, options,
 	    proto_table[proto].p_name));
+#endif
 }
 
 /*
@@ -1112,10 +1119,10 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 	char shareopts[ZFS_MAXPROPLEN];
 	char sourcestr[ZFS_MAXPROPLEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	sa_share_t share;
+	sa_share_t share __unused;
 	zfs_share_proto_t *curr_proto;
 	zprop_source_t sourcetype;
-	int ret;
+	int err, ret __unused;
 
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
@@ -1129,7 +1136,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		    ZFS_MAXPROPLEN, B_FALSE) != 0 ||
 		    strcmp(shareopts, "off") == 0)
 			continue;
-
+#ifndef __FreeBSD__
 		ret = zfs_init_libshare(hdl, SA_INIT_SHARE_API);
 		if (ret != SA_OK) {
 			(void) zfs_error_fmt(hdl, EZFS_SHARENFSFAILED,
@@ -1137,7 +1144,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 			    zfs_get_name(zhp), sa_errorstr(ret));
 			return (-1);
 		}
-
+#endif
 		/*
 		 * If the 'zoned' property is set, then zfs_is_mountable()
 		 * will have already bailed out if we are in the global zone.
@@ -1147,7 +1154,8 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED))
 			continue;
 
-		share = sa_find_share(hdl->libzfs_sharehdl, mountpoint);
+#ifndef __FreeBSD__
+		share = NULL; sa_find_share(hdl->libzfs_sharehdl, mountpoint);
 		if (share == NULL) {
 			/*
 			 * This may be a new file system that was just
@@ -1173,7 +1181,6 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 			    mountpoint);
 		}
 		if (share != NULL) {
-			int err;
 			err = sa_enable_share(share,
 			    proto_table[*curr_proto].p_name);
 			if (err != SA_OK) {
@@ -1183,7 +1190,21 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 				    zfs_get_name(zhp));
 				return (-1);
 			}
-		} else {
+		} else
+#else
+		if (*curr_proto != PROTO_NFS) {
+			fprintf(stderr, "Unsupported share protocol: %d.\n",
+			    *curr_proto);
+			continue;
+		}
+
+		if (strcmp(shareopts, "on") == 0)
+			err = fsshare(ZFS_EXPORTS_PATH, mountpoint, "");
+		else
+			err = fsshare(ZFS_EXPORTS_PATH, mountpoint, shareopts);
+		if (err != 0)
+#endif
+		{
 			(void) zfs_error_fmt(hdl,
 			    proto_table[*curr_proto].p_share_err,
 			    dgettext(TEXT_DOMAIN, "cannot share '%s'"),

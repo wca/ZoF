@@ -296,6 +296,21 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	}
 }
 
+/*PRINTFLIKE2*/
+void
+zfs_error_aux(libzfs_handle_t *hdl, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	(void) vsnprintf(hdl->libzfs_desc, sizeof (hdl->libzfs_desc),
+	    fmt, ap);
+	hdl->libzfs_desc_active = 1;
+
+	va_end(ap);
+}
+
 static void
 zfs_verror(libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
 {
@@ -320,6 +335,27 @@ zfs_verror(libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
 		if (error == EZFS_NOMEM)
 			exit(1);
 	}
+}
+
+int
+zfs_error(libzfs_handle_t *hdl, int error, const char *msg)
+{
+	return (zfs_error_fmt(hdl, error, "%s", msg));
+}
+
+/*PRINTFLIKE3*/
+int
+zfs_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	zfs_verror(hdl, error, fmt, ap);
+
+	va_end(ap);
+
+	return (-1);
 }
 
 static int
@@ -570,6 +606,29 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 }
 
 /*
+ * Display an out of memory error message and abort the current program.
+ */
+int
+no_memory(libzfs_handle_t *hdl)
+{
+	return (zfs_error(hdl, EZFS_NOMEM, "internal error"));
+}
+
+/*
+ * A safe form of malloc() which will die if the allocation fails.
+ */
+void *
+zfs_alloc(libzfs_handle_t *hdl, size_t size)
+{
+	void *data;
+
+	if ((data = calloc(1, size)) == NULL)
+		(void) no_memory(hdl);
+
+	return (data);
+}
+
+/*
  * A safe form of asprintf() which will die if the allocation fails.
  */
 /*PRINTFLIKE2*/
@@ -606,6 +665,20 @@ zfs_realloc(libzfs_handle_t *hdl, void *ptr, size_t oldsize, size_t newsize)
 	}
 
 	bzero((char *)ret + oldsize, (newsize - oldsize));
+	return (ret);
+}
+
+/*
+ * A safe form of strdup() which will die if the allocation fails.
+ */
+char *
+zfs_strdup(libzfs_handle_t *hdl, const char *str)
+{
+	char *ret;
+
+	if ((ret = strdup(str)) == NULL)
+		(void) no_memory(hdl);
+
 	return (ret);
 }
 

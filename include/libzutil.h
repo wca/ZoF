@@ -161,15 +161,15 @@ extern char *zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE];
 struct libpc_handle;
 typedef struct libpc_handle libpc_handle_t;
 
-extern int zfs_error(libpc_handle_t *hdl, const char *error, const char *msg);
-extern void zfs_error_aux(libpc_handle_t *hdl, const char *fmt, ...);
-extern int no_memory(libpc_handle_t *hdl);
-extern void * zfs_alloc(libpc_handle_t *hdl, size_t size);
-extern char *zfs_strdup(libpc_handle_t *hdl, const char *str);
+extern int zutil_error(libpc_handle_t *hdl, const char *error, const char *msg);
+extern void zutil_error_aux(libpc_handle_t *hdl, const char *fmt, ...);
+extern int zutil_no_memory(libpc_handle_t *hdl);
+extern void * zutil_alloc(libpc_handle_t *hdl, size_t size);
+extern char *zutil_strdup(libpc_handle_t *hdl, const char *str);
 extern int pool_active(libpc_handle_t *hdl, const char *name, uint64_t guid,
     boolean_t *isactive);
 extern nvlist_t *refresh_config(libpc_handle_t *hdl, nvlist_t *tryconfig);
-extern int zfs_error_fmt(libpc_handle_t *hdl, const char *error, const char *fmt, ...);
+extern int zutil_error_fmt(libpc_handle_t *hdl, const char *error, const char *fmt, ...);
 #endif
 
 #ifdef	__cplusplus

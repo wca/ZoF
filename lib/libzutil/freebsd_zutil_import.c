@@ -275,10 +275,10 @@ add_config(libpc_handle_t *hdl, pool_list_t *pl, const char *path,
 	    &state) == 0 &&
 	    (state == POOL_STATE_SPARE || state == POOL_STATE_L2CACHE) &&
 	    nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID, &vdev_guid) == 0) {
-		if ((ne = zfs_alloc(hdl, sizeof (name_entry_t))) == NULL)
+		if ((ne = zutil_alloc(hdl, sizeof (name_entry_t))) == NULL)
 			return (-1);
 
-		if ((ne->ne_name = zfs_strdup(hdl, path)) == NULL) {
+		if ((ne->ne_name = zutil_strdup(hdl, path)) == NULL) {
 			free(ne);
 			return (-1);
 		}
@@ -320,7 +320,7 @@ add_config(libpc_handle_t *hdl, pool_list_t *pl, const char *path,
 	}
 
 	if (pe == NULL) {
-		if ((pe = zfs_alloc(hdl, sizeof (pool_entry_t))) == NULL) {
+		if ((pe = zutil_alloc(hdl, sizeof (pool_entry_t))) == NULL) {
 			return (-1);
 		}
 		pe->pe_guid = pool_guid;
@@ -338,7 +338,7 @@ add_config(libpc_handle_t *hdl, pool_list_t *pl, const char *path,
 	}
 
 	if (ve == NULL) {
-		if ((ve = zfs_alloc(hdl, sizeof (vdev_entry_t))) == NULL) {
+		if ((ve = zutil_alloc(hdl, sizeof (vdev_entry_t))) == NULL) {
 			return (-1);
 		}
 		ve->ve_guid = top_guid;
@@ -357,7 +357,7 @@ add_config(libpc_handle_t *hdl, pool_list_t *pl, const char *path,
 	}
 
 	if (ce == NULL) {
-		if ((ce = zfs_alloc(hdl, sizeof (config_entry_t))) == NULL) {
+		if ((ce = zutil_alloc(hdl, sizeof (config_entry_t))) == NULL) {
 			return (-1);
 		}
 		ce->ce_txg = txg;
@@ -372,10 +372,10 @@ add_config(libpc_handle_t *hdl, pool_list_t *pl, const char *path,
 	 * mappings so that we can fix up the configuration as necessary before
 	 * doing the import.
 	 */
-	if ((ne = zfs_alloc(hdl, sizeof (name_entry_t))) == NULL)
+	if ((ne = zutil_alloc(hdl, sizeof (name_entry_t))) == NULL)
 		return (-1);
 
-	if ((ne->ne_name = zfs_strdup(hdl, path)) == NULL) {
+	if ((ne->ne_name = zutil_strdup(hdl, path)) == NULL) {
 		free(ne);
 		return (-1);
 	}
@@ -564,7 +564,7 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 			if (id >= children) {
 				nvlist_t **newchild;
 
-				newchild = zfs_alloc(hdl, (id + 1) *
+				newchild = zutil_alloc(hdl, (id + 1) *
 				    sizeof (nvlist_t *));
 				if (newchild == NULL)
 					goto nomem;
@@ -594,7 +594,7 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 			} else if (max_id > children) {
 				nvlist_t **newchild;
 
-				newchild = zfs_alloc(hdl, (max_id) *
+				newchild = zutil_alloc(hdl, (max_id) *
 				    sizeof (nvlist_t *));
 				if (newchild == NULL)
 					goto nomem;
@@ -832,7 +832,7 @@ add_pool:
 	return (ret);
 
 nomem:
-	(void) no_memory(hdl);
+	(void) zutil_no_memory(hdl);
 error:
 	nvlist_free(config);
 	nvlist_free(ret);
@@ -1013,7 +1013,7 @@ zpool_open_func(void *arg)
 	error = zpool_read_label(fd, &config, &num_labels);
 	if (error) {
 		(void) close(fd);
-		(void) no_memory(rn->rn_hdl);
+		(void) zutil_no_memory(rn->rn_hdl);
 		return;
 	}
 	(void) close(fd);
@@ -1035,6 +1035,14 @@ zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
 	"/dev/disk/by-path",	/* Encodes physical location and persistent */
 	"/dev"			/* UNSAFE device names will change */
 };
+
+
+const char * const *
+zpool_default_search_paths(size_t *count)
+{
+	*count = DEFAULT_IMPORT_PATH_SIZE;
+	return ((const char * const *)zpool_default_import_path);
+}
 
 /*
  * Given a list of directories to search, find all pools stored on disk.  This
@@ -1080,7 +1088,7 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 
 		/* use realpath to normalize the path */
 		if (realpath(dir[i], path) == 0) {
-			(void) zfs_error_fmt(hdl, EZFS_BADPATH,
+			(void) zutil_error_fmt(hdl, EZFS_BADPATH,
 			    dgettext(TEXT_DOMAIN, "cannot open '%s'"), dir[i]);
 			goto error;
 		}
@@ -1094,8 +1102,8 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 		    (dirp = fdopendir(dfd)) == NULL) {
 			if (dfd >= 0)
 				(void) close(dfd);
-			zfs_error_aux(hdl, strerror(errno));
-			(void) zfs_error_fmt(hdl, EZFS_BADPATH,
+			zutil_error_aux(hdl, strerror(errno));
+			(void) zutil_error_fmt(hdl, EZFS_BADPATH,
 			    dgettext(TEXT_DOMAIN, "cannot open '%s'"),
 			    rdsk);
 			goto error;
@@ -1112,8 +1120,8 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 
 			errno = geom_gettree(&mesh);
 			if (errno != 0) {
-				zfs_error_aux(hdl, strerror(errno));
-				(void) zfs_error_fmt(hdl, EZFS_BADPATH,
+				zutil_error_aux(hdl, strerror(errno));
+				(void) zutil_error_fmt(hdl, EZFS_BADPATH,
 				    dgettext(TEXT_DOMAIN, "cannot get GEOM tree"));
 				goto error;
 			}
@@ -1121,8 +1129,8 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 			LIST_FOREACH(mp, &mesh.lg_class, lg_class) {
 		        	LIST_FOREACH(gp, &mp->lg_geom, lg_geom) {
 					LIST_FOREACH(pp, &gp->lg_provider, lg_provider) {
-						slice = zfs_alloc(hdl, sizeof (rdsk_node_t));
-						slice->rn_name = zfs_strdup(hdl, pp->lg_name);
+						slice = zutil_alloc(hdl, sizeof (rdsk_node_t));
+						slice->rn_name = zutil_strdup(hdl, pp->lg_name);
 						slice->rn_avl = &slice_cache;
 						slice->rn_dfd = dfd;
 						slice->rn_hdl = hdl;
@@ -1145,8 +1153,8 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 			    (name[1] == 0 || (name[1] == '.' && name[2] == 0)))
 				continue;
 
-			slice = zfs_alloc(hdl, sizeof (rdsk_node_t));
-			slice->rn_name = zfs_strdup(hdl, name);
+			slice = zutil_alloc(hdl, sizeof (rdsk_node_t));
+			slice->rn_name = zutil_strdup(hdl, name);
 			slice->rn_avl = &slice_cache;
 			slice->rn_dfd = dfd;
 			slice->rn_hdl = hdl;
@@ -1284,21 +1292,21 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 	verify(poolname == NULL || guid == 0);
 
 	if ((fd = open(cachefile, O_RDONLY)) < 0) {
-		zfs_error_aux(hdl, "%s", strerror(errno));
-		(void) zfs_error(hdl, EZFS_BADCACHE,
+		zutil_error_aux(hdl, "%s", strerror(errno));
+		(void) zutil_error(hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "failed to open cache file"));
 		return (NULL);
 	}
 
 	if (fstat64(fd, &statbuf) != 0) {
-		zfs_error_aux(hdl, "%s", strerror(errno));
+		zutil_error_aux(hdl, "%s", strerror(errno));
 		(void) close(fd);
-		(void) zfs_error(hdl, EZFS_BADCACHE,
+		(void) zutil_error(hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "failed to get size of cache file"));
 		return (NULL);
 	}
 
-	if ((buf = zfs_alloc(hdl, statbuf.st_size)) == NULL) {
+	if ((buf = zutil_alloc(hdl, statbuf.st_size)) == NULL) {
 		(void) close(fd);
 		return (NULL);
 	}
@@ -1306,7 +1314,7 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 	if (read(fd, buf, statbuf.st_size) != statbuf.st_size) {
 		(void) close(fd);
 		free(buf);
-		(void) zfs_error(hdl, EZFS_BADCACHE,
+		(void) zutil_error(hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN,
 		    "failed to read cache file contents"));
 		return (NULL);
@@ -1316,7 +1324,7 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 
 	if (nvlist_unpack(buf, statbuf.st_size, &raw, 0) != 0) {
 		free(buf);
-		(void) zfs_error(hdl, EZFS_BADCACHE,
+		(void) zutil_error(hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN,
 		    "invalid or corrupt cache file contents"));
 		return (NULL);
@@ -1329,7 +1337,7 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 	 * state.
 	 */
 	if (nvlist_alloc(&pools, 0, 0) != 0) {
-		(void) no_memory(hdl);
+		(void) zutil_no_memory(hdl);
 		nvlist_free(raw);
 		return (NULL);
 	}
@@ -1357,7 +1365,7 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 
 		if (nvlist_add_string(src, ZPOOL_CONFIG_CACHEFILE,
 		    cachefile) != 0) {
-			(void) no_memory(hdl);
+			(void) zutil_no_memory(hdl);
 			nvlist_free(raw);
 			nvlist_free(pools);
 			return (NULL);
@@ -1370,7 +1378,7 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 		}
 
 		if (nvlist_add_nvlist(pools, nvpair_name(elem), dst) != 0) {
-			(void) no_memory(hdl);
+			(void) zutil_no_memory(hdl);
 			nvlist_free(dst);
 			nvlist_free(raw);
 			nvlist_free(pools);
