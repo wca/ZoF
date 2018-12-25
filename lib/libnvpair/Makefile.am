@@ -30,7 +30,12 @@ nodist_libnvpair_la_SOURCES = \
 	$(USER_C) \
 	$(KERNEL_C)
 
+if BUILD_FREEBSD
+libnvpair_la_LIBADD = $(LIBTIRPC) -L/usr/local/lib -lintl
+else
 libnvpair_la_LIBADD = $(LIBTIRPC)
+endif
+
 libnvpair_la_LDFLAGS = -version-info 1:1:0
 
 EXTRA_DIST = $(USER_C)
