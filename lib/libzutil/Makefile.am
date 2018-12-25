@@ -17,7 +17,9 @@ USER_C = \
 
 if BUILD_FREEBSD
 USER_C += \
+	freebsd_mnttab.c \
 	freebsd_zutil_import.c
+
 AM_CFLAGS += -DLIBZUTIL_PRIVATE
 endif
 

@@ -9,11 +9,20 @@ DEFAULT_INCLUDES += \
 
 sbin_PROGRAMS = zdb
 
+if BUILD_FREEBSD
+zdb_LDADD = \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libzpool/libzpool.la \
+	-lgeom -L/usr/local/lib -lintl
+else
+zdb_LDADD = \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libzpool/libzpool.la
+endif
+
 zdb_SOURCES = \
 	zdb.c \
 	zdb_il.c \
 	zdb.h
 
-zdb_LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libzpool/libzpool.la
+

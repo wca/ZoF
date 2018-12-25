@@ -38,7 +38,6 @@ USER_C+= \
 	freebsd_fsshare.c \
 	freebsd_libzfs_compat.c \
 	freebsd_libzfs_ioctl_compat.c \
-	freebsd_mnttab.c \
 	zmount.c
 endif
 
