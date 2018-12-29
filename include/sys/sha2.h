@@ -70,6 +70,20 @@ extern "C" {
  * Callers must never attempt to read or write any of the fields
  * in this structure directly.
  */
+#ifdef __FreeBSD__
+#include <crypto/sha2/sha256.h>
+#include <crypto/sha2/sha384.h>
+#include <crypto/sha2/sha512.h>
+typedef struct 	{
+	uint32_t algotype;		/* Algorithm Type */
+	union {
+		SHA256_CTX SHA256_ctx;
+		SHA384_CTX SHA384_ctx;
+		SHA512_CTX SHA512_ctx;
+	};
+} SHA2_CTX;
+
+#else
 typedef struct 	{
 	uint32_t algotype;		/* Algorithm Type */
 
@@ -93,6 +107,7 @@ typedef struct 	{
 typedef SHA2_CTX SHA256_CTX;
 typedef SHA2_CTX SHA384_CTX;
 typedef SHA2_CTX SHA512_CTX;
+#endif
 
 extern void SHA256Init(SHA256_CTX *);
 
@@ -113,12 +128,60 @@ extern void SHA512Update(SHA512_CTX *, const void *, size_t);
 extern void SHA512Final(void *, SHA512_CTX *);
 
 #if defined(__FreeBSD__) && defined(_KERNEL)
-extern void SHA512_Init(SHA512_CTX *);
-extern void SHA512_Update(SHA512_CTX *, const void *, size_t);
-extern void SHA512_Final(void *, SHA512_CTX *);
-# define SHA2Update(c, d, l)	SHA512_Update(c, d, l)
-# define SHA2Init(t, c)	SHA512_Init(c)
-# define SHA2Final(b, c)	SHA512_Final(b, c)
+
+static inline void
+SHA2Init(uint64_t mech, SHA2_CTX *c)
+{
+	switch (mech) {
+		case SHA256:
+			SHA256_Init(&c->SHA256_ctx);
+			break;
+		case SHA384:
+			SHA384_Init(&c->SHA384_ctx);
+			break;
+		case SHA512:
+			SHA512_Init(&c->SHA512_ctx);
+			break;
+		default:
+			panic("unknown mechanism");
+	}
+	c->algotype = (uint32_t)mech;
+}
+
+static inline void
+SHA2Update(SHA2_CTX *c, const void *p, size_t s)
+{
+	switch (c->algotype) {
+		case SHA256:
+			SHA256_Update(&c->SHA256_ctx, p, s);
+			break;
+		case SHA384:
+			SHA384_Update(&c->SHA384_ctx, p, s);
+			break;
+		case SHA512:
+			SHA512_Update(&c->SHA512_ctx, p, s);
+			break;
+		default:
+			panic("unknown mechanism");
+	}
+}
+
+static inline void
+SHA2Final(void *p, SHA2_CTX *c)
+{
+	switch (c->algotype) {
+		case SHA256:
+			SHA256_Final(p, &c->SHA256_ctx);
+			break;
+		case SHA384:
+			SHA384_Final(p, &c->SHA384_ctx);
+			break;
+		case SHA512:
+			SHA512_Final(p, &c->SHA512_ctx);
+			break;
+	}
+}
+
 #else
 extern void SHA2Init(uint64_t mech, SHA2_CTX *);
 
