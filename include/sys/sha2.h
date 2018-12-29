@@ -70,7 +70,7 @@ extern "C" {
  * Callers must never attempt to read or write any of the fields
  * in this structure directly.
  */
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 #include <crypto/sha2/sha256.h>
 #include <crypto/sha2/sha384.h>
 #include <crypto/sha2/sha512.h>
