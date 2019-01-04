@@ -1,31 +1,27 @@
-![img](http://zfsonlinux.org/images/zfs-linux.png)
+![img](https://github.com/zfsonfreebsd/ZoF/raw/master/zof-logo.png)
 
 ZFS on Linux is an advanced file system and volume manager which was originally
-developed for Solaris and is now maintained by the OpenZFS community.
+developed for Solaris and is now maintained by the OpenZFS community. ZoF is the work
+to bring FreeBSD support into the ZoL repo.
 
 [![codecov](https://codecov.io/gh/zfsonlinux/zfs/branch/master/graph/badge.svg)](https://codecov.io/gh/zfsonlinux/zfs)
 [![coverity](https://scan.coverity.com/projects/1973/badge.svg)](https://scan.coverity.com/projects/zfsonlinux-zfs)
 
 # Official Resources
 
-  * [Site](http://zfsonlinux.org)
-  * [Wiki](https://github.com/zfsonlinux/zfs/wiki)
-  * [Mailing lists](https://github.com/zfsonlinux/zfs/wiki/Mailing-Lists)
+  * [ZoF GitHub Site](https://zfsonfreebsd.github.io/ZoF/)
+  * [ZoL Site](http://zfsonlinux.org)
+  * [ZoL Wiki](https://github.com/zfsonlinux/zfs/wiki)
+  * [ZoL Mailing lists](https://github.com/zfsonlinux/zfs/wiki/Mailing-Lists)
   * [OpenZFS site](http://open-zfs.org/)
 
 # Installation
 
-Full documentation for installing ZoL on your favorite Linux distribution can
-be found at [our site](http://zfsonlinux.org/).
+[Daily Snapshot Images](https://pkg.trueos.org/iso/snapshot-zol/) are available from the [TrueOS Project](https://www.trueos.org).
 
-# Contribute & Develop
+Legacy ZFS is disabled in the src build (While enabled for the boot-loader) and ZoF is included automatically via the ports system as sysutils/zol and sysutils/zol-kmod.
 
-We have a separate document with [contribution guidelines](./.github/CONTRIBUTING.md).
+# Issues
 
-# Release
+Issues can be reported via GitHub's [Issue Tracker](https://github.com/zfsonfreebsd/ZoF).
 
-ZFS on Linux is released under a CDDL license.  
-For more details see the NOTICE, LICENSE and COPYRIGHT files; `UCRL-CODE-235197`
-
-# Supported Kernels
-  * The `META` file contains the officially recognized supported kernel versions.
