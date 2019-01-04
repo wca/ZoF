@@ -35,6 +35,10 @@
 
 verify_runnable "both"
 
+if is_freebsd ; then
+	log_unsupported "Multi mount not supported on FreeBSD"
+fi
+
 function cleanup
 {
 	ismounted $MNTPFS && log_must umount $MNTPFS
@@ -59,7 +63,12 @@ log_must mkfile 128k $FILENAME
 log_must exec 9<> $FILENAME # open file
 
 # 3. Lazy umount
-log_must umount -l $MNTPFS
+if is_freebsd; then
+	# FreeBSD does not support lazy unmount
+	log_must umount $MNTPFS
+else
+	log_must umount -l $MNTPFS
+fi
 if [ -f $FILENAME ]; then
 	log_fail "Lazy unmount failed"
 fi

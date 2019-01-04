@@ -911,7 +911,7 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 
 	drba->drba_cookie->drc_ds = newds;
 
-	spa_history_log_internal_ds(newds, "receive", tx, "");
+	spa_history_log_internal_ds(newds, "receive", tx, " ");
 }
 
 static int
@@ -1089,7 +1089,7 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 
 	drba->drba_cookie->drc_ds = ds;
 
-	spa_history_log_internal_ds(ds, "resume receive", tx, "");
+	spa_history_log_internal_ds(ds, "resume receive", tx, " ");
 }
 
 /*
@@ -1099,8 +1099,13 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 int
 dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
     boolean_t force, boolean_t resumable, nvlist_t *localprops,
-    nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc, vnode_t *vp,
-    offset_t *voffp)
+    nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc,
+#if defined(__FreeBSD__) && defined(_KERNEL)
+    struct file *fp,
+#else
+	vnode_t *vp,
+#endif
+	offset_t *voffp)
 {
 	dmu_recv_begin_arg_t drba = { 0 };
 	int err;
@@ -1127,7 +1132,12 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		return (SET_ERROR(EINVAL));
 	}
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	drc->drc_fp = fp;
+	drc->drc_td = curthread;
+#else
 	drc->drc_vp = vp;
+#endif
 	drc->drc_voff = *voffp;
 	drc->drc_featureflags =
 	    DMU_GET_FEATUREFLAGS(drc->drc_drrb->drr_versioninfo);
@@ -1191,7 +1201,6 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 			dsl_crypto_params_free(drba.drba_dcp, !!err);
 		}
 	}
-
 	if (err != 0) {
 		kmem_free(drc->drc_next_rrd, sizeof (*drc->drc_next_rrd));
 		nvlist_free(drc->drc_begin_nvl);
@@ -1230,6 +1239,31 @@ free_guid_map_onexit(void *arg)
 	kmem_free(ca, sizeof (avl_tree_t));
 }
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
+static int
+restore_bytes(dmu_recv_cookie_t *drc, void *buf, int len, off_t off,
+    ssize_t *resid)
+{
+	struct uio auio;
+	struct iovec aiov;
+	int error;
+
+	aiov.iov_base = buf;
+	aiov.iov_len = len;
+	auio.uio_iov = &aiov;
+	auio.uio_iovcnt = 1;
+	auio.uio_resid = len;
+	auio.uio_segflg = UIO_SYSSPACE;
+	auio.uio_rw = UIO_READ;
+	auio.uio_offset = off;
+	auio.uio_td = drc->drc_td;
+	error = fo_read(drc->drc_fp, &auio, drc->drc_td->td_ucred,
+	    FOF_OFFSET, drc->drc_td);
+	*resid = auio.uio_resid;
+	return (error);
+}
+#endif
+
 static int
 receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 {
@@ -1245,11 +1279,15 @@ receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 	while (done < len) {
 		ssize_t resid;
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
+		drc->drc_err = restore_bytes(drc, ((char *)buf + done),
+		    len - done, drc->drc_voff, &resid);
+#else
 		drc->drc_err = vn_rdwr(UIO_READ, drc->drc_vp,
 		    (char *)buf + done, len - done,
 		    drc->drc_voff, UIO_SYSSPACE, FAPPEND,
 		    RLIM64_INFINITY, CRED(), &resid);
-
+#endif
 		if (resid == len - done) {
 			/*
 			 * Note: ECKSUM indicates that the receive

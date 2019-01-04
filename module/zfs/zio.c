@@ -44,10 +44,13 @@
 #include <sys/dsl_scan.h>
 #include <sys/metaslab_impl.h>
 #include <sys/time.h>
-#include <sys/trace_zio.h>
 #include <sys/abd.h>
 #include <sys/dsl_crypt.h>
 #include <sys/cityhash.h>
+
+#ifdef __linux__
+#include <sys/trace_zio.h>
+#endif
 
 /*
  * ==========================================================================
@@ -128,6 +131,7 @@ int zio_buf_debug_limit = 16384;
 #else
 int zio_buf_debug_limit = 0;
 #endif
+int zio_exclude_metadata;
 
 static inline void __zio_execute(zio_t *zio);
 
@@ -153,7 +157,14 @@ zio_init(void)
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
 		size_t p2 = size;
 		size_t align = 0;
-		size_t cflags = (size > zio_buf_debug_limit) ? KMC_NODEBUG : 0;
+		size_t data_cflags, cflags;
+
+		data_cflags = cflags = (size > zio_buf_debug_limit) ?
+		    KMC_NODEBUG : 0;
+#ifdef __FreeBSD__
+		data_cflags = KMC_NODEBUG;
+		cflags |= (zio_exclude_metadata) ? KMC_NODEBUG : 0;
+#endif
 
 #if defined(_ILP32) && defined(_KERNEL)
 		/*
@@ -201,7 +212,7 @@ zio_init(void)
 			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL,
-			    data_alloc_arena, cflags);
+			    data_alloc_arena, data_cflags);
 		}
 	}
 
@@ -1785,7 +1796,12 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 	 * to a single taskq at a time.  It would be a grievous error
 	 * to dispatch the zio to another taskq at the same time.
 	 */
+#ifndef __FreeBSD__
+	/*
+	 * XXX requires upstream KPI changes to support
+	 */
 	ASSERT(taskq_empty_ent(&zio->io_tqent));
+#endif
 	spa_taskq_dispatch_ent(spa, t, q, (task_func_t *)zio_execute, zio,
 	    flags, &zio->io_tqent);
 }
@@ -1822,6 +1838,60 @@ zio_interrupt(zio_t *zio)
 	zio_taskq_dispatch(zio, ZIO_TASKQ_INTERRUPT, B_FALSE);
 }
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
+void
+zio_delay_interrupt(zio_t *zio)
+{
+	/*
+	 * The timeout_generic() function isn't defined in userspace, so
+	 * rather than trying to implement the function, the zio delay
+	 * functionality has been disabled for userspace builds.
+	 */
+
+#ifdef _KERNEL
+	/*
+	 * If io_target_timestamp is zero, then no delay has been registered
+	 * for this IO, thus jump to the end of this function and "skip" the
+	 * delay; issuing it directly to the zio layer.
+	 */
+	if (zio->io_target_timestamp != 0) {
+		hrtime_t now = gethrtime();
+
+		if (now >= zio->io_target_timestamp) {
+			/*
+			 * This IO has already taken longer than the target
+			 * delay to complete, so we don't want to delay it
+			 * any longer; we "miss" the delay and issue it
+			 * directly to the zio layer. This is likely due to
+			 * the target latency being set to a value less than
+			 * the underlying hardware can satisfy (e.g. delay
+			 * set to 1ms, but the disks take 10ms to complete an
+			 * IO request).
+			 */
+
+			DTRACE_PROBE2(zio__delay__miss, zio_t *, zio,
+			    hrtime_t, now);
+
+			zio_interrupt(zio);
+		} else {
+			hrtime_t diff = zio->io_target_timestamp - now;
+
+			DTRACE_PROBE3(zio__delay__hit, zio_t *, zio,
+			    hrtime_t, now, hrtime_t, diff);
+
+			(void) timeout_generic(CALLOUT_NORMAL,
+			    (void (*)(void *))zio_interrupt, zio, diff, 1, 0);
+		}
+
+		return;
+	}
+#endif
+
+	DTRACE_PROBE1(zio__delay__skip, zio_t *, zio);
+	zio_interrupt(zio);
+}
+
+#else
 void
 zio_delay_interrupt(zio_t *zio)
 {
@@ -1893,6 +1963,8 @@ zio_delay_interrupt(zio_t *zio)
 	zio_interrupt(zio);
 }
 
+#endif
+
 static void
 zio_deadman_impl(zio_t *pio, int ziodepth)
 {
@@ -1923,10 +1995,18 @@ zio_deadman_impl(zio_t *pio, int ziodepth)
 		zfs_ereport_post(FM_EREPORT_ZFS_DEADMAN,
 		    pio->io_spa, vd, zb, pio, 0, 0);
 
-		if (failmode == ZIO_FAILURE_MODE_CONTINUE &&
-		    taskq_empty_ent(&pio->io_tqent)) {
+		/* BEGIN CSTYLED */
+		if (failmode == ZIO_FAILURE_MODE_CONTINUE
+#ifndef __FreeBSD__
+			/*
+			 * Double enqueue is safe on FreeBSD
+			 */
+		    && taskq_empty_ent(&pio->io_tqent)
+#endif
+			) {
 			zio_interrupt(pio);
 		}
+		/* END CSTYLED */
 	}
 
 	mutex_enter(&pio->io_lock);
@@ -3592,6 +3672,25 @@ zio_vdev_io_start(zio_t *zio)
 		}
 	}
 
+	/*
+	 * We keep track of time-sensitive I/Os so that the scan thread
+	 * can quickly react to certain workloads.  In particular, we care
+	 * about non-scrubbing, top-level reads and writes with the following
+	 * characteristics:
+	 *      - synchronous writes of user data to non-slog devices
+	 *      - any reads of user data
+	 * When these conditions are met, adjust the timestamp of spa_last_io
+	 * which allows the scan thread to adjust its workload accordingly.
+	 */
+	if (!(zio->io_flags & ZIO_FLAG_SCAN_THREAD) && zio->io_bp != NULL &&
+	    vd == vd->vdev_top && !vd->vdev_islog &&
+	    zio->io_bookmark.zb_objset != DMU_META_OBJSET &&
+	    zio->io_txg != spa_syncing_txg(spa)) {
+		uint64_t old = spa->spa_last_io;
+		uint64_t new = ddi_get_lbolt64();
+		if (old != new)
+			(void) atomic_cas_64(&spa->spa_last_io, old, new);
+	}
 	align = 1ULL << vd->vdev_top->vdev_ashift;
 
 	if (!(zio->io_flags & ZIO_FLAG_PHYSICAL) &&
@@ -3611,6 +3710,7 @@ zio_vdev_io_start(zio_t *zio)
 	 * If this is not a physical io, make sure that it is properly aligned
 	 * before proceeding.
 	 */
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 	if (!(zio->io_flags & ZIO_FLAG_PHYSICAL)) {
 		ASSERT0(P2PHASE(zio->io_offset, align));
 		ASSERT0(P2PHASE(zio->io_size, align));
@@ -3619,10 +3719,12 @@ zio_vdev_io_start(zio_t *zio)
 		 * For physical writes, we allow 512b aligned writes and assume
 		 * the device will perform a read-modify-write as necessary.
 		 */
-		ASSERT0(P2PHASE(zio->io_offset, SPA_MINBLOCKSIZE));
-		ASSERT0(P2PHASE(zio->io_size, SPA_MINBLOCKSIZE));
+		uint64_t log_align =
+		    1ULL << vd->vdev_top->vdev_logical_ashift;
+		ASSERT0(P2PHASE(zio->io_offset, log_align));
+		ASSERT0(P2PHASE(zio->io_size, log_align));
 	}
-
+#endif
 	VERIFY(zio->io_type != ZIO_TYPE_WRITE || spa_writeable(spa));
 
 	/*
@@ -4608,7 +4710,9 @@ zio_done(zio_t *zio)
 			 * Reexecution is potentially a huge amount of work.
 			 * Hand it off to the otherwise-unused claim taskq.
 			 */
+#ifndef __FreeBSD__
 			ASSERT(taskq_empty_ent(&zio->io_tqent));
+#endif
 			spa_taskq_dispatch_ent(zio->io_spa,
 			    ZIO_TYPE_CLAIM, ZIO_TASKQ_ISSUE,
 			    (task_func_t *)zio_reexecute, zio, 0,
@@ -4843,30 +4947,24 @@ EXPORT_SYMBOL(zio_data_buf_alloc);
 EXPORT_SYMBOL(zio_buf_free);
 EXPORT_SYMBOL(zio_data_buf_free);
 
-module_param(zio_slow_io_ms, int, 0644);
-MODULE_PARM_DESC(zio_slow_io_ms,
+ZFS_MODULE_PARAM(zfs_zio, zio_, slow_io_ms, UINT, ZMOD_RW,
 	"Max I/O completion time (milliseconds) before marking it as slow");
 
-module_param(zio_requeue_io_start_cut_in_line, int, 0644);
-MODULE_PARM_DESC(zio_requeue_io_start_cut_in_line, "Prioritize requeued I/O");
+ZFS_MODULE_PARAM(zfs_zio, zio_, requeue_io_start_cut_in_line, UINT, ZMOD_RW,
+	"Prioritize requeued I/O");
 
-module_param(zfs_sync_pass_deferred_free, int, 0644);
-MODULE_PARM_DESC(zfs_sync_pass_deferred_free,
+ZFS_MODULE_PARAM(zfs, zfs_, sync_pass_deferred_free,  UINT, ZMOD_RW,
 	"Defer frees starting in this pass");
 
-module_param(zfs_sync_pass_dont_compress, int, 0644);
-MODULE_PARM_DESC(zfs_sync_pass_dont_compress,
+ZFS_MODULE_PARAM(zfs, zfs_, sync_pass_dont_compress, UINT, ZMOD_RW,
 	"Don't compress starting in this pass");
 
-module_param(zfs_sync_pass_rewrite, int, 0644);
-MODULE_PARM_DESC(zfs_sync_pass_rewrite,
+ZFS_MODULE_PARAM(zfs, zfs_, sync_pass_rewrite, UINT, ZMOD_RW,
 	"Rewrite new bps starting in this pass");
 
-module_param(zio_dva_throttle_enabled, int, 0644);
-MODULE_PARM_DESC(zio_dva_throttle_enabled,
+ZFS_MODULE_PARAM(zfs_zio, zio_, dva_throttle_enabled, UINT, ZMOD_RW,
 	"Throttle block allocations in the ZIO pipeline");
 
-module_param(zio_deadman_log_all, int, 0644);
-MODULE_PARM_DESC(zio_deadman_log_all,
+ZFS_MODULE_PARAM(zfs_zio, zio_, deadman_log_all, UINT, ZMOD_RW,
 	"Log all slow ZIOs, not just those with vdevs");
 #endif

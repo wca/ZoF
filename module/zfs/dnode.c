@@ -37,8 +37,12 @@
 #include <sys/zio.h>
 #include <sys/dmu_zfetch.h>
 #include <sys/range_tree.h>
-#include <sys/trace_dnode.h>
 #include <sys/zfs_project.h>
+#include <sys/sdt.h>
+
+#ifdef __linux__
+#include <sys/trace_dnode.h>
+#endif
 
 dnode_stats_t dnode_stats = {
 	{ "dnode_hold_dbuf_hold",		KSTAT_DATA_UINT64 },
@@ -80,7 +84,7 @@ ASSERTV(static dnode_phys_t dnode_phys_zero);
 int zfs_default_bs = SPA_MINBLOCKSHIFT;
 int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
 
-#ifdef	_KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 static kmem_cbrc_t dnode_move(void *, void *, size_t, void *);
 #endif /* _KERNEL */
 
@@ -274,6 +278,7 @@ dnode_verify(dnode_t *dn)
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		drop_struct_lock = TRUE;
 	}
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 	if (dn->dn_phys->dn_type != DMU_OT_NONE || dn->dn_allocated_txg != 0) {
 		int i;
 		int max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
@@ -300,6 +305,7 @@ dnode_verify(dnode_t *dn)
 	if (dn->dn_phys->dn_type != DMU_OT_NONE)
 		ASSERT3U(dn->dn_phys->dn_nlevels, <=, dn->dn_nlevels);
 	ASSERT(DMU_OBJECT_IS_SPECIAL(dn->dn_object) || dn->dn_dbuf != NULL);
+#endif
 	if (dn->dn_dbuf != NULL) {
 		ASSERT3P(dn->dn_phys, ==,
 		    (dnode_phys_t *)dn->dn_dbuf->db.db_data +
@@ -439,7 +445,7 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dnode_t *dn;
 
 	dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
-	ASSERT(!POINTER_IS_VALID(dn->dn_objset));
+	ASSERT(!POINTER_IS_VALID(dn->dn_objset) || dn->dn_objset == NULL);
 	dn->dn_moved = 0;
 
 	/*
@@ -743,7 +749,7 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 	mutex_exit(&dn->dn_mtx);
 }
 
-#ifdef	_KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 static void
 dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 {

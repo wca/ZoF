@@ -37,7 +37,6 @@ verify_runnable "both"
 
 log_assert "Verify resumability of a full ZFS send/receive with the source " \
     "filesystem unmounted"
-
 sendfs=$POOL/sendfs
 recvfs=$POOL2/recvfs
 streamfs=$POOL/stream

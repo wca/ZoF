@@ -63,3 +63,13 @@ cscope.*
 *.log
 venv
 
+*.so
+*.so.debug
+*.so.full
+*.tmp
+*.log
+module/export_syms
+module/machine
+module/x86
+module/zfs.ko.debug
+module/zfs.ko.full

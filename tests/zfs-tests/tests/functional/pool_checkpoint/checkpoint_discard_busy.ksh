@@ -41,7 +41,11 @@ verify_runnable "global"
 function test_cleanup
 {
 	# reset memory limit to 16M
-	set_tunable64 zfs_spa_discard_memory_limit 1000000
+	if is_freebsd; then
+		set_tunable64 vfs.zfs.spa_discard_memory_limit 1000000
+	else
+		set_tunable64 zfs_spa_discard_memory_limit 1000000
+	fi
 	cleanup_nested_pools
 }
 
@@ -67,7 +71,11 @@ log_onexit test_cleanup
 #	map, we should have even more time to
 #	verify this.
 #
-set_tunable64 zfs_spa_discard_memory_limit 128
+if is_freebsd; then
+	set_tunable64 vfs.zfs.spa_discard_memory_limit 128
+else
+	set_tunable64 zfs_spa_discard_memory_limit 128
+fi
 
 log_must zpool checkpoint $NESTEDPOOL
 
@@ -100,7 +108,11 @@ log_mustnot zpool remove $NESTEDPOOL $FILEDISK1
 log_mustnot zpool reguid $NESTEDPOOL
 
 # reset memory limit to 16M
-set_tunable64 zfs_spa_discard_memory_limit 16777216
+if is_freebsd; then
+	set_tunable64 vfs.zfs.spa_discard_memory_limit 16777216
+else
+	set_tunable64 zfs_spa_discard_memory_limit 16777216
+fi
 
 nested_wait_discard_finish
 

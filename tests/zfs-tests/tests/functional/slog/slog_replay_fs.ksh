@@ -79,8 +79,13 @@ log_must zfs create $TESTPOOL/$TESTFS
 # after freezing the pool unless a ZIL header already exists. Create a file
 # synchronously to force ZFS to write one out.
 #
-log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
-    conv=fdatasync,fsync bs=1 count=1
+if is_freebsd; then
+	# fdatasync and fsync not supported on FreeBSD
+	log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync bs=1 count=1
+else
+	log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
+	    conv=fdatasync,fsync bs=1 count=1
+fi
 
 #
 # 2. Freeze TESTFS
@@ -114,7 +119,11 @@ log_must rmdir /$TESTPOOL/$TESTFS/dir_to_delete
 # Create a simple validation payload
 log_must mkdir -p $TESTDIR
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload bs=1k count=8
-log_must eval "sha256sum -b /$TESTPOOL/$TESTFS/payload >$TESTDIR/checksum"
+if is_freebsd; then
+	log_must eval "sha256 /$TESTPOOL/$TESTFS/payload >$TESTDIR/checksum"
+else
+	log_must eval "sha256sum -b /$TESTPOOL/$TESTFS/payload >$TESTDIR/checksum"
+fi
 
 # TX_WRITE (small file with ordering)
 log_must mkfile 1k /$TESTPOOL/$TESTFS/small_file
@@ -127,7 +136,11 @@ log_must rm -rf /$TESTPOOL/$TESTFS/dict
 # TX_SETATTR
 log_must touch /$TESTPOOL/$TESTFS/setattr
 log_must chmod 567 /$TESTPOOL/$TESTFS/setattr
-log_must chgrp root /$TESTPOOL/$TESTFS/setattr
+if is_freebsd; then
+	log_must chgrp wheel /$TESTPOOL/$TESTFS/setattr
+else
+	log_must chgrp root /$TESTPOOL/$TESTFS/setattr
+fi
 log_must touch -cm -t 201311271200 /$TESTPOOL/$TESTFS/setattr
 
 # TX_TRUNCATE (to zero)
@@ -135,8 +148,13 @@ log_must mkfile 4k /$TESTPOOL/$TESTFS/truncated_file
 log_must truncate -s 0 /$TESTPOOL/$TESTFS/truncated_file
 
 # TX_WRITE (large file)
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
-    bs=128k count=64 oflag=sync
+if is_freebsd; then
+	log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
+	    bs=128k count=64
+else
+	log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
+	    bs=128k count=64 oflag=sync
+fi
 
 # Write zeros, which compress to holes, in the middle of a file
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.1 bs=128k count=8
@@ -150,15 +168,17 @@ log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.3 bs=128k count=2 \
    seek=2 conv=notrunc
 
 # TX_MKXATTR
-log_must mkdir /$TESTPOOL/$TESTFS/xattr.dir
-log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
-log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
-log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.dir
+if is_linux; then
+	log_must mkdir /$TESTPOOL/$TESTFS/xattr.dir
+	log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
+	log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
+	log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.dir
 
-log_must touch /$TESTPOOL/$TESTFS/xattr.file
-log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
-log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
-log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.file
+	log_must touch /$TESTPOOL/$TESTFS/xattr.file
+	log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
+	log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
+	log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.file
+fi
 
 #
 # 4. Copy TESTFS to temporary location (TESTDIR/copy)
@@ -193,14 +213,20 @@ log_must zpool import -f -d $VDIR $TESTPOOL
 log_note "Verify current block usage:"
 log_must zdb -bcv $TESTPOOL
 
-log_note "Verify copy of xattrs:"
-log_must attr -l /$TESTPOOL/$TESTFS/xattr.dir
-log_must attr -l /$TESTPOOL/$TESTFS/xattr.file
+if is_linux; then
+	log_note "Verify copy of xattrs:"
+	log_must attr -l /$TESTPOOL/$TESTFS/xattr.dir
+	log_must attr -l /$TESTPOOL/$TESTFS/xattr.file
+fi
 
 log_note "Verify working set diff:"
 log_must diff -r /$TESTPOOL/$TESTFS $TESTDIR/copy
 
 log_note "Verify file checksum:"
-log_must sha256sum -c $TESTDIR/checksum
+if is_freebsd; then
+	log_must sha256 -c $TESTDIR/checksum
+else
+	log_must sha256sum -c $TESTDIR/checksum
+fi
 
 log_pass "Replay of intent log succeeds."

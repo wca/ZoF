@@ -44,6 +44,10 @@
 #	3. use zfs groupspace to check the object count
 #
 
+if is_freebsd; then
+	log_unsupported "groupquota unsupported in FreeBSD"
+fi
+
 function cleanup
 {
 	if datasetexists $snapfs; then

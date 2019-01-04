@@ -26,9 +26,18 @@
 #include <sys/isa_defs.h>
 
 #if defined(__x86_64) && defined(HAVE_AVX512F)
-
 #include <sys/types.h>
+#ifdef _KERNEL
+#include <spl/sys/debug.h>
+#else
+#include <assert.h>
+#endif
+
+#if defined(__linux__) || !defined(_KERNEL)
 #include <linux/simd_x86.h>
+#elif defined(__FreeBSD__)
+#include <os/freebsd/spl/sys/simd_x86.h>
+#endif
 
 #define	__asm __asm__ __volatile__
 
@@ -194,6 +203,8 @@ typedef struct v {
 		    "vpternlogd $0x6c,%zmm29, %zmm26, %" VR0(r) "\n"	\
 		    "vpternlogd $0x6c,%zmm29, %zmm25, %" VR1(r));	\
 		break;							\
+		default:				  \
+			VERIFY(0);			  \
 	}								\
 }
 
@@ -369,13 +380,12 @@ gf_x2_mul_fns[256] = {
 		COPY(_mul_x2_acc, R_01(r));				\
 		COPY(R_23(r), _mul_x2_in);				\
 		gf_x2_mul_fns[c]();					\
-		COPY(_mul_x2_acc, R_23(r));				\
+		COPY(_mul_x2_acc, R_23(r));			\
+		break;				 \
+		default:				   \
+			VERIFY(0);			   \
 	}								\
 }
-
-
-#define	raidz_math_begin()	kfpu_begin()
-#define	raidz_math_end()	kfpu_end()
 
 
 #define	SYN_STRIDE		4
@@ -460,6 +470,9 @@ gf_x2_mul_fns[256] = {
 #define	REC_PQR_XS		12, 13, 14, 15
 #define	REC_PQR_YS		16, 17, 18, 19
 
+
+#define	raidz_math_begin()	kfpu_begin()
+#define	raidz_math_end()	kfpu_end()
 
 #include <sys/vdev_raidz_impl.h>
 #include "vdev_raidz_math_impl.h"

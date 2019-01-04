@@ -524,7 +524,7 @@ spa_checkpoint_sync(void *arg, dmu_tx_t *tx)
 	spa_feature_incr(spa, SPA_FEATURE_POOL_CHECKPOINT, tx);
 
 	spa_history_log_internal(spa, "spa checkpoint", tx,
-	    "checkpointed uberblock txg=%llu", checkpoint.ub_txg);
+	    "checkpointed uberblock txg=%llu", (longlong_t)checkpoint.ub_txg);
 }
 
 /*
@@ -630,9 +630,7 @@ EXPORT_SYMBOL(spa_checkpoint_discard_thread);
 EXPORT_SYMBOL(spa_checkpoint_discard_thread_check);
 
 /* BEGIN CSTYLED */
-module_param(zfs_spa_discard_memory_limit, ulong, 0644);
-MODULE_PARM_DESC(zfs_spa_discard_memory_limit,
-    "Maximum memory for prefetching checkpoint space "
-    "map per top-level vdev while discarding checkpoint");
+ZFS_MODULE_PARAM(zfs_spa, zfs_spa_, discard_memory_limit, UQUAD, ZMOD_RW, "Limit for memory used in prefetching the"
+    " checkpoint space map done on each vdev while discarding the checkpoint");
 /* END CSTYLED */
 #endif

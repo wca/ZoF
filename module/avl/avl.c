@@ -992,7 +992,7 @@ done:
 	return (AVL_NODE2DATA(node, off));
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 #include <linux/module.h>
 
 static int __init

@@ -40,16 +40,28 @@ function cleanup
 	#
 	wait
 
-	set_tunable64 zfs_commit_timeout_pct $ORIG_TIMEOUT
+	if is_freebsd; then
+		set_tunable64 vfs.zfs.commit_timeout_pct $ORIG_TIMEOUT
+	else
+		set_tunable64 zfs_commit_timeout_pct $ORIG_TIMEOUT
+	fi
 
 	poolexists $TESTPOOL && zpool destroy -f $TESTPOOL
 }
 
-ORIG_TIMEOUT=$(get_tunable zfs_commit_timeout_pct | tail -1 | awk '{print $NF}')
+if is_freebsd; then
+	ORIG_TIMEOUT=$(get_tunable vfs.zfs.commit_timeout_pct | tail -1 | awk '{print $NF}')
+else
+	ORIG_TIMEOUT=$(get_tunable zfs_commit_timeout_pct | tail -1 | awk '{print $NF}')
+fi
 log_onexit cleanup
 
 for PCT in 0 1 2 4 8 16 32 64 128 256 512 1024; do
-	log_must set_tunable64 zfs_commit_timeout_pct $PCT
+	if is_freebsd; then
+		log_must set_tunable64 vfs.zfs.commit_timeout_pct $PCT
+	else
+		log_must set_tunable64 zfs_commit_timeout_pct $PCT
+	fi
 
 	log_must zpool create $TESTPOOL $VDEV log $SDEV
 

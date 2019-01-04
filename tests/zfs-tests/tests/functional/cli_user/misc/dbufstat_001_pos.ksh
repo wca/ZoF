@@ -27,6 +27,10 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if is_freebsd; then
+	log_unsupported "dbufstat.py relies on procfs, which is not supported on FreeBSD"
+fi
+
 set -A args  "" "-b" "-d" "-r" "-v" "-s \",\"" "-x" "-n"
 
 log_assert "dbufstat generates output and doesn't return an error code"

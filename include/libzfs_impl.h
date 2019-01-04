@@ -39,6 +39,9 @@
 #include <libshare.h>
 #include <libzfs_core.h>
 
+#ifdef __FreeBSD__
+#include <libzfs_compat.h>
+#endif
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -153,11 +156,16 @@ int zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp,
  * on each change node regardless of whether or not it is currently
  * mounted.
  */
-#define	CL_GATHER_MOUNT_ALWAYS	1
+#define	CL_GATHER_MOUNT_ALWAYS	0x01
 /*
  * changelist_gather() flag to force it to iterate on mounted datasets only
  */
-#define	CL_GATHER_ITER_MOUNTED	2
+#define	CL_GATHER_ITER_MOUNTED	0x02
+
+/*
+ * Use this changelist_gather() flag to prevent unmounting of file systems.
+ */
+#define	CL_GATHER_DONT_UNMOUNT	0x04
 
 typedef struct prop_changelist prop_changelist_t;
 

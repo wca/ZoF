@@ -426,12 +426,12 @@ vdev_cache_stat_fini(void)
 }
 
 #if defined(_KERNEL)
-module_param(zfs_vdev_cache_max, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_cache_max, "Inflate reads small than max");
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_max, UINT, ZMOD_RW,
+	"Inflate reads small than max");
 
-module_param(zfs_vdev_cache_size, int, 0444);
-MODULE_PARM_DESC(zfs_vdev_cache_size, "Total size of the per-disk cache");
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_size, UINT, ZMOD_RW,
+	"Total size of the per-disk cache");
 
-module_param(zfs_vdev_cache_bshift, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_cache_bshift, "Shift size to inflate reads too");
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_bshift, UINT, ZMOD_RW,
+	"Shift size to inflate reads too");
 #endif

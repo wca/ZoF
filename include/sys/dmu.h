@@ -563,6 +563,10 @@ int dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
     void *tag, dmu_buf_t **, int flags);
 int dmu_buf_hold_by_dnode(dnode_t *dn, uint64_t offset,
     void *tag, dmu_buf_t **dbp, int flags);
+int
+dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
+    boolean_t read, void *tag, int *numbufsp, dmu_buf_t ***dbpp,
+    uint32_t flags);
 
 /*
  * Add a reference to a dmu buffer that has already been held via
@@ -843,7 +847,9 @@ void dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_tx_t *tx);
 #ifdef _KERNEL
+#ifdef __linux__
 #include <linux/blkdev_compat.h>
+#endif
 int dmu_read_uio(objset_t *os, uint64_t object, struct uio *uio, uint64_t size);
 int dmu_read_uio_dbuf(dmu_buf_t *zdb, struct uio *uio, uint64_t size);
 int dmu_read_uio_dnode(dnode_t *dn, struct uio *uio, uint64_t size);
@@ -1066,8 +1072,13 @@ typedef void (*dmu_traverse_cb_t)(objset_t *os, void *arg, struct blkptr *bp,
 void dmu_traverse_objset(objset_t *os, uint64_t txg_start,
     dmu_traverse_cb_t cb, void *arg);
 
+#if defined(_KERNEL) && defined(__FreeBSD__)
+int dmu_diff(const char *tosnap_name, const char *fromsnap_name,
+    struct file *fp, offset_t *offp);
+#else
 int dmu_diff(const char *tosnap_name, const char *fromsnap_name,
     struct vnode *vp, offset_t *offp);
+#endif
 
 /* CRC64 table */
 #define	ZFS_CRC64_POLY	0xC96C5795D7870F42ULL	/* ECMA-182, reflected form */

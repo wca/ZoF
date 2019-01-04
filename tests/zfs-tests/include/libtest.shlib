@@ -93,6 +93,19 @@ function is_linux
 	fi
 }
 
+# Determine if this is a FreeBSD test system
+#
+# Return 0 if platform FreeBSD, 1 if otherwise
+
+function is_freebsd
+{
+	if [[ $(uname -o) == "FreeBSD" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Determine if this is a 32-bit system
 #
 # Return 0 if platform is 32-bit, 1 if otherwise
@@ -145,17 +158,23 @@ function ismounted
 			fi
 		;;
 		ufs|nfs)
-			out=$(df -F $fstype $1 2>/dev/null)
-			ret=$?
-			(($ret != 0)) && return $ret
+			if is_freebsd; then
+				mount -pt $fstype | while read dev dir _t _flags; do
+					[[ "$1" == "$dev" || "$1" == "$dir" ]] && return 0
+				done
+			else
+				out=$(df -F $fstype $1 2>/dev/null)
+				ret=$?
+				(($ret != 0)) && return $ret
 
-			dir=${out%%\(*}
-			dir=${dir%% *}
-			name=${out##*\(}
-			name=${name%%\)*}
-			name=${name%% *}
+				dir=${out%%\(*}
+				dir=${dir%% *}
+				name=${out##*\(}
+				name=${name%%\)*}
+				name=${name%% *}
 
-			[[ "$1" == "$dir" || "$1" == "$name" ]] && return 0
+				[[ "$1" == "$dir" || "$1" == "$name" ]] && return 0
+			fi
 		;;
 		ext*)
 			out=$(df -t $fstype $1 2>/dev/null)
@@ -954,61 +973,31 @@ function set_partition
 #
 function delete_partitions
 {
-	typeset -i j=1
-
-	if [[ -z $DISK_ARRAY_NUM ]]; then
-		DISK_ARRAY_NUM=$(echo ${DISKS} | nawk '{print NF}')
-	fi
 	if [[ -z $DISKSARRAY ]]; then
 		DISKSARRAY=$DISKS
 	fi
 
 	if is_linux; then
-		if (( $DISK_ARRAY_NUM == 1 )); then
-			while ((j < MAX_PARTITIONS)); do
-				parted $DEV_DSKDIR/$DISK -s rm $j \
-				    > /dev/null 2>&1
-				if (( $? == 1 )); then
-					lsblk | egrep ${DISK}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 1 )); then
-							log_note "Partitions for $DISK should be deleted"
-						else
-							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
-						fi
-						return 0
+		for disk in $DISKSARRAY; do
+			for (( j = 1; j < MAX_PARTITIONS; j++ )); do
+				typeset partition=${disk}${SLICE_PREFIX}${j}
+				parted $DEV_DSKDIR/$disk -s rm $j > /dev/null 2>&1
+				if lsblk | grep -qF ${partition}; then
+					log_fail "Partition ${partition} not deleted"
 				else
-					lsblk | egrep ${DISK}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 0 )); then
-							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
-						fi
+					log_note "Partition ${partition} deleted"
 				fi
-				((j = j+1))
 			done
-		else
-			for disk in `echo $DISKSARRAY`; do
-				while ((j < MAX_PARTITIONS)); do
-					parted $DEV_DSKDIR/$disk -s rm $j > /dev/null 2>&1
-					if (( $? == 1 )); then
-						lsblk | egrep ${disk}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 1 )); then
-							log_note "Partitions for $disk should be deleted"
-						else
-							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
-						fi
-						j=7
-					else
-						lsblk | egrep ${disk}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 0 )); then
-							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
-						fi
-					fi
-					((j = j+1))
-				done
-				j=1
-			done
-		fi
+		done
+	elif is_freebsd; then
+		for disk in $DISKSARRAY; do
+			if gpart destroy -F $disk; then
+				log_note "Partitions for ${disk} deleted"
+			else
+				log_fail "Partitions for ${disk} not deleted"
+			fi
+		done
 	fi
-	return 0
 }
 
 #
@@ -1465,7 +1454,7 @@ function setup_nfs_server
 		return
 	fi
 
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		#
 		# Re-synchronize /var/lib/nfs/etab with /etc/exports and
 		# /etc/exports.d./* to provide a clean test environment.
@@ -1521,7 +1510,7 @@ function setup_nfs_server
 #
 function is_global_zone
 {
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		return 0
 	else
 		typeset cur_zone=$(zonename 2>/dev/null)
@@ -2261,7 +2250,7 @@ function cleanup_devices #vdevs
 function find_disks
 {
 	# Trust provided list, no attempt is made to locate unused devices.
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		echo "$@"
 		return
 	fi
@@ -2342,6 +2331,117 @@ EOF
 	echo $unused
 }
 
+function add_user_freebsd #<group_name> <user_name>
+{
+	typeset gname=$1
+	typeset uname=$2
+
+	if (( ${#gname} == 0 || ${#uname} == 0 )); then
+		log_fail "group name or user name are not defined."
+	fi
+
+	# Check to see if the user exists.
+	/usr/bin/id $uname > /dev/null 2>&1 && return 0
+
+	# Assign 1000 as the base uid
+	typeset -i uid=1000
+	while true; do
+		typeset -i ret
+		/usr/sbin/pw useradd -u $uid -g $gname -d /var/tmp/$uname -m -n $uname
+		ret=$?
+		case $ret in
+			0) return 0 ;;
+			# The uid is not unique
+			65) ((uid += 1)) ;;
+			*) return 1 ;;
+		esac
+		if [[ $uid == 65000 ]]; then
+			log_fail "No user id available under 65000 for $uname"
+		fi
+	done
+
+	return 0
+}
+
+#
+# Delete the specified user.
+#
+# $1 login name
+#
+function del_user_freebsd #<logname>
+{
+	typeset user=$1
+
+	if (( ${#user} == 0 )); then
+		log_fail "login name is necessary."
+	fi
+
+	if /usr/bin/id $user > /dev/null 2>&1; then
+		log_must /usr/sbin/pw userdel $user
+	fi
+
+	return 0
+}
+
+#
+# Select valid gid and create specified group.
+#
+# $1 group name
+#
+function add_group_freebsd #<group_name>
+{
+	typeset group=$1
+
+	if (( ${#group} == 0 )); then
+		log_fail "group name is necessary."
+	fi
+
+	# See if the group already exists.
+	/usr/sbin/pw groupshow $group >/dev/null 2>&1
+	[[ $? == 0 ]] && return 0
+
+	# Assign 1000 as the base gid
+	typeset -i gid=1000
+	while true; do
+		/usr/sbin/pw groupadd -g $gid -n $group > /dev/null 2>&1
+		typeset -i ret=$?
+		case $ret in
+			0) return 0 ;;
+			# The gid is not  unique
+			65) ((gid += 1)) ;;
+			*) return 1 ;;
+		esac
+		if [[ $gid == 65000 ]]; then
+			log_fail "No user id available under 65000 for $group"
+		fi
+	done
+}
+
+#
+# Delete the specified group.
+#
+# $1 group name
+#
+function del_group_freebsd #<group_name>
+{
+	typeset grp=$1
+	if (( ${#grp} == 0 )); then
+		log_fail "group name is necessary."
+	fi
+
+	/usr/sbin/pw groupdel -n $grp > /dev/null 2>&1
+	typeset -i ret=$?
+	case $ret in
+		# Group does not exist, or was deleted successfully.
+		0|6|65) return 0 ;;
+		# Name already exists as a group name
+		9) log_must /usr/sbin/pw groupdel $grp ;;
+		*) return 1 ;;
+	esac
+
+	return 0
+}
+
 #
 # Add specified user to specified group
 #
@@ -2351,6 +2451,11 @@ EOF
 #
 function add_user #<group_name> <user_name> <basedir>
 {
+	if is_freebsd ; then
+		add_user_freebsd "$1" "$2" "$3"
+		return $?
+	fi
+
 	typeset gname=$1
 	typeset uname=$2
 	typeset basedir=${3:-"/var/tmp"}
@@ -2383,6 +2488,11 @@ function add_user #<group_name> <user_name> <basedir>
 #
 function del_user #<logname> <basedir>
 {
+	if is_freebsd ; then
+		del_user_freebsd "$1" "$2"
+		return $?
+	fi
+
 	typeset user=$1
 	typeset basedir=${2:-"/var/tmp"}
 
@@ -2406,6 +2516,11 @@ function del_user #<logname> <basedir>
 #
 function add_group #<group_name>
 {
+	if is_freebsd ; then
+		add_group_freebsd "$1"
+		return $?
+	fi
+
 	typeset group=$1
 
 	if ((${#group} == 0)); then
@@ -2445,6 +2560,11 @@ function add_group #<group_name>
 #
 function del_group #<group_name>
 {
+	if is_freebsd ; then
+		del_group_freebsd "$1"
+		return $?
+	fi
+
 	typeset grp=$1
 	if ((${#grp} == 0)); then
 		log_fail "group name is necessary."
@@ -2840,7 +2960,7 @@ function labelvtoc
 	typeset label_file=/var/tmp/labelvtoc.$$
 	typeset arch=$(uname -p)
 
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		log_note "Currently unsupported by the test framework"
 		return 1
 	fi
@@ -2898,7 +3018,11 @@ function get_rootfs
 {
 	typeset rootfs=""
 
-	if ! is_linux; then
+	if is_freebsd; then
+		rootfs=$(mount | grep 'on / ' | awk '{print $1}')
+	fi
+
+	if ! is_linux && ! is_freebsd; then
 		rootfs=$(awk '{if ($2 == "/" && $3 == "zfs") print $1}' \
 			/etc/mnttab)
 	fi
@@ -2923,7 +3047,11 @@ function get_rootpool
 	typeset rootfs=""
 	typeset rootpool=""
 
-	if ! is_linux; then
+	if is_freebsd; then
+		rootfs=$(mount | grep 'on / ' | awk '{print $1}')
+	fi
+
+	if ! is_linux && ! is_freebsd; then
 		rootfs=$(awk '{if ($2 == "/" && $3 =="zfs") print $1}' \
 			 /etc/mnttab)
 	fi
@@ -3011,6 +3139,8 @@ function is_mp
 {
 	if is_linux; then
 		(($(nproc) > 1))
+	elif is_freebsd; then
+		/sbin/sysctl -n kern.smp.cpus
 	else
 		(($(psrinfo | wc -l) > 1))
 	fi
@@ -3022,6 +3152,8 @@ function get_cpu_freq
 {
 	if is_linux; then
 		lscpu | awk '/CPU MHz/ { print $3 }'
+	elif is_freebsd; then
+		cat /var/run/dmesg.boot | grep '^CPU:' | cut -d '(' -f 2 | cut -d ')' -f 1
 	else
 		psrinfo -v 0 | awk '/processor operates at/ {print $6}'
 	fi
@@ -3034,8 +3166,13 @@ function user_run
 	shift
 
 	log_note "user:$user $@"
-	eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
-	return $?
+	if is_freebsd; then
+		eval "su \$user -c \"$@\"" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
+		return $?
+	else
+		eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
+		return $?
+	fi
 }
 
 #
@@ -3161,7 +3298,11 @@ function get_objnum
 	typeset objnum
 
 	[[ -e $pathname ]] || log_fail "No such file or directory: $pathname"
-	objnum=$(stat -c %i $pathname)
+	if is_freebsd; then
+		objnum=$(stat -f "%i" $pathname)
+	else
+		objnum=$(stat -c %i $pathname)
+	fi
 	echo $objnum
 }
 
@@ -3416,6 +3557,8 @@ function is_swap_inuse
 
 	if is_linux; then
 		swapon -s | grep -w $(readlink -f $device) > /dev/null 2>&1
+	elif is_freebsd; then
+		/sbin/swapctl -l | grep -w $device
 	else
 		swap -l | grep -w $device > /dev/null 2>&1
 	fi
@@ -3433,6 +3576,8 @@ function swap_setup
 	if is_linux; then
 		log_must eval "mkswap $swapdev > /dev/null 2>&1"
 		log_must swapon $swapdev
+	elif is_freebsd; then
+		log_must /sbin/swapctl -a $swapdev
 	else
 	        log_must swap -a $swapdev
 	fi
@@ -3450,6 +3595,8 @@ function swap_cleanup
 	if is_swap_inuse $swapdev; then
 		if is_linux; then
 			log_must swapoff $swapdev
+		elif is_freebsd; then
+			log_must /sbin/swapoff $swapdev
 		else
 			log_must swap -d $swapdev
 		fi
@@ -3498,6 +3645,10 @@ function set_tunable_impl
 		cat >"$zfs_tunables/$tunable" <<<"$value"
 		return $?
 		;;
+	FreeBSD)
+		/sbin/sysctl $tunable=$value
+		return "$?"
+		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
@@ -3530,6 +3681,9 @@ function get_tunable_impl
 		cat $zfs_tunables/$tunable
 		return $?
 		;;
+	FreeBSD)
+		/sbin/sysctl -n $tunable
+                ;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		;;

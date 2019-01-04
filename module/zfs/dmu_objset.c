@@ -1262,8 +1262,11 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 		mutex_exit(&ds->ds_lock);
 	}
 
-	spa_history_log_internal_ds(ds, "create", tx, "");
+	spa_history_log_internal_ds(ds, "create", tx, " ");
+#ifndef __FreeBSD__
+	/* XXX what are we missing out on */
 	zvol_create_minors(spa, doca->doca_name, B_TRUE);
+#endif
 
 	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	dsl_dir_rele(pdd, FTAG);
@@ -1375,8 +1378,11 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(dsl_dataset_hold_obj(pdd->dd_pool, obj, FTAG, &ds));
 	dsl_dataset_name(origin, namebuf);
 	spa_history_log_internal_ds(ds, "clone", tx,
-	    "origin=%s (%llu)", namebuf, origin->ds_object);
+	    "origin=%s (%lu)", namebuf, (unsigned long)origin->ds_object);
+#ifndef __FreeBSD__
+	/* XXX what are we missing out on */
 	zvol_create_minors(dp->dp_spa, doca->doca_clone, B_TRUE);
+#endif
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dataset_rele(origin, FTAG);
 	dsl_dir_rele(pdd, FTAG);

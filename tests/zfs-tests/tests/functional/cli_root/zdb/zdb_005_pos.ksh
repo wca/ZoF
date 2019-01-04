@@ -17,7 +17,12 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-#
+if is_freebsd ; then
+	# FreeBSD won't allow writing to an in-use device without this set
+	log_must /sbin/sysctl kern.geom.debugflags=16
+	DEV_RDSKDIR="/dev"
+fi
+
 # Description:
 # zdb -l exit codes are correct
 #

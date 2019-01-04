@@ -398,8 +398,10 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	length = sizeof (struct dk_gpt) +
 	    sizeof (struct dk_part) * (nparts - 1);
 
-	if ((*vtoc = calloc(1, length)) == NULL)
+	if ((*vtoc = calloc(1, length)) == NULL) {
+		// cppcheck-suppress memleak
 		return (-1);
+	}
 
 	vptr = *vtoc;
 
@@ -418,6 +420,7 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 
 	(void) uuid_generate((uchar_t *)&uuid);
 	UUID_LE_CONVERT(vptr->efi_disk_uguid, uuid);
+	// cppcheck-suppress memleak
 	return (0);
 }
 
@@ -435,9 +438,10 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 	nparts = EFI_MIN_ARRAY_SIZE / sizeof (efi_gpe_t);
 	length = (int) sizeof (struct dk_gpt) +
 	    (int) sizeof (struct dk_part) * (nparts - 1);
-	if ((*vtoc = calloc(1, length)) == NULL)
+	if ((*vtoc = calloc(1, length)) == NULL) {
+		// cppcheck-suppress memleak
 		return (VT_ERROR);
-
+	}
 	(*vtoc)->efi_nparts = nparts;
 	rval = efi_read(fd, *vtoc);
 
@@ -450,6 +454,7 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 		if ((tmp = realloc(*vtoc, length)) == NULL) {
 			free (*vtoc);
 			*vtoc = NULL;
+			// cppcheck-suppress memleak
 			return (VT_ERROR);
 		} else {
 			*vtoc = tmp;
@@ -465,7 +470,7 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 		free (*vtoc);
 		*vtoc = NULL;
 	}
-
+	// cppcheck-suppress memleak
 	return (rval);
 }
 

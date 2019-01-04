@@ -9,11 +9,13 @@ DEFAULT_INCLUDES += \
 
 sbin_PROGRAMS = zdb
 
+zdb_LDADD = \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libzpool/libzpool.la
+
 zdb_SOURCES = \
 	zdb.c \
 	zdb_il.c \
 	zdb.h
 
-zdb_LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libzpool/libzpool.la
+

@@ -40,6 +40,10 @@
 
 verify_runnable "both"
 
+if is_freebsd; then
+	log_unsupported "attr not supported on FreeBSD"
+fi
+
 log_assert "Verify incremental receive handles objects with changed dnode size"
 
 function cleanup

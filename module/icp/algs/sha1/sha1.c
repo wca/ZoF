@@ -84,7 +84,7 @@ static uint8_t PADDING[64] = { 0x80, /* all zeros */ };
  * ROTATE_LEFT rotates x left n bits.
  */
 
-#if	defined(__GNUC__) && defined(_LP64)
+#if	defined(__GNUC__) && defined(_LP64) && !defined(__amd64__)
 static __inline__ uint64_t
 ROTATE_LEFT(uint64_t value, uint32_t n)
 {

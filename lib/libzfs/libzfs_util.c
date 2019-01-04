@@ -56,6 +56,16 @@
 #include <libzutil.h>
 #include <sys/zfs_sysfs.h>
 
+#ifdef __FreeBSD__
+#include <sys/linker.h>
+#include <sys/module.h>
+#define	execvpe exect
+#define	ESTRPIPE EPIPE
+#define	ZFS_MODULE "openzfs"
+#else
+#define	ZFS_MODULE ZFS_DRIVER
+#endif
+
 int
 libzfs_errno(libzfs_handle_t *hdl)
 {
@@ -65,26 +75,31 @@ libzfs_errno(libzfs_handle_t *hdl)
 const char *
 libzfs_error_init(int error)
 {
+#ifdef __FreeBSD__
+
+	return (strerror(error));
+#else
 	switch (error) {
 	case ENXIO:
 		return (dgettext(TEXT_DOMAIN, "The ZFS modules are not "
 		    "loaded.\nTry running '/sbin/modprobe zfs' as root "
-		    "to load them.\n"));
+		    "to load them."));
 	case ENOENT:
 		return (dgettext(TEXT_DOMAIN, "/dev/zfs and /proc/self/mounts "
 		    "are required.\nTry running 'udevadm trigger' and 'mount "
-		    "-t proc proc /proc' as root.\n"));
+		    "-t proc proc /proc' as root."));
 	case ENOEXEC:
 		return (dgettext(TEXT_DOMAIN, "The ZFS modules cannot be "
 		    "auto-loaded.\nTry running '/sbin/modprobe zfs' as "
-		    "root to manually load them.\n"));
+		    "root to manually load them."));
 	case EACCES:
 		return (dgettext(TEXT_DOMAIN, "Permission denied the "
-		    "ZFS utilities must be run as root.\n"));
+		    "ZFS utilities must be run as root."));
 	default:
 		return (dgettext(TEXT_DOMAIN, "Failed to initialize the "
-		    "libzfs library.\n"));
+		    "libzfs library."));
 	}
+#endif
 }
 
 const char *
@@ -712,6 +727,7 @@ libzfs_print_on_error(libzfs_handle_t *hdl, boolean_t printerr)
 	hdl->libzfs_printerr = printerr;
 }
 
+#ifdef __linux__
 static int
 libzfs_module_loaded(const char *module)
 {
@@ -723,6 +739,7 @@ libzfs_module_loaded(const char *module)
 
 	return (access(path, F_OK) == 0);
 }
+#endif
 
 
 /*
@@ -915,6 +932,16 @@ libzfs_envvar_is_set(char *envvar)
 static int
 libzfs_load_module(const char *module)
 {
+#ifdef __FreeBSD__
+
+	if (modfind(ZFS_DRIVER) < 0) {
+		/* Not present in kernel, try loading it. */
+		if (kldload(module) < 0 && errno != EEXIST) {
+			return (errno);
+		}
+	}
+	return (0);
+#else
 	char *argv[4] = {"/sbin/modprobe", "-q", (char *)module, (char *)0};
 	char *load_str, *timeout_str;
 	long timeout = 10; /* seconds */
@@ -972,6 +999,7 @@ libzfs_load_module(const char *module)
 	} while (NSEC2MSEC(gethrtime() - start) < (timeout * MILLISEC));
 
 	return (ENOENT);
+#endif
 }
 
 libzfs_handle_t *
@@ -980,7 +1008,7 @@ libzfs_init(void)
 	libzfs_handle_t *hdl;
 	int error;
 
-	error = libzfs_load_module(ZFS_DRIVER);
+	error = libzfs_load_module(ZFS_MODULE);
 	if (error) {
 		errno = error;
 		return (NULL);
@@ -1104,21 +1132,12 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 		return (zfs_open(hdl, path, argtype));
 	}
 
-	if (stat64(path, &statbuf) != 0) {
-		(void) fprintf(stderr, "%s: %s\n", path, strerror(errno));
-		return (NULL);
-	}
 
 	/* Reopen MNTTAB to prevent reading stale data from open file */
 	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
 		return (NULL);
 
-	while ((ret = getextmntent(hdl->libzfs_mnttab, &entry, 0)) == 0) {
-		if (makedevice(entry.mnt_major, entry.mnt_minor) ==
-		    statbuf.st_dev) {
-			break;
-		}
-	}
+	ret = getextmntent(path, &entry, &statbuf);
 	if (ret != 0) {
 		return (NULL);
 	}

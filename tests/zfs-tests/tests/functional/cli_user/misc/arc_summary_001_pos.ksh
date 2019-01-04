@@ -51,7 +51,7 @@ fi
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
 	log_must eval "arc_summary ${args[i]} > /dev/null"
-	((i = i + 1))
+        ((i = i + 1))
 done
 
 log_must eval "arc_summary | head > /dev/null"

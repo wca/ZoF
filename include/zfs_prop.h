@@ -33,6 +33,12 @@
 extern "C" {
 #endif
 
+#ifdef __FreeBSD__
+#define	ZONED "jailed"
+#else
+#define	ZONED "zoned"
+#endif
+
 /*
  * For index types (e.g. compression and checksum), we want the numeric value
  * in the kernel, but the string value in userland.

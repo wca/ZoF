@@ -36,7 +36,6 @@
 
 #include <sys/time.h>
 #include <sys/zio_priority.h>
-
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -115,7 +114,8 @@ typedef enum {
 	ZFS_PROP_READONLY,
 	ZFS_PROP_ZONED,
 	ZFS_PROP_SNAPDIR,
-	ZFS_PROP_PRIVATE,		/* not exposed to user, temporary */
+	ZFS_PROP_PRIVATE,		/* not exposed to the user, temporary */
+	ZFS_PROP_ACLMODE,
 	ZFS_PROP_ACLINHERIT,
 	ZFS_PROP_CREATETXG,
 	ZFS_PROP_NAME,			/* not exposed to the user */
@@ -1042,6 +1042,9 @@ typedef struct vdev_stat {
 	uint64_t	vs_trim_bytes_est;	/* total bytes to trim */
 	uint64_t	vs_trim_state;		/* vdev_trim_state_t */
 	uint64_t	vs_trim_action_time;	/* time_t */
+	uint64_t	vs_configured_ashift;	/* TLV vdev_ashift */
+	uint64_t	vs_logical_ashift;	/* vdev_logical_ashift  */
+	uint64_t	vs_physical_ashift;	/* vdev_physical_ashift */
 } vdev_stat_t;
 
 /*
@@ -1192,7 +1195,11 @@ typedef enum zfs_ioc {
 	/*
 	 * illumos - 81/128 numbers reserved.
 	 */
+#ifdef __FreeBSD__
+	ZFS_IOC_FIRST =	0,
+#else
 	ZFS_IOC_FIRST =	('Z' << 8),
+#endif
 	ZFS_IOC = ZFS_IOC_FIRST,
 	ZFS_IOC_POOL_CREATE = ZFS_IOC_FIRST,	/* 0x5a00 */
 	ZFS_IOC_POOL_DESTROY,			/* 0x5a01 */
@@ -1281,16 +1288,17 @@ typedef enum zfs_ioc {
 	/*
 	 * Linux - 3/64 numbers reserved.
 	 */
-	ZFS_IOC_LINUX = ('Z' << 8) + 0x80,
+	ZFS_IOC_LINUX = ZFS_IOC_FIRST + 0x80,
 	ZFS_IOC_EVENTS_NEXT,			/* 0x5a81 */
 	ZFS_IOC_EVENTS_CLEAR,			/* 0x5a82 */
 	ZFS_IOC_EVENTS_SEEK,			/* 0x5a83 */
-
 	/*
 	 * FreeBSD - 1/64 numbers reserved.
 	 */
-	ZFS_IOC_FREEBSD = ('Z' << 8) + 0xC0,
-
+	ZFS_IOC_FREEBSD = ZFS_IOC_FIRST + 0xc0,
+	ZFS_IOC_NEXTBOOT,			/* 0xc1 */
+	ZFS_IOC_JAIL,			/* 0xc2 */
+	ZFS_IOC_UNJAIL,			/* 0xc3 */
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 

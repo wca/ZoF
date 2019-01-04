@@ -860,7 +860,7 @@ spa_change_guid_sync(void *arg, dmu_tx_t *tx)
 	spa_config_exit(spa, SCL_STATE, FTAG);
 
 	spa_history_log_internal(spa, "guid change", tx, "old=%llu new=%llu",
-	    oldguid, *newguid);
+	    (longlong_t)oldguid, (longlong_t)*newguid);
 }
 
 /*
@@ -1379,7 +1379,7 @@ spa_deactivate(spa_t *spa)
  * in the CLOSED state.  This will prep the pool before open/creation/import.
  * All vdev validation is done by the vdev_alloc() routine.
  */
-static int
+int
 spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent,
     uint_t id, int atype)
 {
@@ -2469,7 +2469,7 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type)
 	return (error);
 }
 
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 /*
  * Count the number of per-vdev ZAPs associated with all of the vdevs in the
  * vdev tree rooted in the given vd, and ensure that each ZAP is present in the
@@ -5310,6 +5310,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		for (int c = 0; error == 0 && c < rvd->vdev_children; c++) {
 			vdev_t *vd = rvd->vdev_child[c];
 
+			vdev_ashift_optimize(vd);
 			vdev_metaslab_set_size(vd);
 			vdev_expand(vd, txg);
 		}
@@ -5642,10 +5643,9 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 	spa_history_log_version(spa, "import", NULL);
 
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_IMPORT);
+	mutex_exit(&spa_namespace_lock);
 
 	zvol_create_minors(spa, pool, B_TRUE);
-
-	mutex_exit(&spa_namespace_lock);
 
 	return (0);
 }
@@ -7039,8 +7039,11 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 
 	newspa->spa_config_source = SPA_CONFIG_SRC_SPLIT;
 
+	/* FreeBSD XXX */
+	newspa->spa_splitting_newspa = B_TRUE;
 	/* create the new pool from the disks of the original pool */
 	error = spa_load(newspa, SPA_LOAD_IMPORT, SPA_IMPORT_ASSEMBLE);
+	newspa->spa_splitting_newspa = B_FALSE;
 	if (error)
 		goto out;
 
@@ -7473,7 +7476,8 @@ spa_async_thread(void *arg)
 		if (new_space != old_space) {
 			spa_history_log_internal(spa, "vdev online", NULL,
 			    "pool '%s' size: %llu(+%llu)",
-			    spa_name(spa), new_space, new_space - old_space);
+			    spa_name(spa), (longlong_t)new_space,
+			    (longlong_t)(new_space - old_space));
 		}
 	}
 
@@ -7925,7 +7929,8 @@ spa_sync_version(void *arg, dmu_tx_t *tx)
 
 	spa->spa_uberblock.ub_version = version;
 	vdev_config_dirty(spa->spa_root_vdev);
-	spa_history_log_internal(spa, "set", tx, "version=%lld", version);
+	spa_history_log_internal(spa, "set", tx, "version=%lld",
+	    (longlong_t)version);
 }
 
 /*
@@ -8039,7 +8044,8 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 				    spa->spa_pool_props_object, propname,
 				    8, 1, &intval, tx));
 				spa_history_log_internal(spa, "set", tx,
-				    "%s=%lld", nvpair_name(elem), intval);
+				    "%s=%lld", nvpair_name(elem),
+				    (longlong_t)intval);
 			} else {
 				ASSERT(0); /* not allowed */
 			}
@@ -8499,7 +8505,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 
 	spa_sync_iterate_to_convergence(spa, tx);
 
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 	if (!list_is_empty(&spa->spa_config_dirty_list)) {
 	/*
 	 * Make sure that the number of ZAPs for all the vdevs matches
@@ -8856,30 +8862,24 @@ EXPORT_SYMBOL(spa_event_notify);
 #endif
 
 #if defined(_KERNEL)
-module_param(spa_load_verify_maxinflight, int, 0644);
-MODULE_PARM_DESC(spa_load_verify_maxinflight,
+ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_maxinflight, UINT, ZMOD_RW,
 	"Max concurrent traversal I/Os while verifying pool during import -X");
 
-module_param(spa_load_verify_metadata, int, 0644);
-MODULE_PARM_DESC(spa_load_verify_metadata,
+ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_metadata, UINT, ZMOD_RW,
 	"Set to traverse metadata on pool import");
 
-module_param(spa_load_verify_data, int, 0644);
-MODULE_PARM_DESC(spa_load_verify_data,
+ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_data, UINT, ZMOD_RW,
 	"Set to traverse data on pool import");
 
-module_param(spa_load_print_vdev_tree, int, 0644);
-MODULE_PARM_DESC(spa_load_print_vdev_tree,
+ZFS_MODULE_PARAM(zfs_spa, spa_, load_print_vdev_tree, UINT, ZMOD_RW,
 	"Print vdev tree to zfs_dbgmsg during pool import");
 
 /* CSTYLED */
-module_param(zio_taskq_batch_pct, uint, 0444);
-MODULE_PARM_DESC(zio_taskq_batch_pct,
+ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RW,
 	"Percentage of CPUs to run an IO worker thread");
 
 /* BEGIN CSTYLED */
-module_param(zfs_max_missing_tvds, ulong, 0644);
-MODULE_PARM_DESC(zfs_max_missing_tvds,
+ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds, UQUAD, ZMOD_RW,
 	"Allow importing pool with up to this number of missing top-level vdevs"
 	" (in read-only mode)");
 /* END CSTYLED */

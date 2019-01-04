@@ -159,7 +159,10 @@
 libzfs_handle_t *g_zfs;
 int zfs_fd;
 
-#define	ECKSUM	EBADE
+#ifdef __FreeBSD__
+int zcmd_ioctl(int fd, int request, zfs_cmd_t *zc);
+#define	ioctl(fd, ioc, zc)	zcmd_ioctl((fd), (ioc), (zc))
+#endif
 
 static const char *errtable[TYPE_INVAL] = {
 	"data",
@@ -763,7 +766,7 @@ main(int argc, char **argv)
 	uint32_t dvas = 0;
 
 	if ((g_zfs = libzfs_init()) == NULL) {
-		(void) fprintf(stderr, "%s", libzfs_error_init(errno));
+		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
 		return (1);
 	}
 

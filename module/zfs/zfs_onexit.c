@@ -117,6 +117,7 @@ zfs_onexit_minor_to_state(minor_t minor, zfs_onexit_t **zo)
  * of this function must call zfs_onexit_fd_rele() when they're finished
  * using the minor number.
  */
+#ifdef __linux__
 int
 zfs_onexit_fd_hold(int fd, minor_t *minorp)
 {
@@ -137,6 +138,32 @@ zfs_onexit_fd_hold(int fd, minor_t *minorp)
 
 	return (error);
 }
+#elif defined(__FreeBSD__)
+int
+zfs_onexit_fd_hold(int fd, minor_t *minorp)
+{
+	file_t *fp, *tmpfp;
+	zfs_onexit_t *zo;
+	void *data;
+	int error;
+
+	fp = getf(fd);
+	if (fp == NULL)
+		return (SET_ERROR(EBADF));
+
+	tmpfp = curthread->td_fpop;
+	curthread->td_fpop = fp;
+	error = devfs_get_cdevpriv(&data);
+	if (error == 0)
+		*minorp = (minor_t)(uintptr_t)data;
+	curthread->td_fpop = tmpfp;
+	if (error != 0)
+		return (SET_ERROR(EBADF));
+	return (zfs_onexit_minor_to_state(*minorp, &zo));
+}
+#else
+#error "unknown OS"
+#endif
 
 void
 zfs_onexit_fd_rele(int fd)

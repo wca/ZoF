@@ -587,8 +587,10 @@ spa_config_update(spa_t *spa, int what)
 			    (tvd->vdev_islog && tvd->vdev_removing))
 				continue;
 
-			if (tvd->vdev_ms_array == 0)
+			if (tvd->vdev_ms_array == 0) {
+				vdev_ashift_optimize(tvd);
 				vdev_metaslab_set_size(tvd);
+			}
 			vdev_expand(tvd, txg);
 		}
 	}
@@ -618,10 +620,13 @@ EXPORT_SYMBOL(spa_config_set);
 EXPORT_SYMBOL(spa_config_generate);
 EXPORT_SYMBOL(spa_config_update);
 
-module_param(spa_config_path, charp, 0444);
-MODULE_PARM_DESC(spa_config_path, "SPA config file (/etc/zfs/zpool.cache)");
+#ifdef __linux__
+/* string sysctls require a char array on FreeBSD */
+ZFS_MODULE_PARAM(zfs_spa, spa_, config_path, STRING, ZMOD_RD,
+	"SPA config file (/etc/zfs/zpool.cache)");
+#endif
 
-module_param(zfs_autoimport_disable, int, 0644);
-MODULE_PARM_DESC(zfs_autoimport_disable, "Disable pool import at module load");
+ZFS_MODULE_PARAM(zfs, zfs_, autoimport_disable, UINT, ZMOD_RW,
+	"Disable pool import at module load");
 
 #endif

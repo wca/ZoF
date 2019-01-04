@@ -269,11 +269,26 @@ enum zio_wait_type {
  * We'll take the unused errnos, 'EBADE' and 'EBADR' (from the Convergent
  * graveyard) to indicate checksum errors and fragmentation.
  */
+#ifdef __linux__
 #define	ECKSUM	EBADE
 #define	EFRAGS	EBADR
 
 /* Similar for ENOACTIVE */
 #define	ENOTACTIVE	ENOANO
+#elif defined(__FreeBSD__)
+	/* XXX change us */
+#define	ECKSUM	EBADMSG
+#define	EFRAGS	EFTYPE
+
+/* Similar for ENOACTIVE */
+#define	ENOTACTIVE	ECANCELED
+
+#define	EREMOTEIO EREMOTE
+#define	ECHRNG ENXIO
+#define	ETIME ETIMEDOUT
+#else
+#error "OS not defined"
+#endif
 
 typedef void zio_done_func_t(zio_t *zio);
 
@@ -490,6 +505,10 @@ struct zio {
 	avl_node_t	io_offset_node;
 	avl_node_t	io_alloc_node;
 	zio_alloc_list_t 	io_alloc_list;
+
+#ifdef __FreeBSD__
+	struct bio	*io_bio;
+#endif
 
 	/* Internal pipeline state */
 	enum zio_flag	io_flags;

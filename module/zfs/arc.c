@@ -142,7 +142,7 @@
  * ability to store the physical data (b_pabd) associated with the DVA of the
  * arc_buf_hdr_t. Since the b_pabd is a copy of the on-disk physical block,
  * it will match its on-disk compression characteristics. This behavior can be
- * disabled by setting 'zfs_compressed_arc_enabled' to B_FALSE. When the
+ * disabled by setting 'zfs_arc_compression_enabled' to B_FALSE. When the
  * compressed ARC functionality is disabled, the b_pabd will point to an
  * uncompressed version of the on-disk data.
  *
@@ -292,17 +292,23 @@
 #include <sys/zil.h>
 #include <sys/fm/fs/zfs.h>
 #ifdef _KERNEL
+#ifdef __linux__
 #include <sys/shrinker.h>
 #include <sys/vmsystm.h>
 #include <sys/zpl.h>
 #include <linux/page_compat.h>
+#elif defined(__FreeBSD__)
+#include <sys/eventhandler.h>
+#endif
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
 #include <sys/zthr.h>
 #include <zfs_fletcher.h>
 #include <sys/arc_impl.h>
+#ifdef __linux__
 #include <sys/trace_arc.h>
+#endif
 #include <sys/aggsum.h>
 #include <sys/cityhash.h>
 
@@ -352,11 +358,11 @@ int zfs_arc_overflow_shift = 8;
 int arc_p_min_shift = 4;
 
 /* log2(fraction of arc to reclaim) */
-static int arc_shrink_shift = 7;
+int		arc_shrink_shift = 7;
 
 /* percent of pagecache to reclaim arc to */
-#ifdef _KERNEL
-static uint_t zfs_arc_pc_percent = 0;
+#if defined(_KERNEL)
+static uint_t		zfs_arc_pc_percent = 0;
 #endif
 
 /*
@@ -375,8 +381,8 @@ int			arc_no_grow_shift = 5;
  * minimum lifespan of a prefetch block in clock ticks
  * (initialized in arc_init())
  */
-static int		arc_min_prefetch_ms;
-static int		arc_min_prescient_prefetch_ms;
+int		arc_min_prefetch_ms;
+int		arc_min_prescient_prefetch_ms;
 
 /*
  * If this percent of memory is free, don't throttle.
@@ -403,8 +409,8 @@ int arc_zio_arena_free_shift = 2;
  */
 unsigned long zfs_arc_max = 0;
 unsigned long zfs_arc_min = 0;
-unsigned long zfs_arc_meta_limit = 0;
-unsigned long zfs_arc_meta_min = 0;
+unsigned long zfs_arc_metadata_limit = 0;
+unsigned long zfs_arc_metadata_min = 0;
 unsigned long zfs_arc_dnode_limit = 0;
 unsigned long zfs_arc_dnode_reduce_percent = 10;
 int zfs_arc_grow_retry = 0;
@@ -422,7 +428,7 @@ unsigned long zfs_arc_pool_dirty_percent = 20;	/* each pool's anon allowance */
 /*
  * Enable or disable compressed arc buffers.
  */
-int zfs_compressed_arc_enabled = B_TRUE;
+int zfs_arc_compression_enabled = B_TRUE;
 
 /*
  * ARC will evict meta buffers that exceed arc_meta_limit. This
@@ -446,291 +452,18 @@ int zfs_arc_meta_prune = 10000;
 int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
 int zfs_arc_meta_adjust_restarts = 4096;
 int zfs_arc_lotsfree_percent = 10;
+#define	ARC_BALANCED_MIN 8*1024UL*1024UL*1024UL
+
 
 /* The 6 states: */
-static arc_state_t ARC_anon;
-static arc_state_t ARC_mru;
-static arc_state_t ARC_mru_ghost;
-static arc_state_t ARC_mfu;
-static arc_state_t ARC_mfu_ghost;
-static arc_state_t ARC_l2c_only;
+arc_state_t ARC_anon;
+arc_state_t ARC_mru;
+arc_state_t ARC_mru_ghost;
+arc_state_t ARC_mfu;
+arc_state_t ARC_mfu_ghost;
+arc_state_t ARC_l2c_only;
 
-typedef struct arc_stats {
-	kstat_named_t arcstat_hits;
-	kstat_named_t arcstat_misses;
-	kstat_named_t arcstat_demand_data_hits;
-	kstat_named_t arcstat_demand_data_misses;
-	kstat_named_t arcstat_demand_metadata_hits;
-	kstat_named_t arcstat_demand_metadata_misses;
-	kstat_named_t arcstat_prefetch_data_hits;
-	kstat_named_t arcstat_prefetch_data_misses;
-	kstat_named_t arcstat_prefetch_metadata_hits;
-	kstat_named_t arcstat_prefetch_metadata_misses;
-	kstat_named_t arcstat_mru_hits;
-	kstat_named_t arcstat_mru_ghost_hits;
-	kstat_named_t arcstat_mfu_hits;
-	kstat_named_t arcstat_mfu_ghost_hits;
-	kstat_named_t arcstat_deleted;
-	/*
-	 * Number of buffers that could not be evicted because the hash lock
-	 * was held by another thread.  The lock may not necessarily be held
-	 * by something using the same buffer, since hash locks are shared
-	 * by multiple buffers.
-	 */
-	kstat_named_t arcstat_mutex_miss;
-	/*
-	 * Number of buffers skipped when updating the access state due to the
-	 * header having already been released after acquiring the hash lock.
-	 */
-	kstat_named_t arcstat_access_skip;
-	/*
-	 * Number of buffers skipped because they have I/O in progress, are
-	 * indirect prefetch buffers that have not lived long enough, or are
-	 * not from the spa we're trying to evict from.
-	 */
-	kstat_named_t arcstat_evict_skip;
-	/*
-	 * Number of times arc_evict_state() was unable to evict enough
-	 * buffers to reach its target amount.
-	 */
-	kstat_named_t arcstat_evict_not_enough;
-	kstat_named_t arcstat_evict_l2_cached;
-	kstat_named_t arcstat_evict_l2_eligible;
-	kstat_named_t arcstat_evict_l2_ineligible;
-	kstat_named_t arcstat_evict_l2_skip;
-	kstat_named_t arcstat_hash_elements;
-	kstat_named_t arcstat_hash_elements_max;
-	kstat_named_t arcstat_hash_collisions;
-	kstat_named_t arcstat_hash_chains;
-	kstat_named_t arcstat_hash_chain_max;
-	kstat_named_t arcstat_p;
-	kstat_named_t arcstat_c;
-	kstat_named_t arcstat_c_min;
-	kstat_named_t arcstat_c_max;
-	/* Not updated directly; only synced in arc_kstat_update. */
-	kstat_named_t arcstat_size;
-	/*
-	 * Number of compressed bytes stored in the arc_buf_hdr_t's b_pabd.
-	 * Note that the compressed bytes may match the uncompressed bytes
-	 * if the block is either not compressed or compressed arc is disabled.
-	 */
-	kstat_named_t arcstat_compressed_size;
-	/*
-	 * Uncompressed size of the data stored in b_pabd. If compressed
-	 * arc is disabled then this value will be identical to the stat
-	 * above.
-	 */
-	kstat_named_t arcstat_uncompressed_size;
-	/*
-	 * Number of bytes stored in all the arc_buf_t's. This is classified
-	 * as "overhead" since this data is typically short-lived and will
-	 * be evicted from the arc when it becomes unreferenced unless the
-	 * zfs_keep_uncompressed_metadata or zfs_keep_uncompressed_level
-	 * values have been set (see comment in dbuf.c for more information).
-	 */
-	kstat_named_t arcstat_overhead_size;
-	/*
-	 * Number of bytes consumed by internal ARC structures necessary
-	 * for tracking purposes; these structures are not actually
-	 * backed by ARC buffers. This includes arc_buf_hdr_t structures
-	 * (allocated via arc_buf_hdr_t_full and arc_buf_hdr_t_l2only
-	 * caches), and arc_buf_t structures (allocated via arc_buf_t
-	 * cache).
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_hdr_size;
-	/*
-	 * Number of bytes consumed by ARC buffers of type equal to
-	 * ARC_BUFC_DATA. This is generally consumed by buffers backing
-	 * on disk user data (e.g. plain file contents).
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_data_size;
-	/*
-	 * Number of bytes consumed by ARC buffers of type equal to
-	 * ARC_BUFC_METADATA. This is generally consumed by buffers
-	 * backing on disk data that is used for internal ZFS
-	 * structures (e.g. ZAP, dnode, indirect blocks, etc).
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_metadata_size;
-	/*
-	 * Number of bytes consumed by dmu_buf_impl_t objects.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_dbuf_size;
-	/*
-	 * Number of bytes consumed by dnode_t objects.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_dnode_size;
-	/*
-	 * Number of bytes consumed by bonus buffers.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_bonus_size;
-	/*
-	 * Total number of bytes consumed by ARC buffers residing in the
-	 * arc_anon state. This includes *all* buffers in the arc_anon
-	 * state; e.g. data, metadata, evictable, and unevictable buffers
-	 * are all included in this value.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_anon_size;
-	/*
-	 * Number of bytes consumed by ARC buffers that meet the
-	 * following criteria: backing buffers of type ARC_BUFC_DATA,
-	 * residing in the arc_anon state, and are eligible for eviction
-	 * (e.g. have no outstanding holds on the buffer).
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_anon_evictable_data;
-	/*
-	 * Number of bytes consumed by ARC buffers that meet the
-	 * following criteria: backing buffers of type ARC_BUFC_METADATA,
-	 * residing in the arc_anon state, and are eligible for eviction
-	 * (e.g. have no outstanding holds on the buffer).
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_anon_evictable_metadata;
-	/*
-	 * Total number of bytes consumed by ARC buffers residing in the
-	 * arc_mru state. This includes *all* buffers in the arc_mru
-	 * state; e.g. data, metadata, evictable, and unevictable buffers
-	 * are all included in this value.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mru_size;
-	/*
-	 * Number of bytes consumed by ARC buffers that meet the
-	 * following criteria: backing buffers of type ARC_BUFC_DATA,
-	 * residing in the arc_mru state, and are eligible for eviction
-	 * (e.g. have no outstanding holds on the buffer).
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mru_evictable_data;
-	/*
-	 * Number of bytes consumed by ARC buffers that meet the
-	 * following criteria: backing buffers of type ARC_BUFC_METADATA,
-	 * residing in the arc_mru state, and are eligible for eviction
-	 * (e.g. have no outstanding holds on the buffer).
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mru_evictable_metadata;
-	/*
-	 * Total number of bytes that *would have been* consumed by ARC
-	 * buffers in the arc_mru_ghost state. The key thing to note
-	 * here, is the fact that this size doesn't actually indicate
-	 * RAM consumption. The ghost lists only consist of headers and
-	 * don't actually have ARC buffers linked off of these headers.
-	 * Thus, *if* the headers had associated ARC buffers, these
-	 * buffers *would have* consumed this number of bytes.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mru_ghost_size;
-	/*
-	 * Number of bytes that *would have been* consumed by ARC
-	 * buffers that are eligible for eviction, of type
-	 * ARC_BUFC_DATA, and linked off the arc_mru_ghost state.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mru_ghost_evictable_data;
-	/*
-	 * Number of bytes that *would have been* consumed by ARC
-	 * buffers that are eligible for eviction, of type
-	 * ARC_BUFC_METADATA, and linked off the arc_mru_ghost state.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mru_ghost_evictable_metadata;
-	/*
-	 * Total number of bytes consumed by ARC buffers residing in the
-	 * arc_mfu state. This includes *all* buffers in the arc_mfu
-	 * state; e.g. data, metadata, evictable, and unevictable buffers
-	 * are all included in this value.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mfu_size;
-	/*
-	 * Number of bytes consumed by ARC buffers that are eligible for
-	 * eviction, of type ARC_BUFC_DATA, and reside in the arc_mfu
-	 * state.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mfu_evictable_data;
-	/*
-	 * Number of bytes consumed by ARC buffers that are eligible for
-	 * eviction, of type ARC_BUFC_METADATA, and reside in the
-	 * arc_mfu state.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mfu_evictable_metadata;
-	/*
-	 * Total number of bytes that *would have been* consumed by ARC
-	 * buffers in the arc_mfu_ghost state. See the comment above
-	 * arcstat_mru_ghost_size for more details.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mfu_ghost_size;
-	/*
-	 * Number of bytes that *would have been* consumed by ARC
-	 * buffers that are eligible for eviction, of type
-	 * ARC_BUFC_DATA, and linked off the arc_mfu_ghost state.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mfu_ghost_evictable_data;
-	/*
-	 * Number of bytes that *would have been* consumed by ARC
-	 * buffers that are eligible for eviction, of type
-	 * ARC_BUFC_METADATA, and linked off the arc_mru_ghost state.
-	 * Not updated directly; only synced in arc_kstat_update.
-	 */
-	kstat_named_t arcstat_mfu_ghost_evictable_metadata;
-	kstat_named_t arcstat_l2_hits;
-	kstat_named_t arcstat_l2_misses;
-	kstat_named_t arcstat_l2_feeds;
-	kstat_named_t arcstat_l2_rw_clash;
-	kstat_named_t arcstat_l2_read_bytes;
-	kstat_named_t arcstat_l2_write_bytes;
-	kstat_named_t arcstat_l2_writes_sent;
-	kstat_named_t arcstat_l2_writes_done;
-	kstat_named_t arcstat_l2_writes_error;
-	kstat_named_t arcstat_l2_writes_lock_retry;
-	kstat_named_t arcstat_l2_evict_lock_retry;
-	kstat_named_t arcstat_l2_evict_reading;
-	kstat_named_t arcstat_l2_evict_l1cached;
-	kstat_named_t arcstat_l2_free_on_write;
-	kstat_named_t arcstat_l2_abort_lowmem;
-	kstat_named_t arcstat_l2_cksum_bad;
-	kstat_named_t arcstat_l2_io_error;
-	kstat_named_t arcstat_l2_lsize;
-	kstat_named_t arcstat_l2_psize;
-	/* Not updated directly; only synced in arc_kstat_update. */
-	kstat_named_t arcstat_l2_hdr_size;
-	kstat_named_t arcstat_memory_throttle_count;
-	kstat_named_t arcstat_memory_direct_count;
-	kstat_named_t arcstat_memory_indirect_count;
-	kstat_named_t arcstat_memory_all_bytes;
-	kstat_named_t arcstat_memory_free_bytes;
-	kstat_named_t arcstat_memory_available_bytes;
-	kstat_named_t arcstat_no_grow;
-	kstat_named_t arcstat_tempreserve;
-	kstat_named_t arcstat_loaned_bytes;
-	kstat_named_t arcstat_prune;
-	/* Not updated directly; only synced in arc_kstat_update. */
-	kstat_named_t arcstat_meta_used;
-	kstat_named_t arcstat_meta_limit;
-	kstat_named_t arcstat_dnode_limit;
-	kstat_named_t arcstat_meta_max;
-	kstat_named_t arcstat_meta_min;
-	kstat_named_t arcstat_async_upgrade_sync;
-	kstat_named_t arcstat_demand_hit_predictive_prefetch;
-	kstat_named_t arcstat_demand_hit_prescient_prefetch;
-	kstat_named_t arcstat_need_free;
-	kstat_named_t arcstat_sys_free;
-	kstat_named_t arcstat_raw_size;
-} arc_stats_t;
-
-static arc_stats_t arc_stats = {
+arc_stats_t arc_stats = {
 	{ "hits",			KSTAT_DATA_UINT64 },
 	{ "misses",			KSTAT_DATA_UINT64 },
 	{ "demand_data_hits",		KSTAT_DATA_UINT64 },
@@ -893,7 +626,8 @@ static arc_state_t	*arc_l2c_only;
 #define	arc_tempreserve	ARCSTAT(arcstat_tempreserve)
 #define	arc_loaned_bytes	ARCSTAT(arcstat_loaned_bytes)
 #define	arc_meta_limit	ARCSTAT(arcstat_meta_limit) /* max size for metadata */
-#define	arc_dnode_limit	ARCSTAT(arcstat_dnode_limit) /* max size for dnodes */
+/* max size for dnodes */
+#define	arc_dnode_size_limit	ARCSTAT(arcstat_dnode_limit)
 #define	arc_meta_min	ARCSTAT(arcstat_meta_min) /* min size for metadata */
 #define	arc_meta_max	ARCSTAT(arcstat_meta_max) /* max size of metadata */
 #define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
@@ -1419,7 +1153,7 @@ buf_init(void)
 	 * The hash table is big enough to fill all of physical memory
 	 * with an average block size of zfs_arc_average_blocksize (default 8K).
 	 * By default, the table will take up
-	 * totalmem * sizeof(void*) / 8K (1MB per GB with 8-byte pointers).
+	 * totalmem * sizeof (void*) / 8K (1MB per GB with 8-byte pointers).
 	 */
 	while (hsize * zfs_arc_average_blocksize < arc_all_memory())
 		hsize <<= 1;
@@ -1828,7 +1562,7 @@ arc_hdr_set_compress(arc_buf_hdr_t *hdr, enum zio_compress cmp)
 	 * we ignore the compression of the blkptr and set the
 	 * want to uncompress them. Mark them as uncompressed.
 	 */
-	if (!zfs_compressed_arc_enabled || HDR_GET_PSIZE(hdr) == 0) {
+	if (!zfs_arc_compression_enabled || HDR_GET_PSIZE(hdr) == 0) {
 		arc_hdr_clear_flags(hdr, ARC_FLAG_COMPRESSED_ARC);
 		ASSERT(!HDR_COMPRESSION_ENABLED(hdr));
 	} else {
@@ -4215,9 +3949,9 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 		 * shrinker.
 		 */
 		if (type == ARC_BUFC_DATA && aggsum_compare(&astat_dnode_size,
-		    arc_dnode_limit) > 0) {
+		    arc_dnode_size_limit) > 0) {
 			arc_prune_async((aggsum_upper_bound(&astat_dnode_size) -
-			    arc_dnode_limit) / sizeof (dnode_t) /
+			    arc_dnode_size_limit) / sizeof (dnode_t) /
 			    zfs_arc_dnode_reduce_percent);
 		}
 
@@ -4317,6 +4051,46 @@ arc_flush_state(arc_state_t *state, uint64_t spa, arc_buf_contents_t type,
 	return (evicted);
 }
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
+extern struct vfsops zfs_vfsops;
+/*
+ * Helper function for arc_prune_async() it is responsible for safely
+ * handling the execution of a registered arc_prune_func_t.
+ */
+static void
+arc_prune_task(void *arg)
+{
+	int64_t nr_scan = *(int64_t *)arg;
+
+	free(arg, M_TEMP);
+	vnlru_free(nr_scan, &zfs_vfsops);
+}
+
+/*
+ * Notify registered consumers they must drop holds on a portion of the ARC
+ * buffered they reference.  This provides a mechanism to ensure the ARC can
+ * honor the arc_meta_limit and reclaim otherwise pinned ARC buffers.  This
+ * is analogous to dnlc_reduce_cache() but more generic.
+ *
+ * This operation is performed asynchronously so it may be safely called
+ * in the context of the arc_reclaim_thread().  A reference is taken here
+ * for each registered arc_prune_t and the arc_prune_task() is responsible
+ * for releasing it once the registered arc_prune_func_t has completed.
+ */
+static void
+arc_prune_async(int64_t adjust)
+{
+
+	int64_t *adjustptr;
+
+	if ((adjustptr = malloc(sizeof (int64_t), M_TEMP, M_NOWAIT)) == NULL)
+		return;
+
+	*adjustptr = adjust;
+	taskq_dispatch(arc_prune_taskq, arc_prune_task, adjustptr, TQ_SLEEP);
+	ARCSTAT_BUMP(arcstat_prune);
+}
+#else
 /*
  * Helper function for arc_prune_async() it is responsible for safely
  * handling the execution of a registered arc_prune_func_t.
@@ -4367,6 +4141,7 @@ arc_prune_async(int64_t adjust)
 	}
 	mutex_exit(&arc_prune_mtx);
 }
+#endif
 
 /*
  * Evict the specified number of bytes from the state specified,
@@ -4536,10 +4311,16 @@ arc_adjust_meta_only(uint64_t meta_used)
 static uint64_t
 arc_adjust_meta(uint64_t meta_used)
 {
-	if (zfs_arc_meta_strategy == ARC_STRATEGY_META_ONLY)
+	/* BEGIN CSTYLED */
+	if (zfs_arc_meta_strategy == ARC_STRATEGY_META_ONLY
+#ifdef __FreeBSD__
+		|| (zfs_arc_max && (zfs_arc_max < ARC_BALANCED_MIN))
+#endif
+		)
 		return (arc_adjust_meta_only(meta_used));
 	else
 		return (arc_adjust_meta_balanced(meta_used));
+	/* END CSTYLED */
 }
 
 /*
@@ -4824,6 +4605,14 @@ arc_reduce_target_size(int64_t to_free)
 		zthr_wakeup(arc_adjust_zthr);
 	}
 }
+#ifdef __FreeBSD__
+static uint64_t
+arc_all_memory(void)
+{
+	return ((uint64_t)ptob(physmem));
+}
+#endif
+#ifdef __linux__
 /*
  * Return maximum amount of memory that we could possibly use.  Reduced
  * to half of all memory in user space which is primarily used for testing.
@@ -4890,14 +4679,16 @@ int64_t arc_pages_pp_reserve = 64;
  * Additional reserve of pages for swapfs.
  */
 int64_t arc_swapfs_reserve = 64;
+#endif
 #endif /* _KERNEL */
 
+#ifdef __linux__
 /*
  * Return the amount of memory that can be consumed before reclaim will be
  * needed.  Positive if there is sufficient free memory, negative indicates
  * the amount of memory that needs to be freed up.
  */
-static int64_t
+int64_t
 arc_available_memory(void)
 {
 	int64_t lowest = INT64_MAX;
@@ -5014,6 +4805,96 @@ arc_available_memory(void)
 
 	return (lowest);
 }
+#else
+/* vmem_size typemask */
+#define	VMEM_ALLOC	0x01
+#define	VMEM_FREE	0x02
+#define	VMEM_MAXFREE	0x10
+typedef size_t		vmem_size_t;
+extern vmem_size_t vmem_size(vmem_t *vm, int typemask);
+
+uint_t zfs_arc_free_target = 0;
+
+typedef enum free_memory_reason_t {
+	FMR_UNKNOWN,
+	FMR_NEEDFREE,
+	FMR_LOTSFREE,
+	FMR_SWAPFS_MINFREE,
+	FMR_PAGES_PP_MAXIMUM,
+	FMR_HEAP_ARENA,
+	FMR_ZIO_ARENA,
+} free_memory_reason_t;
+
+int64_t last_free_memory;
+free_memory_reason_t last_free_reason;
+
+int64_t
+arc_available_memory(void)
+{
+	int64_t lowest = INT64_MAX;
+	int64_t n __unused;
+	free_memory_reason_t r = FMR_UNKNOWN;
+
+#ifdef _KERNEL
+	/*
+	 * Cooperate with pagedaemon when it's time for it to scan
+	 * and reclaim some pages.
+	 */
+	n = PAGESIZE * ((int64_t)freemem - zfs_arc_free_target);
+	if (n < lowest) {
+		lowest = n;
+		r = FMR_LOTSFREE;
+	}
+#if defined(__i386) || !defined(UMA_MD_SMALL_ALLOC)
+	/*
+	 * If we're on an i386 platform, it's possible that we'll exhaust the
+	 * kernel heap space before we ever run out of available physical
+	 * memory.  Most checks of the size of the heap_area compare against
+	 * tune.t_minarmem, which is the minimum available real memory that we
+	 * can have in the system.  However, this is generally fixed at 25 pages
+	 * which is so low that it's useless.  In this comparison, we seek to
+	 * calculate the total heap-size, and reclaim if more than 3/4ths of the
+	 * heap is allocated.  (Or, in the calculation, if less than 1/4th is
+	 * free)
+	 */
+	n = uma_avail() - (long)(uma_limit() / 4);
+	if (n < lowest) {
+		lowest = n;
+		r = FMR_HEAP_ARENA;
+	}
+#endif
+
+	/*
+	 * If zio data pages are being allocated out of a separate heap segment,
+	 * then enforce that the size of available vmem for this arena remains
+	 * above about 1/4th (1/(2^arc_zio_arena_free_shift)) free.
+	 *
+	 * Note that reducing the arc_zio_arena_free_shift keeps more virtual
+	 * memory (in the zio_arena) free, which can avoid memory
+	 * fragmentation issues.
+	 */
+	if (zio_arena != NULL) {
+		n = (int64_t)vmem_size(zio_arena, VMEM_FREE) -
+		    (vmem_size(zio_arena, VMEM_ALLOC) >>
+		    arc_zio_arena_free_shift);
+		if (n < lowest) {
+			lowest = n;
+			r = FMR_ZIO_ARENA;
+		}
+	}
+
+#else	/* _KERNEL */
+	/* Every 100 calls, free a small amount */
+	if (spa_get_random(100) == 0)
+		lowest = -1024;
+#endif	/* _KERNEL */
+
+	last_free_memory = lowest;
+	last_free_reason = r;
+	DTRACE_PROBE2(arc__available_memory, int64_t, lowest, int, r);
+	return (lowest);
+}
+#endif
 
 /*
  * Determine if the system is under memory pressure and is asking
@@ -5303,6 +5184,7 @@ arc_reap_cb(void *arg, zthr_t *zthr)
  *         already below arc_c_min, evicting any more would only
  *         increase this negative difference.
  */
+#ifdef __linux__
 static uint64_t
 arc_evictable_memory(void)
 {
@@ -5406,6 +5288,7 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
 
 SPL_SHRINKER_DECLARE(arc_shrinker, arc_shrinker_func, DEFAULT_SEEKS);
+#endif
 #endif /* _KERNEL */
 
 /*
@@ -7330,7 +7213,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 static int
 arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 {
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	uint64_t available_memory = arc_free_memory();
 
 #if defined(_ILP32)
@@ -7510,10 +7393,12 @@ arc_kstat_update(kstat_t *ksp, int rw)
 
 		as->arcstat_memory_all_bytes.value.ui64 =
 		    arc_all_memory();
+#ifdef __linux__
 		as->arcstat_memory_free_bytes.value.ui64 =
 		    arc_free_memory();
 		as->arcstat_memory_available_bytes.value.i64 =
 		    arc_available_memory();
+#endif
 	}
 
 	return (0);
@@ -7574,8 +7459,8 @@ arc_tuning_update(void)
 		arc_p = (arc_c >> 1);
 		if (arc_meta_limit > arc_c_max)
 			arc_meta_limit = arc_c_max;
-		if (arc_dnode_limit > arc_meta_limit)
-			arc_dnode_limit = arc_meta_limit;
+		if (arc_dnode_size_limit > arc_meta_limit)
+			arc_dnode_size_limit = arc_meta_limit;
 	}
 
 	/* Valid range: 32M - <arc_c_max> */
@@ -7587,18 +7472,18 @@ arc_tuning_update(void)
 	}
 
 	/* Valid range: 16M - <arc_c_max> */
-	if ((zfs_arc_meta_min) && (zfs_arc_meta_min != arc_meta_min) &&
-	    (zfs_arc_meta_min >= 1ULL << SPA_MAXBLOCKSHIFT) &&
-	    (zfs_arc_meta_min <= arc_c_max)) {
-		arc_meta_min = zfs_arc_meta_min;
+	if ((zfs_arc_metadata_min) && (zfs_arc_metadata_min != arc_meta_min) &&
+	    (zfs_arc_metadata_min >= 1ULL << SPA_MAXBLOCKSHIFT) &&
+	    (zfs_arc_metadata_min <= arc_c_max)) {
+		arc_meta_min = zfs_arc_metadata_min;
 		if (arc_meta_limit < arc_meta_min)
 			arc_meta_limit = arc_meta_min;
-		if (arc_dnode_limit < arc_meta_min)
-			arc_dnode_limit = arc_meta_min;
+		if (arc_dnode_size_limit < arc_meta_min)
+			arc_dnode_size_limit = arc_meta_min;
 	}
 
 	/* Valid range: <arc_meta_min> - <arc_c_max> */
-	limit = zfs_arc_meta_limit ? zfs_arc_meta_limit :
+	limit = zfs_arc_metadata_limit ? zfs_arc_metadata_limit :
 	    MIN(zfs_arc_meta_limit_percent, 100) * arc_c_max / 100;
 	if ((limit != arc_meta_limit) &&
 	    (limit >= arc_meta_min) &&
@@ -7608,10 +7493,10 @@ arc_tuning_update(void)
 	/* Valid range: <arc_meta_min> - <arc_meta_limit> */
 	limit = zfs_arc_dnode_limit ? zfs_arc_dnode_limit :
 	    MIN(zfs_arc_dnode_limit_percent, 100) * arc_meta_limit / 100;
-	if ((limit != arc_dnode_limit) &&
+	if ((limit != arc_dnode_size_limit) &&
 	    (limit >= arc_meta_min) &&
 	    (limit <= arc_meta_limit))
-		arc_dnode_limit = limit;
+		arc_dnode_size_limit = limit;
 
 	/* Valid range: 1 - N */
 	if (zfs_arc_grow_retry)
@@ -7647,6 +7532,37 @@ arc_tuning_update(void)
 		arc_sys_free = MIN(MAX(zfs_arc_sys_free, 0), allmem);
 
 }
+
+#if defined(_KERNEL) && defined(__FreeBSD__)
+static eventhandler_tag arc_event_lowmem = NULL;
+
+static void
+arc_lowmem(void *arg __unused, int howto __unused)
+{
+	int64_t free_memory, to_free;
+
+	arc_no_grow = B_TRUE;
+	arc_warm = B_TRUE;
+	arc_growtime = gethrtime() + SEC2NSEC(arc_grow_retry);
+	free_memory = arc_available_memory();
+	to_free = (arc_c >> arc_shrink_shift) - MIN(free_memory, 0);
+	DTRACE_PROBE2(arc__needfree, int64_t, free_memory, int64_t, to_free);
+	arc_reduce_target_size(to_free);
+
+	mutex_enter(&arc_adjust_lock);
+	arc_adjust_needed = B_TRUE;
+	zthr_wakeup(arc_adjust_zthr);
+
+	/*
+	 * It is unsafe to block here in arbitrary threads, because we can come
+	 * here from ARC itself and may hold ARC locks and thus risk a deadlock
+	 * with ARC reclaim thread.
+	 */
+	if (curproc == pageproc)
+		(void) cv_wait(&arc_adjust_waiters_cv, &arc_adjust_lock);
+	mutex_exit(&arc_adjust_lock);
+}
+#endif
 
 static void
 arc_state_init(void)
@@ -7798,7 +7714,7 @@ arc_init(void)
 	arc_min_prefetch_ms = 1000;
 	arc_min_prescient_prefetch_ms = 6000;
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	/*
 	 * Register a shrinker to support synchronous (direct) memory
 	 * reclaim from the arc.  This is done to prevent kswapd from
@@ -7841,7 +7757,7 @@ arc_init(void)
 	percent = MIN(zfs_arc_meta_limit_percent, 100);
 	arc_meta_limit = MAX(arc_meta_min, (percent * arc_c_max) / 100);
 	percent = MIN(zfs_arc_dnode_limit_percent, 100);
-	arc_dnode_limit = (percent * arc_meta_limit) / 100;
+	arc_dnode_size_limit = (percent * arc_meta_limit) / 100;
 
 	/* Apply user specified tunings */
 	arc_tuning_update();
@@ -7878,11 +7794,15 @@ arc_init(void)
 		kstat_install(arc_ksp);
 	}
 
-	arc_adjust_zthr = zthr_create(arc_adjust_cb_check,
-	    arc_adjust_cb, NULL);
+	arc_adjust_zthr = zthr_create_timer(arc_adjust_cb_check,
+	    arc_adjust_cb, NULL, SEC2NSEC(1));
 	arc_reap_zthr = zthr_create_timer(arc_reap_cb_check,
 	    arc_reap_cb, NULL, SEC2NSEC(1));
 
+#if defined(_KERNEL) && defined(__FreeBSD__)
+	arc_event_lowmem = EVENTHANDLER_REGISTER(vm_lowmem, arc_lowmem, NULL,
+	    EVENTHANDLER_PRI_FIRST);
+#endif
 	arc_initialized = B_TRUE;
 	arc_warm = B_FALSE;
 
@@ -7911,8 +7831,13 @@ arc_fini(void)
 {
 	arc_prune_t *p;
 
-#ifdef _KERNEL
+#if defined(_KERNEL)
+#if defined(__linux__)
 	spl_unregister_shrinker(&arc_shrinker);
+#elif defined(__FreeBSD__)
+	if (arc_event_lowmem != NULL)
+		EVENTHANDLER_DEREGISTER(vm_lowmem, arc_event_lowmem);
+#endif
 #endif /* _KERNEL */
 
 	/* Use B_TRUE to ensure *all* buffers are evicted */
@@ -8918,7 +8843,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			hdr = multilist_sublist_tail(mls);
 
 		headroom = target_sz * l2arc_headroom;
-		if (zfs_compressed_arc_enabled)
+		if (zfs_arc_compression_enabled)
 			headroom = (headroom * l2arc_headroom_boost) / 100;
 
 		for (; hdr; hdr = hdr_prev) {
@@ -9240,6 +9165,8 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 
 	ASSERT(!l2arc_vdev_present(vd));
 
+	vdev_ashift_optimize(vd);
+
 	/*
 	 * Create a new l2arc device entry.
 	 */
@@ -9387,104 +9314,84 @@ EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
 /* BEGIN CSTYLED */
-module_param(zfs_arc_min, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_min, "Min arc size");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, min, UQUAD, ZMOD_RW, "Min arc size");
 
-module_param(zfs_arc_max, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_max, "Max arc size");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, max, UQUAD, ZMOD_RW,
+    "Maximum ARC size");
 
-module_param(zfs_arc_meta_limit, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, metadata_limit, UQUAD, ZMOD_RW,
+	"Metadata limit for arc size");
 
-module_param(zfs_arc_meta_limit_percent, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_limit_percent,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_limit_percent, UQUAD, ZMOD_RW,
 	"Percent of arc size for arc meta limit");
 
-module_param(zfs_arc_meta_min, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_min, "Min arc metadata");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, metadata_min, UQUAD, ZMOD_RW,
+	"Min arc metadata");
 
-module_param(zfs_arc_meta_prune, int, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_prune, "Meta objects to scan for prune");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_prune, UINT, ZMOD_RW, "Meta objects to scan for prune");
 
-module_param(zfs_arc_meta_adjust_restarts, int, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_adjust_restarts,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_adjust_restarts, UINT, ZMOD_RW,
 	"Limit number of restarts in arc_adjust_meta");
 
-module_param(zfs_arc_meta_strategy, int, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_strategy, "Meta reclaim strategy");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_strategy, UINT, ZMOD_RW, "Meta reclaim strategy");
 
-module_param(zfs_arc_grow_retry, int, 0644);
-MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, grow_retry, UINT, ZMOD_RW, "Seconds before growing arc size");
 
-module_param(zfs_arc_p_dampener_disable, int, 0644);
-MODULE_PARM_DESC(zfs_arc_p_dampener_disable, "disable arc_p adapt dampener");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, p_dampener_disable, UINT, ZMOD_RW, "disable arc_p adapt dampener");
 
-module_param(zfs_arc_shrink_shift, int, 0644);
-MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrink_shift, UINT, ZMOD_RW, "log2(fraction of arc to reclaim)");
 
-module_param(zfs_arc_pc_percent, uint, 0644);
-MODULE_PARM_DESC(zfs_arc_pc_percent,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, pc_percent, UINT, ZMOD_RW,
 	"Percent of pagecache to reclaim arc to");
 
-module_param(zfs_arc_p_min_shift, int, 0644);
-MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, p_min_shift, UINT, ZMOD_RW, "arc_c shift to calc min/max arc_p");
 
-module_param(zfs_arc_average_blocksize, int, 0444);
-MODULE_PARM_DESC(zfs_arc_average_blocksize, "Target average block size");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, average_blocksize, UINT, ZMOD_RD, "Target average block size");
 
-module_param(zfs_compressed_arc_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_compressed_arc_enabled, "Disable compressed arc buffers");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, compression_enabled, UINT, ZMOD_RW,"Disable compressed arc buffers");
 
-module_param(zfs_arc_min_prefetch_ms, int, 0644);
-MODULE_PARM_DESC(zfs_arc_min_prefetch_ms, "Min life of prefetch block in ms");
+ZFS_MODULE_PARAM(zfs_arc, arc_, min_prefetch_ms, UINT, ZMOD_RW,
+	"Min life of prefetch block in ms");
 
-module_param(zfs_arc_min_prescient_prefetch_ms, int, 0644);
-MODULE_PARM_DESC(zfs_arc_min_prescient_prefetch_ms,
+ZFS_MODULE_PARAM(zfs_arc, arc_, min_prescient_prefetch_ms, UINT, ZMOD_RW,
 	"Min life of prescient prefetched block in ms");
 
-module_param(l2arc_write_max, ulong, 0644);
-MODULE_PARM_DESC(l2arc_write_max, "Max write bytes per interval");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, write_max, UQUAD, ZMOD_RW,
+	"Max write bytes per interval");
 
-module_param(l2arc_write_boost, ulong, 0644);
-MODULE_PARM_DESC(l2arc_write_boost, "Extra write bytes during device warmup");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, write_boost, UQUAD, ZMOD_RW,
+	"Extra write bytes during device warmup");
 
-module_param(l2arc_headroom, ulong, 0644);
-MODULE_PARM_DESC(l2arc_headroom, "Number of max device writes to precache");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, headroom, UQUAD, ZMOD_RW,
+	"Number of max device writes to precache");
 
-module_param(l2arc_headroom_boost, ulong, 0644);
-MODULE_PARM_DESC(l2arc_headroom_boost, "Compressed l2arc_headroom multiplier");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, headroom_boost, UQUAD, ZMOD_RW,
+	"Compressed l2arc_headroom multiplier");
 
-module_param(l2arc_feed_secs, ulong, 0644);
-MODULE_PARM_DESC(l2arc_feed_secs, "Seconds between L2ARC writing");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, feed_secs, UQUAD, ZMOD_RW,
+    "Seconds between L2ARC writing");
 
-module_param(l2arc_feed_min_ms, ulong, 0644);
-MODULE_PARM_DESC(l2arc_feed_min_ms, "Min feed interval in milliseconds");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, feed_min_ms, UQUAD, ZMOD_RW,
+    "Min feed interval in milliseconds");
 
-module_param(l2arc_noprefetch, int, 0644);
-MODULE_PARM_DESC(l2arc_noprefetch, "Skip caching prefetched buffers");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, noprefetch, UINT, ZMOD_RW, "Skip caching prefetched buffers");
 
-module_param(l2arc_feed_again, int, 0644);
-MODULE_PARM_DESC(l2arc_feed_again, "Turbo L2ARC warmup");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, feed_again, UINT, ZMOD_RW, "Turbo L2ARC warmup");
 
-module_param(l2arc_norw, int, 0644);
-MODULE_PARM_DESC(l2arc_norw, "No reads during writes");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, norw, UINT, ZMOD_RW, "No reads during writes");
 
-module_param(zfs_arc_lotsfree_percent, int, 0644);
-MODULE_PARM_DESC(zfs_arc_lotsfree_percent,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, lotsfree_percent, UINT, ZMOD_RW,
 	"System free memory I/O throttle in bytes");
 
-module_param(zfs_arc_sys_free, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_sys_free, "System free memory target size in bytes");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, sys_free, UQUAD, ZMOD_RW,
+    "System free memory target size in bytes");
 
-module_param(zfs_arc_dnode_limit, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_dnode_limit, "Minimum bytes of dnodes in arc");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_limit, UQUAD, ZMOD_RW, "Minimum bytes of dnodes in arc");
 
-module_param(zfs_arc_dnode_limit_percent, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_dnode_limit_percent,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_limit_percent, UQUAD, ZMOD_RW,
 	"Percent of ARC meta buffers for dnodes");
 
-module_param(zfs_arc_dnode_reduce_percent, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_dnode_reduce_percent,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_reduce_percent, UQUAD, ZMOD_RW,
 	"Percentage of excess dnodes to try to unpin");
 /* END CSTYLED */
 #endif

@@ -30,6 +30,10 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/xattr/xattr_common.kshlib
 
+if is_freebsd; then
+	log_unsupported "xattrs not supported on FreeBSD"
+fi
+
 # if we're running NIS, turn it off until we clean up
 # (it can cause useradd to take a long time, hitting our TIMEOUT)
 if is_linux; then

@@ -149,6 +149,30 @@ extern void zpool_dump_ddt(const ddt_stat_t *, const ddt_histogram_t *);
 extern int zpool_history_unpack(char *, uint64_t, uint64_t *, nvlist_t ***,
     uint_t *);
 
+#ifdef LIBZUTIL_PRIVATE
+#define	EZFS_BADCACHE	"invalid or missing cache file"
+#define	EZFS_BADPATH	"must be an absolute path"
+#define	EZFS_NOMEM	"out of memory"
+#define	EZFS_EACESS	"some devices require root privileges"
+
+#define	DEFAULT_IMPORT_PATH_SIZE	9
+extern char *zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE];
+
+struct libpc_handle;
+typedef struct libpc_handle libpc_handle_t;
+
+extern int zutil_error(libpc_handle_t *hdl, const char *error, const char *msg);
+extern void zutil_error_aux(libpc_handle_t *hdl, const char *fmt, ...);
+extern int zutil_no_memory(libpc_handle_t *hdl);
+extern void * zutil_alloc(libpc_handle_t *hdl, size_t size);
+extern char *zutil_strdup(libpc_handle_t *hdl, const char *str);
+extern int pool_active(libpc_handle_t *hdl, const char *name, uint64_t guid,
+    boolean_t *isactive);
+extern nvlist_t *refresh_config(libpc_handle_t *hdl, nvlist_t *tryconfig);
+extern int zutil_error_fmt(libpc_handle_t *hdl, const char *error,
+    const char *fmt, ...);
+#endif
+
 #ifdef	__cplusplus
 }
 #endif

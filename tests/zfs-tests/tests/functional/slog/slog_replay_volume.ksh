@@ -64,7 +64,7 @@ MNTPNT=$TESTDIR/$TESTVOL
 
 function cleanup_volume
 {
-	if ismounted $MNTPNT ext4; then
+	if ismounted $MNTPNT $NEWFS_DEFAULT_FS; then
 		log_must umount $MNTPNT
 		rmdir $MNTPNT
 	fi
@@ -86,11 +86,17 @@ log_must zfs create -V 128M $TESTPOOL/$TESTVOL
 log_must zfs set compression=on $TESTPOOL/$TESTVOL
 log_must zfs set sync=always $TESTPOOL/$TESTVOL
 log_must mkdir -p $TESTDIR
-block_device_wait
-echo "y" | newfs -t ext4 -v $VOLUME
-log_must mkdir -p $MNTPNT
-log_must mount -o discard $VOLUME $MNTPNT
-log_must rmdir $MNTPNT/lost+found
+log_must block_device_wait
+if is_freebsd; then
+	log_must newfs $VOLUME
+	log_must mkdir -p $MNTPNT
+	log_must mount $VOLUME $MNTPNT
+else
+	log_must eval "echo y | newfs -t ext4 -v $VOLUME"
+	log_must mkdir -p $MNTPNT
+	log_must mount -o discard $VOLUME $MNTPNT
+	log_must rmdir $MNTPNT/lost+found
+fi
 log_must zpool sync
 
 #
@@ -103,8 +109,13 @@ log_must zpool freeze $TESTPOOL
 #
 
 # TX_WRITE
-log_must dd if=/dev/urandom of=$MNTPNT/latency-8k bs=8k count=1 oflag=sync
-log_must dd if=/dev/urandom of=$MNTPNT/latency-128k bs=128k count=1 oflag=sync
+if is_freebsd; then
+	log_must dd if=/dev/urandom of=$MNTPNT/latency-8k bs=8k count=1 conv=sync
+	log_must dd if=/dev/urandom of=$MNTPNT/latency-128k bs=128k count=1 conv=sync
+else
+	log_must dd if=/dev/urandom of=$MNTPNT/latency-8k bs=8k count=1 oflag=sync
+	log_must dd if=/dev/urandom of=$MNTPNT/latency-128k bs=128k count=1 oflag=sync
+fi
 
 # TX_WRITE (WR_INDIRECT)
 log_must zfs set logbias=throughput $TESTPOOL/$TESTVOL
@@ -127,7 +138,11 @@ fi
 #
 # 4. Generate checksums for all ext4 files.
 #
-log_must sha256sum -b $MNTPNT/* >$TESTDIR/checksum
+if is_freebsd; then
+	log_must eval "sha256 $MNTPNT/* >$TESTDIR/checksum"
+else
+	log_must eval "sha256sum -b $MNTPNT/* >$TESTDIR/checksum"
+fi
 
 #
 # 5. Unmount filesystem and export the pool
@@ -159,6 +174,10 @@ log_note "Verify current block usage:"
 log_must zdb -bcv $TESTPOOL
 
 log_note "Verify checksums"
-log_must sha256sum -c $TESTDIR/checksum
+if is_freebsd; then
+	log_must sha256 -c $TESTDIR/checksum
+else
+	log_must sha256sum -c $TESTDIR/checksum
+fi
 
 log_pass "Replay of intent log succeeds."

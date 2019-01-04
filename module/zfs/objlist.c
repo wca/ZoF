@@ -74,7 +74,7 @@ objlist_insert(objlist_t *list, uint64_t object)
 {
 	objlist_node_t *node = kmem_zalloc(sizeof (*node), KM_SLEEP);
 	node->on_object = object;
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 	objlist_node_t *last_object = list_tail(&list->ol_list);
 	uint64_t last_objnum = (last_object != NULL ? last_object->on_object :
 	    0);

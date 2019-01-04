@@ -29,7 +29,13 @@
 #include <sys/zfs_debug.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_raidz_impl.h>
+#if defined(__linux__) || !defined(_KERNEL)
 #include <linux/simd.h>
+#elif defined(__amd64__)
+#include <sys/simd_x86.h>
+#else
+#define	kfpu_allowed() (0)
+#endif
 
 extern boolean_t raidz_will_scalar_work(void);
 
@@ -639,7 +645,7 @@ vdev_raidz_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 #include <linux/mod_compat.h>
 
 static int

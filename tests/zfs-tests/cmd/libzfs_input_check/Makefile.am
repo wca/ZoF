@@ -12,4 +12,8 @@ libzfs_input_check_SOURCES = libzfs_input_check.c
 libzfs_input_check_LDADD = \
 	$(top_builddir)/lib/libspl/libspl.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la
+	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(top_builddir)/lib/libzfs/libzfs.la
+if BUILD_FREEBSD
+libzfs_input_check_LDADD += -L/usr/local/lib -lzfs -lzfs_core
+endif

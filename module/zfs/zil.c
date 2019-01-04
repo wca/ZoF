@@ -41,8 +41,11 @@
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/metaslab.h>
-#include <sys/trace_zil.h>
 #include <sys/abd.h>
+
+#ifdef __linux__
+#include <sys/trace_zil.h>
+#endif
 
 /*
  * The ZFS Intent Log (ZIL) saves "transaction records" (itxs) of system
@@ -134,8 +137,6 @@ unsigned long zil_slog_bulk = 768 * 1024;
 
 static kmem_cache_t *zil_lwb_cache;
 static kmem_cache_t *zil_zcw_cache;
-
-static void zil_async_to_sync(zilog_t *zilog, uint64_t foid);
 
 #define	LWB_EMPTY(lwb) ((BP_GET_LSIZE(&lwb->lwb_blk) - \
     sizeof (zil_chain_t)) == (lwb->lwb_sz - lwb->lwb_nused))
@@ -2099,7 +2100,7 @@ zil_get_commit_list(zilog_t *zilog)
 /*
  * Move the async itxs for a specified object to commit into sync lists.
  */
-static void
+void
 zil_async_to_sync(zilog_t *zilog, uint64_t foid)
 {
 	uint64_t otxg, txg;
@@ -3678,19 +3679,18 @@ EXPORT_SYMBOL(zil_set_sync);
 EXPORT_SYMBOL(zil_set_logbias);
 
 /* BEGIN CSTYLED */
-module_param(zfs_commit_timeout_pct, int, 0644);
-MODULE_PARM_DESC(zfs_commit_timeout_pct, "ZIL block open timeout percentage");
+ZFS_MODULE_PARAM(zfs, zfs_, commit_timeout_pct, UINT, ZMOD_RW,
+    "ZIL block open timeout percentage");
 
-module_param(zil_replay_disable, int, 0644);
-MODULE_PARM_DESC(zil_replay_disable, "Disable intent logging replay");
+ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, UINT, ZMOD_RW,
+    "Disable intent logging replay");
 
-module_param(zil_nocacheflush, int, 0644);
-MODULE_PARM_DESC(zil_nocacheflush, "Disable ZIL cache flushes");
+ZFS_MODULE_PARAM(zfs_zil, zil_, nocacheflush, UINT, ZMOD_RW,
+    "Disable ZIL cache flushes");
 
-module_param(zil_slog_bulk, ulong, 0644);
-MODULE_PARM_DESC(zil_slog_bulk, "Limit in bytes slog sync writes per commit");
+ZFS_MODULE_PARAM(zfs_zil, zil_, slog_bulk, UQUAD, ZMOD_RW,
+    "Limit in bytes slog sync writes per commit");
 
-module_param(zil_maxblocksize, int, 0644);
-MODULE_PARM_DESC(zil_maxblocksize, "Limit in bytes of ZIL log block size");
+ZFS_MODULE_PARAM(zfs_zil, zil_, maxblocksize, UINT, ZMOD_RW, "Limit in bytes of ZIL log block size");
 /* END CSTYLED */
 #endif

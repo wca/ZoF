@@ -42,7 +42,9 @@
 #include <sys/stat.h>
 #include <sys/efi_partition.h>
 #include <sys/systeminfo.h>
+#ifndef __FreeBSD__
 #include <sys/vtoc.h>
+#endif
 #include <sys/zfs_ioctl.h>
 #include <sys/vdev_disk.h>
 #include <dlfcn.h>
@@ -54,7 +56,6 @@
 #include "zfs_comutil.h"
 #include "zfeature_common.h"
 
-static int read_efi_label(nvlist_t *config, diskaddr_t *sb);
 static boolean_t zpool_vdev_is_interior(const char *name);
 
 typedef struct prop_flags {
@@ -2604,13 +2605,19 @@ zpool_vdev_is_interior(const char *name)
 }
 
 nvlist_t *
-zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
+zpool_find_vdev(zpool_handle_t *zhp, const char *ipath, boolean_t *avail_spare,
     boolean_t *l2cache, boolean_t *log)
 {
 	char *end;
+	const char *path;
 	nvlist_t *nvroot, *search, *ret;
 	uint64_t guid;
+	int firstpass;
+	char buf[MAXPATHLEN+16];
 
+	firstpass = 1;
+	path = ipath;
+	retry:
 	verify(nvlist_alloc(&search, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
 	guid = strtoull(path, &end, 0);
@@ -2631,7 +2638,14 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 		*log = B_FALSE;
 	ret = vdev_to_nvlist_iter(nvroot, search, avail_spare, l2cache, log);
 	nvlist_free(search);
-
+	if (ret == NULL && firstpass) {
+		sprintf(buf, "/dev/%s", path);
+		path = strdup(buf);
+		firstpass = 0;
+		goto retry;
+	}
+	if (path != ipath)
+		free((void *)path);
 	return (ret);
 }
 
@@ -2790,6 +2804,7 @@ zpool_get_physpath(zpool_handle_t *zhp, char *physpath, size_t phypath_size)
 static int
 zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 {
+#ifndef __FreeBSD__
 	int fd, error;
 
 	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
@@ -2818,7 +2833,7 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 		    "relabel '%s': unable to read disk capacity"), path);
 		return (zfs_error(hdl, EZFS_NOCAP, msg));
 	}
-
+#endif
 	return (0);
 }
 
@@ -4053,6 +4068,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 			path++;
 		}
 
+#ifndef __FreeBSD__
 		/*
 		 * Remove the partition from the path it this is a whole disk.
 		 */
@@ -4060,6 +4076,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		    == 0 && value && !(name_flags & VDEV_NAME_PATH)) {
 			return (zfs_strip_partition(path));
 		}
+#endif
 	} else {
 		path = type;
 
@@ -4529,6 +4546,7 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 	free(mntpnt);
 }
 
+#ifndef __FreeBSD__
 /*
  * Read the EFI label from the config, if a label does not exist then
  * pass back the error to the caller. If the caller has passed a non-NULL
@@ -4644,6 +4662,7 @@ zpool_label_name(char *label_name, int label_size)
 
 	snprintf(label_name, label_size, "zfs-%016llx", (u_longlong_t)id);
 }
+#endif
 
 /*
  * Label an individual disk.  The name provided is the short name,
@@ -4652,6 +4671,7 @@ zpool_label_name(char *label_name, int label_size)
 int
 zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 {
+#ifndef __FreeBSD__
 	char path[MAXPATHLEN];
 	struct dk_gpt *vtoc;
 	int rval, fd;
@@ -4779,6 +4799,6 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		    path, rval);
 		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
 	}
-
+#endif
 	return (0);
 }

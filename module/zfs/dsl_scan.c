@@ -138,6 +138,21 @@ extern int zfs_vdev_async_write_active_min_dirty_percent;
 int zfs_scan_strict_mem_lim = B_FALSE;
 
 /*
+ * Maximum number of parallelly executing I/Os per top-level vdev.
+ * Tune with care. Very high settings (hundreds) are known to trigger
+ * some firmware bugs and resets on certain SSDs.
+ */
+
+/* number of ticks to delay resilver -- 2 is a good number */
+unsigned int zfs_resilver_delay = 2;
+
+/* number of ticks to delay scrub -- 4 is a good number */
+unsigned int zfs_scrub_delay = 4;
+
+/* idle window in clock ticks */
+unsigned int zfs_scan_idle = 50;
+
+/*
  * Maximum number of parallelly executed bytes per leaf vdev. We attempt
  * to strike a balance here between keeping the vdev queues full of I/Os
  * at all times and not overflowing the queues to cause long latency,
@@ -759,7 +774,8 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal(spa, "scan setup", tx,
 	    "func=%u mintxg=%llu maxtxg=%llu",
-	    *funcp, scn->scn_phys.scn_min_txg, scn->scn_phys.scn_max_txg);
+	    *funcp, (longlong_t)scn->scn_phys.scn_min_txg,
+	    (longlong_t)scn->scn_phys.scn_max_txg);
 }
 
 /*
@@ -900,13 +916,13 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	if (dsl_scan_restarting(scn, tx))
 		spa_history_log_internal(spa, "scan aborted, restarting", tx,
-		    "errors=%llu", spa_get_errlog_size(spa));
+		    "errors=%llu", (longlong_t)spa_get_errlog_size(spa));
 	else if (!complete)
 		spa_history_log_internal(spa, "scan cancelled", tx,
-		    "errors=%llu", spa_get_errlog_size(spa));
+		    "errors=%llu", (longlong_t)spa_get_errlog_size(spa));
 	else
 		spa_history_log_internal(spa, "scan done", tx,
-		    "errors=%llu", spa_get_errlog_size(spa));
+		    "errors=%llu", (longlong_t)spa_get_errlog_size(spa));
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		spa->spa_scrub_started = B_FALSE;
@@ -957,7 +973,8 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		if (resilver_needed) {
 			spa_history_log_internal(spa,
 			    "starting deferred resilver", tx,
-			    "errors=%llu", spa_get_errlog_size(spa));
+			    "errors=%llu",
+			    (longlong_t)spa_get_errlog_size(spa));
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
 		}
 	}
@@ -3910,6 +3927,7 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 	dsl_scan_t *scn = dp->dp_scan;
 	size_t size = BP_GET_PSIZE(bp);
 	abd_t *data = abd_alloc_for_io(size, B_FALSE);
+	unsigned int scan_delay;
 
 	ASSERT3U(scn->scn_maxinflight_bytes, >, 0);
 
@@ -3928,6 +3946,17 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 		queue->q_inflight_bytes += BP_GET_PSIZE(bp);
 		mutex_exit(q_lock);
 	}
+
+	if (zio_flags & ZIO_FLAG_RESILVER)
+		scan_delay = zfs_resilver_delay;
+	else {
+		ASSERT(zio_flags & ZIO_FLAG_SCRUB);
+		scan_delay = zfs_scrub_delay;
+	}
+
+	if (scan_delay &&
+	    (ddi_get_lbolt64() - spa->spa_last_io <= zfs_scan_idle))
+		delay(MAX((int)scan_delay, 0));
 
 	count_block(scn, dp->dp_blkstats, bp);
 	zio_nowait(zio_read(scn->scn_zio_root, spa, bp, data, size,
@@ -4194,72 +4223,62 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 
 #if defined(_KERNEL)
 /* CSTYLED */
-module_param(zfs_scan_vdev_limit, ulong, 0644);
-MODULE_PARM_DESC(zfs_scan_vdev_limit,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, UQUAD, ZMOD_RW,
 	"Max bytes in flight per leaf vdev for scrubs and resilvers");
 
-module_param(zfs_scrub_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_scrub_min_time_ms, "Min millisecs to scrub per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, scrub_min_time_ms, UINT, ZMOD_RW,
+	"Min millisecs to scrub per txg");
 
-module_param(zfs_obsolete_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_obsolete_min_time_ms, "Min millisecs to obsolete per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, obsolete_min_time_ms, UINT, ZMOD_RW,
+	"Min millisecs to obsolete per txg");
 
-module_param(zfs_free_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_free_min_time_ms, "Min millisecs to free per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, free_min_time_ms, UINT, ZMOD_RW,
+	"Min millisecs to free per txg");
 
-module_param(zfs_resilver_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_resilver_min_time_ms, "Min millisecs to resilver per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, resilver_min_time_ms, UINT, ZMOD_RW,
+	"Min millisecs to resilver per txg");
 
-module_param(zfs_scan_suspend_progress, int, 0644);
-MODULE_PARM_DESC(zfs_scan_suspend_progress,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_suspend_progress, UINT, ZMOD_RW,
 	"Set to prevent scans from progressing");
 
-module_param(zfs_no_scrub_io, int, 0644);
-MODULE_PARM_DESC(zfs_no_scrub_io, "Set to disable scrub I/O");
+ZFS_MODULE_PARAM(zfs, zfs_, no_scrub_io, UINT, ZMOD_RW,
+	"Set to disable scrub I/O");
 
-module_param(zfs_no_scrub_prefetch, int, 0644);
-MODULE_PARM_DESC(zfs_no_scrub_prefetch, "Set to disable scrub prefetching");
+ZFS_MODULE_PARAM(zfs, zfs_, no_scrub_prefetch, UINT, ZMOD_RW,
+	"Set to disable scrub prefetching");
 
 /* CSTYLED */
-module_param(zfs_async_block_max_blocks, ulong, 0644);
-MODULE_PARM_DESC(zfs_async_block_max_blocks,
+ZFS_MODULE_PARAM(zfs, zfs_, async_block_max_blocks, UQUAD, ZMOD_RW,
 	"Max number of blocks freed in one txg");
 
-module_param(zfs_free_bpobj_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_free_bpobj_enabled, "Enable processing of the free_bpobj");
+ZFS_MODULE_PARAM(zfs, zfs_, free_bpobj_enabled, UINT, ZMOD_RW,
+	"Enable processing of the free_bpobj");
 
-module_param(zfs_scan_mem_lim_fact, int, 0644);
-MODULE_PARM_DESC(zfs_scan_mem_lim_fact, "Fraction of RAM for scan hard limit");
+ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_fact, UINT, ZMOD_RW,
+	"Fraction of RAM for scan hard limit");
 
-module_param(zfs_scan_issue_strategy, int, 0644);
-MODULE_PARM_DESC(zfs_scan_issue_strategy,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_issue_strategy, UINT, ZMOD_RW,
 	"IO issuing strategy during scrubbing. 0 = default, 1 = LBA, 2 = size");
 
-module_param(zfs_scan_legacy, int, 0644);
-MODULE_PARM_DESC(zfs_scan_legacy, "Scrub using legacy non-sequential method");
+ZFS_MODULE_PARAM(zfs, zfs_, scan_legacy, UINT, ZMOD_RW,
+	"Scrub using legacy non-sequential method");
 
-module_param(zfs_scan_checkpoint_intval, int, 0644);
-MODULE_PARM_DESC(zfs_scan_checkpoint_intval,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_checkpoint_intval, UINT, ZMOD_RW,
 	"Scan progress on-disk checkpointing interval");
 
 /* CSTYLED */
-module_param(zfs_scan_max_ext_gap, ulong, 0644);
-MODULE_PARM_DESC(zfs_scan_max_ext_gap,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_max_ext_gap, UQUAD, ZMOD_RW,
 	"Max gap in bytes between sequential scrub / resilver I/Os");
 
-module_param(zfs_scan_mem_lim_soft_fact, int, 0644);
-MODULE_PARM_DESC(zfs_scan_mem_lim_soft_fact,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_soft_fact, UINT, ZMOD_RW,
 	"Fraction of hard limit used as soft limit");
 
-module_param(zfs_scan_strict_mem_lim, int, 0644);
-MODULE_PARM_DESC(zfs_scan_strict_mem_lim,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_strict_mem_lim, UINT, ZMOD_RW,
 	"Tunable to attempt to reduce lock contention");
 
-module_param(zfs_scan_fill_weight, int, 0644);
-MODULE_PARM_DESC(zfs_scan_fill_weight,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_fill_weight, UINT, ZMOD_RW,
 	"Tunable to adjust bias towards more filled segments during scans");
 
-module_param(zfs_resilver_disable_defer, int, 0644);
-MODULE_PARM_DESC(zfs_resilver_disable_defer,
+ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, UINT, ZMOD_RW,
 	"Process all resilvers immediately");
 #endif

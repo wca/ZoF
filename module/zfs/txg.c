@@ -33,7 +33,9 @@
 #include <sys/dsl_scan.h>
 #include <sys/zil.h>
 #include <sys/callb.h>
+#ifdef __linux__
 #include <sys/trace_txg.h>
+#endif
 
 /*
  * ZFS Transaction Groups
@@ -1054,6 +1056,6 @@ EXPORT_SYMBOL(txg_wait_callbacks);
 EXPORT_SYMBOL(txg_stalled);
 EXPORT_SYMBOL(txg_sync_waiting);
 
-module_param(zfs_txg_timeout, int, 0644);
-MODULE_PARM_DESC(zfs_txg_timeout, "Max seconds worth of delta per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, txg_timeout, UINT, ZMOD_RW,
+	"Max seconds worth of delta per txg");
 #endif

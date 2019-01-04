@@ -32,7 +32,6 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/poll.h \
 	$(top_srcdir)/lib/libspl/include/sys/priv.h \
 	$(top_srcdir)/lib/libspl/include/sys/processor.h \
-	$(top_srcdir)/lib/libspl/include/sys/signal.h \
 	$(top_srcdir)/lib/libspl/include/sys/stack.h \
 	$(top_srcdir)/lib/libspl/include/sys/stat.h \
 	$(top_srcdir)/lib/libspl/include/sys/stdtypes.h \
@@ -51,3 +50,13 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/vnode.h \
 	$(top_srcdir)/lib/libspl/include/sys/vtoc.h \
 	$(top_srcdir)/lib/libspl/include/sys/zone.h
+
+if BUILD_FREEBSD
+libspl_HEADERS += \
+	$(top_srcdir)/include/os/freebsd/spl/sys/stat.h
+endif
+
+if BUILD_LINUX
+libspl_HEADERS += \
+	$(top_srcdir)/include/os/linux/spl/sys/signal.h
+endif

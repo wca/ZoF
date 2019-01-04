@@ -54,6 +54,10 @@ function cleanup
 	log_must zed_stop
 }
 
+if is_freebsd; then
+	log_unsupported "Events not supported on FreeBSD"
+fi
+
 log_assert "Verify ZED handles missed events on when starting"
 log_onexit cleanup
 

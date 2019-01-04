@@ -49,7 +49,9 @@
 #include <sys/sa.h>
 #include <sys/zfeature.h>
 #include <sys/abd.h>
+#ifdef __linux__
 #include <sys/trace_dmu.h>
+#endif
 #include <sys/zfs_rlock.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
@@ -489,7 +491,7 @@ dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, void *tag,
  * and can induce severe lock contention when writing to several files
  * whose dnodes are in the same block.
  */
-static int
+int
 dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
     boolean_t read, void *tag, int *numbufsp, dmu_buf_t ***dbpp, uint32_t flags)
 {
@@ -2100,6 +2102,8 @@ dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
  */
 int zfs_redundant_metadata_most_ditto_level = 2;
 
+int zfs_mdcomp_disable = 0;
+
 void
 dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 {
@@ -2129,6 +2133,8 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		 */
 		compress = zio_compress_select(os->os_spa,
 		    ZIO_COMPRESS_ON, ZIO_COMPRESS_ON);
+		if (zfs_mdcomp_disable)
+			compress = ZIO_COMPRESS_EMPTY;
 
 		/*
 		 * Metadata always gets checksummed.  If the data
@@ -2505,15 +2511,12 @@ EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
 
 /* BEGIN CSTYLED */
-module_param(zfs_nopwrite_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_nopwrite_enabled, "Enable NOP writes");
+ZFS_MODULE_PARAM(zfs, zfs_, nopwrite_enabled, UINT, ZMOD_RW, "Enable NOP writes");
 
-module_param(zfs_per_txg_dirty_frees_percent, ulong, 0644);
-MODULE_PARM_DESC(zfs_per_txg_dirty_frees_percent,
+ZFS_MODULE_PARAM(zfs, zfs_, per_txg_dirty_frees_percent, UQUAD, ZMOD_RW,
 	"percentage of dirtied blocks from frees in one TXG");
 
-module_param(zfs_dmu_offset_next_sync, int, 0644);
-MODULE_PARM_DESC(zfs_dmu_offset_next_sync,
+ZFS_MODULE_PARAM(zfs, zfs_, dmu_offset_next_sync, UINT, ZMOD_RW,
 	"Enable forcing txg sync to find holes");
 
 module_param(dmu_prefetch_max, int, 0644);

@@ -35,6 +35,16 @@
 #include <sys/spa.h>
 #include <sys/zfs_stat.h>
 
+#ifdef __FreeBSD__
+#define	ZFS_CMD_PLATFORM_PAD1	uint64_t zc_freebsd_drr_pad
+#define	ZFS_CMD_PLATFORM_PAD2					\
+	boolean_t zc_resumable;						\
+	uint32_t zc_pad4
+#else
+#define	ZFS_CMD_PLATFORM_PAD1
+#define	ZFS_CMD_PLATFORM_PAD2
+#endif
+
 #ifdef _KERNEL
 #include <sys/nvpair.h>
 #endif	/* _KERNEL */
@@ -480,7 +490,11 @@ typedef struct zfs_cmd {
 	uint64_t	zc_obj;
 	uint64_t	zc_iflags;		/* internal to zfs(7fs) */
 	zfs_share_t	zc_share;
+#ifdef __FreeBSD__
+	uint64_t	zc_jailid;
+#endif
 	dmu_objset_stats_t zc_objset_stats;
+	ZFS_CMD_PLATFORM_PAD1;
 	struct drr_begin zc_begin_record;
 	zinject_record_t zc_inject_record;
 	uint32_t	zc_defer_destroy;
@@ -488,7 +502,8 @@ typedef struct zfs_cmd {
 	uint64_t	zc_action_handle;
 	int		zc_cleanup_fd;
 	uint8_t		zc_simple;
-	uint8_t		zc_pad[3];		/* alignment */
+	uint8_t		zc_pad3[3];
+	ZFS_CMD_PLATFORM_PAD2;
 	uint64_t	zc_sendobj;
 	uint64_t	zc_fromobj;
 	uint64_t	zc_createtxg;
@@ -519,6 +534,7 @@ typedef struct zfs_creat {
 extern int zfs_secpolicy_snapshot_perms(const char *, cred_t *);
 extern int zfs_secpolicy_rename_perms(const char *, const char *, cred_t *);
 extern int zfs_secpolicy_destroy_perms(const char *, cred_t *);
+extern int zfs_busy(void);
 extern void zfs_unmount_snap(const char *);
 extern void zfs_destroy_unmount_origin(const char *);
 extern int getzfsvfs_impl(struct objset *, struct zfsvfs **);
@@ -539,7 +555,11 @@ enum zfsdev_state_type {
  */
 typedef struct zfsdev_state {
 	struct zfsdev_state	*zs_next;	/* next zfsdev_state_t link */
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	struct cdev		*zs_cdev;	/* associated device node */
+#else
 	struct file		*zs_file;	/* associated file struct */
+#endif
 	minor_t			zs_minor;	/* made up minor number */
 	void			*zs_onexit;	/* onexit data */
 	void			*zs_zevent;	/* zevent data */
@@ -548,6 +568,7 @@ typedef struct zfsdev_state {
 extern void *zfsdev_get_state(minor_t minor, enum zfsdev_state_type which);
 extern int zfsdev_getminor(struct file *filp, minor_t *minorp);
 extern minor_t zfsdev_minor_alloc(void);
+extern long zfsdev_ioctl_common(uint_t vecnum, unsigned long arg);
 
 #endif	/* _KERNEL */
 

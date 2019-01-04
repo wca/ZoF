@@ -1554,7 +1554,7 @@ vdev_raidz_reconstruct(raidz_map_t *rm, const int *t, int nt)
 
 static int
 vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
-    uint64_t *ashift)
+    uint64_t *ashift, uint64_t *pshift)
 {
 	vdev_t *cvd;
 	uint64_t nparity = vd->vdev_nparity;
@@ -1584,6 +1584,8 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		*asize = MIN(*asize - 1, cvd->vdev_asize - 1) + 1;
 		*max_asize = MIN(*max_asize - 1, cvd->vdev_max_asize - 1) + 1;
 		*ashift = MAX(*ashift, cvd->vdev_ashift);
+		*pshift = MAX(*pshift,
+		    cvd->vdev_physical_ashift);
 	}
 
 	*asize *= vd->vdev_children;
@@ -1634,7 +1636,7 @@ vdev_raidz_child_done(zio_t *zio)
 static void
 vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, int col)
 {
-#ifdef ZFS_DEBUG
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 	vdev_t *vd = zio->io_vd;
 	vdev_t *tvd = vd->vdev_top;
 

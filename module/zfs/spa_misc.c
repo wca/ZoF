@@ -59,7 +59,9 @@
 #include <sys/kstat.h>
 #include "zfs_prop.h"
 #include <sys/zfeature.h>
-#include "qat.h"
+#if defined(__linux__) || !defined(_KERNEL)
+#include <sys/qat.h>
+#endif
 
 /*
  * SPA locking
@@ -232,6 +234,7 @@
 static avl_tree_t spa_namespace_avl;
 kmutex_t spa_namespace_lock;
 static kcondvar_t spa_namespace_cv;
+static int spa_active_count;
 int spa_max_replication_override = SPA_DVAS_PER_BP;
 
 static kmutex_t spa_spare_lock;
@@ -682,8 +685,10 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	/*
 	 * Set the alternate root, if there is one.
 	 */
-	if (altroot)
+	if (altroot) {
 		spa->spa_root = spa_strdup(altroot);
+		spa_active_count++;
+	}
 
 	spa->spa_alloc_count = spa_allocators;
 	spa->spa_alloc_locks = kmem_zalloc(spa->spa_alloc_count *
@@ -772,9 +777,10 @@ spa_remove(spa_t *spa)
 	avl_remove(&spa_namespace_avl, spa);
 	cv_broadcast(&spa_namespace_cv);
 
-	if (spa->spa_root)
+	if (spa->spa_root) {
 		spa_strfree(spa->spa_root);
-
+		spa_active_count--;
+	}
 	while ((dp = list_head(&spa->spa_config_list)) != NULL) {
 		list_remove(&spa->spa_config_list, dp);
 		if (dp->scd_path != NULL)
@@ -2051,11 +2057,14 @@ typedef struct spa_import_progress {
 	spa_load_state_t	spa_load_state;
 	uint64_t		mmp_sec_remaining;	/* MMP activity check */
 	uint64_t		spa_load_max_txg;	/* rewind txg */
+#if !defined(__FreeBSD__) || !defined(_KERNEL)
 	procfs_list_node_t	smh_node;
+#endif
 } spa_import_progress_t;
 
 spa_history_list_t *spa_import_progress_list = NULL;
 
+#if defined(__linux__) || !defined(_KERNEL)
 static int
 spa_import_progress_show_header(struct seq_file *f)
 {
@@ -2246,6 +2255,39 @@ spa_import_progress_remove(uint64_t pool_guid)
 	}
 	mutex_exit(&shl->procfs_list.pl_lock);
 }
+#else
+
+void
+spa_import_progress_remove(uint64_t pool_guid)
+{
+}
+
+int
+spa_import_progress_set_state(uint64_t pool_guid,
+    spa_load_state_t load_state)
+{
+	return (0);
+}
+
+void
+spa_import_progress_add(spa_t *spa)
+{
+
+}
+
+int
+spa_import_progress_set_max_txg(uint64_t pool_guid, uint64_t load_max_txg)
+{
+	return (0);
+}
+
+int
+spa_import_progress_set_mmp_check(uint64_t pool_guid,
+    uint64_t mmp_sec_remaining)
+{
+	return (0);
+}
+#endif
 
 /*
  * ==========================================================================
@@ -2263,6 +2305,12 @@ spa_name_compare(const void *a1, const void *a2)
 	s = strcmp(s1->spa_name, s2->spa_name);
 
 	return (AVL_ISIGN(s));
+}
+
+int
+spa_busy(void)
+{
+	return (spa_active_count);
 }
 
 void
@@ -2326,8 +2374,10 @@ spa_init(int mode)
 	spa_config_load();
 	l2arc_start();
 	scan_init();
+#if defined(__linux__) || !defined(_KERNEL)
 	qat_init();
 	spa_import_progress_init();
+#endif
 }
 
 void
@@ -2351,9 +2401,10 @@ spa_fini(void)
 	zfs_refcount_fini();
 	fm_fini();
 	scan_fini();
+#if defined(__linux__) || !defined(_KERNEL)
 	qat_fini();
 	spa_import_progress_destroy();
-
+#endif
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);
 	avl_destroy(&spa_l2cache_avl);
@@ -2708,7 +2759,7 @@ spa_suspend_async_destroy(spa_t *spa)
 	return (B_FALSE);
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 
 #include <linux/mod_compat.h>
 
@@ -2889,15 +2940,29 @@ EXPORT_SYMBOL(spa_has_checkpoint);
 EXPORT_SYMBOL(spa_top_vdevs_spacemap_addressable);
 
 /* BEGIN CSTYLED */
-module_param(zfs_flags, uint, 0644);
-MODULE_PARM_DESC(zfs_flags, "Set additional debugging flags");
+ZFS_MODULE_PARAM(zfs, zfs_, flags, UINT, ZMOD_RW,
+    "Set additional debugging flags");
 
-module_param(zfs_recover, int, 0644);
-MODULE_PARM_DESC(zfs_recover, "Set to attempt to recover from fatal errors");
+ZFS_MODULE_PARAM(zfs, zfs_, recover, UINT, ZMOD_RW,
+    "Set to attempt to recover from fatal errors");
 
-module_param(zfs_free_leak_on_eio, int, 0644);
-MODULE_PARM_DESC(zfs_free_leak_on_eio,
+ZFS_MODULE_PARAM(zfs, zfs_, free_leak_on_eio, UINT, ZMOD_RW,
 	"Set to ignore IO errors during free and permanently leak the space");
+
+ZFS_MODULE_PARAM(zfs, zfs_, deadman_checktime_ms, UQUAD, ZMOD_RW,
+	"Dead I/O check interval in milliseconds");
+
+ZFS_MODULE_PARAM(zfs, zfs_, deadman_enabled, UINT, ZMOD_RW,
+    "Enable deadman timer");
+
+ZFS_MODULE_PARAM(zfs_spa, spa_, asize_inflation, UINT, ZMOD_RW,
+	"SPA size estimate multiplication factor");
+
+ZFS_MODULE_PARAM(zfs, zfs_, ddt_data_is_special, UINT, ZMOD_RW,
+	"Place DDT data into the special class");
+
+ZFS_MODULE_PARAM(zfs, zfs_, user_indirect_is_special, UINT, ZMOD_RW,
+	"Place user data indirect blocks into the special class");
 
 module_param_call(zfs_deadman_synctime_ms, param_set_deadman_synctime,
     param_get_ulong, &zfs_deadman_synctime_ms, 0644);
@@ -2909,35 +2974,15 @@ module_param_call(zfs_deadman_ziotime_ms, param_set_deadman_ziotime,
 MODULE_PARM_DESC(zfs_deadman_ziotime_ms,
 	"IO expiration time in milliseconds");
 
-module_param(zfs_deadman_checktime_ms, ulong, 0644);
-MODULE_PARM_DESC(zfs_deadman_checktime_ms,
-	"Dead I/O check interval in milliseconds");
-
-module_param(zfs_deadman_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");
+module_param_call(spa_slop_shift, param_set_slop_shift, param_get_int,
+    &spa_slop_shift, 0644);
+MODULE_PARM_DESC(spa_slop_shift, "Reserved free space in pool");
 
 module_param_call(zfs_deadman_failmode, param_set_deadman_failmode,
     param_get_charp, &zfs_deadman_failmode, 0644);
 MODULE_PARM_DESC(zfs_deadman_failmode, "Failmode for deadman timer");
 
-module_param(spa_asize_inflation, int, 0644);
-MODULE_PARM_DESC(spa_asize_inflation,
-	"SPA size estimate multiplication factor");
-
-module_param_call(spa_slop_shift, param_set_slop_shift, param_get_int,
-    &spa_slop_shift, 0644);
-MODULE_PARM_DESC(spa_slop_shift, "Reserved free space in pool");
-
-module_param(zfs_ddt_data_is_special, int, 0644);
-MODULE_PARM_DESC(zfs_ddt_data_is_special,
-	"Place DDT data into the special class");
-
-module_param(zfs_user_indirect_is_special, int, 0644);
-MODULE_PARM_DESC(zfs_user_indirect_is_special,
-	"Place user data indirect blocks into the special class");
-
-module_param(zfs_special_class_metadata_reserve_pct, int, 0644);
-MODULE_PARM_DESC(zfs_special_class_metadata_reserve_pct,
+ZFS_MODULE_PARAM(zfs, zfs_, special_class_metadata_reserve_pct, UINT, ZMOD_RW,				 
 	"Small file blocks in special vdevs depends on this much "
 	"free space available");
 /* END CSTYLED */

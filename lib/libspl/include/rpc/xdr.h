@@ -44,6 +44,9 @@ typedef struct xdr_bytesrec {
 	bool_t xc_is_last_record;
 	size_t xc_num_avail;
 } xdr_bytesrec_t;
+#ifdef __FreeBSD__
+#undef xdr_control
+#endif
 
 /*
  * This functionality is not required and is disabled in user space.

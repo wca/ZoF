@@ -43,12 +43,15 @@
  * Note that the blocked devices are assumed to have DEV_BSIZE
  * "sectors" and that fragments must be some multiple of this size.
  */
+#ifndef __FreeBSD__
 #define	MAXBSIZE	8192
 #define	DEV_BSIZE	512
 #define	DEV_BSHIFT	9		/* log2(DEV_BSIZE) */
 
-#define	MAXNAMELEN	256
 #define	MAXOFFSET_T	LLONG_MAX
+#endif
+
+#define	MAXNAMELEN	256
 
 #define	UID_NOBODY	60001		/* user ID no body */
 #define	GID_NOBODY	UID_NOBODY

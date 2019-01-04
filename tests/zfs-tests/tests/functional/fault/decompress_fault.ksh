@@ -33,7 +33,11 @@ log_assert "Testing that injected decompression errors are handled correctly"
 
 function cleanup
 {
-	log_must set_tunable64 zfs_compressed_arc_enabled 1
+	if is_freebsd; then
+		log_must set_tunable64 vfs.zfs.arc.compression_enabled 1
+	else
+		log_must set_tunable64 zfs_arc.compression_enabled 1
+	fi
 	log_must zinject -c all
 	default_cleanup_noexit
 }
@@ -41,15 +45,27 @@ function cleanup
 log_onexit cleanup
 
 default_mirror_setup_noexit $DISK1 $DISK2
-log_must set_tunable64 zfs_compressed_arc_enabled 0
+if is_freebsd; then
+	log_must set_tunable64 vfs.zfs.arc.compression_enabled 0
+else
+	log_must set_tunable64 zfs_arc.compression_enabled 0
+fi
 log_must zfs create -o compression=on $TESTPOOL/fs
 mntpt=$(get_prop mountpoint $TESTPOOL/fs)
-write_compressible $mntpt 32m 1 0 "testfile"
+if is_freebsd; then
+	# Block size of 0 not supported on FreeBSD. 1024k is default
+	write_compressible $mntpt 32m 1 1024k "testfile"
+else
+	write_compressible $mntpt 32m 1 0 "testfile"
+fi
 log_must sync
 log_must zfs umount $TESTPOOL/fs
 log_must zfs mount $TESTPOOL/fs
 log_must zinject -a -t data -e decompress -f 20 $mntpt/testfile.0
 log_mustnot eval "cat $mntpt/testfile.0 > /dev/null"
-log_must eval "zpool events $TESTPOOL | grep -q 'data'"
+# Events are not supported on FreeBSD
+if ! is_freebsd; then
+	log_must eval "zpool events $TESTPOOL | grep -q 'data'"
+fi
 
 log_pass "Injected decompression errors are handled correctly"

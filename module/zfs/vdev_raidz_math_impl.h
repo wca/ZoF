@@ -385,7 +385,7 @@ raidz_generate_p_impl(raidz_map_t * const rm)
  * @csize	size of parity columns
  * @dsize	size of data column
  */
-static void
+static inline void
 raidz_gen_pq_add(void **c, const void *dc, const size_t csize,
     const size_t dsize)
 {

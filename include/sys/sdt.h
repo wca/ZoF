@@ -34,7 +34,9 @@
 #define	ZFS_PROBE2(a, c, e)		((void) 0)
 #define	ZFS_PROBE3(a, c, e, g)		((void) 0)
 #define	ZFS_PROBE4(a, c, e, g, i)	((void) 0)
-
+#elif defined(__FreeBSD__)
+#undef _SYS_SDT_H
+#include_next <sys/sdt.h>
 #endif /* _KERNEL */
 
 /*

@@ -26,7 +26,12 @@
 #if defined(__x86_64) && defined(HAVE_AVX2)
 
 #include <sys/types.h>
+#if defined(__linux__) || !defined(_KERNEL)
 #include <linux/simd_x86.h>
+
+#elif defined(__FreeBSD__)
+#include <os/freebsd/spl/sys/simd_x86.h>
+#endif
 
 #define	__asm __asm__ __volatile__
 
@@ -58,6 +63,7 @@
 #define	ZFS_ASM_BUG()	ASSERT(0)
 
 extern const uint8_t gf_clmul_mod_lt[4*256][16];
+
 
 #define	ELEM_SIZE 32
 
@@ -296,12 +302,8 @@ static const uint8_t __attribute__((aligned(32))) _mul_mask = 0x0F;
 	}								\
 }
 
-#define	raidz_math_begin()	kfpu_begin()
-#define	raidz_math_end()						\
-{									\
-	FLUSH();							\
-	kfpu_end();							\
-}
+#ifdef __linux__
+#endif
 
 
 #define	SYN_STRIDE		4
@@ -386,6 +388,13 @@ static const uint8_t __attribute__((aligned(32))) _mul_mask = 0x0F;
 #define	REC_PQR_XS		6, 7
 #define	REC_PQR_YS		8, 9
 
+
+#define	raidz_math_begin() kfpu_begin()
+#define	raidz_math_end()						\
+{									\
+	FLUSH();							\
+	kfpu_end();							\
+}
 
 #include <sys/vdev_raidz_impl.h>
 #include "vdev_raidz_math_impl.h"

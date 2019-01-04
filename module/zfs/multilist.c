@@ -18,7 +18,9 @@
 
 #include <sys/zfs_context.h>
 #include <sys/multilist.h>
+#ifdef __linux__
 #include <sys/trace_multilist.h>
+#endif
 
 /* needed for spa_get_random() */
 #include <sys/spa.h>
@@ -33,7 +35,7 @@ int zfs_multilist_num_sublists = 0;
  * Given the object contained on the list, return a pointer to the
  * object's multilist_node_t structure it contains.
  */
-#ifdef DEBUG
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 static multilist_node_t *
 multilist_d2l(multilist_t *ml, void *obj)
 {
@@ -429,8 +431,7 @@ multilist_link_active(multilist_node_t *link)
 
 /* BEGIN CSTYLED */
 
-module_param(zfs_multilist_num_sublists, int, 0644);
-MODULE_PARM_DESC(zfs_multilist_num_sublists,
+ZFS_MODULE_PARAM(zfs, zfs_, multilist_num_sublists, UINT, ZMOD_RW,
 	"Number of sublists used in each multilist");
 
 /* END CSTYLED */

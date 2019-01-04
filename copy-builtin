@@ -12,12 +12,11 @@ usage()
 KERNEL_DIR="$(readlink --canonicalize-existing "$1")"
 
 MODULES=()
-MODULES+="spl"
-for MODULE_DIR in module/*
+for MODULE_DIR in module/* module/os/linux/*
 do
 	[ -d "$MODULE_DIR" ] || continue
-	[ "spl" = "${MODULE_DIR##*/}" ] && continue
-	MODULES+=("${MODULE_DIR##*/}")
+	[ "os" = "${MODULE_DIR#*/}" ] && continue
+	MODULES+=("${MODULE_DIR#*/}")
 done
 
 if ! [ -e 'zfs_config.h' ]
@@ -63,6 +62,8 @@ EOF
 	cat <<-"EOF"
 	ZFS_MODULE_CFLAGS  = -I$(srctree)/include/zfs
 	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/spl
+	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/spl
+	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/zfs
 	ZFS_MODULE_CFLAGS += -include $(srctree)/include/zfs/zfs_config.h
 	ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
 	ZFS_MODULE_CPPFLAGS  = -D_KERNEL

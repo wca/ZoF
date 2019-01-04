@@ -54,6 +54,16 @@ int spl_panic(const char *file, const char *func, int line,
     const char *fmt, ...);
 void spl_dumpstack(void);
 
+#ifndef expect
+#define	expect(expr, value) (__builtin_expect((expr), (value)))
+#endif
+#ifndef __linux__
+#define	likely(expr)   expect((expr) != 0, 1)
+#endif
+#ifndef __linux__
+#define	unlikely(expr) expect((expr) != 0, 0)
+#endif
+
 /* BEGIN CSTYLED */
 #define	PANIC(fmt, a...)						\
 	spl_panic(__FILE__, __FUNCTION__, __LINE__, fmt, ## a)
@@ -116,14 +126,16 @@ void spl_dumpstack(void);
 		    "failed (0 == %lld)\n",				\
 		    (long long) (_verify3_right));			\
 	} while (0)
-
+#ifdef __FreeBSD__
+#define	CTASSERT_GLOBAL(x)		CTASSERT(x)
+#else
 #define	CTASSERT_GLOBAL(x)		_CTASSERT(x, __LINE__)
 #define	CTASSERT(x)			{ _CTASSERT(x, __LINE__); }
 #define	_CTASSERT(x, y)			__CTASSERT(x, y)
 #define	__CTASSERT(x, y)						\
 	typedef char __attribute__ ((unused))				\
 	__compile_time_assertion__ ## y[(x) ? 1 : -1]
-
+#endif
 /*
  * Debugging disabled (--disable-debug)
  */

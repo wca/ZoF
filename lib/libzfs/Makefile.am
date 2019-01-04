@@ -32,6 +32,15 @@ USER_C = \
 	libzfs_status.c \
 	libzfs_util.c
 
+if BUILD_FREEBSD
+USER_C+= \
+	freebsd_deviceid.c \
+	freebsd_fsshare.c \
+	freebsd_libzfs_compat.c \
+	freebsd_libzfs_ioctl_compat.c \
+	zmount.c
+endif
+
 KERNEL_C = \
 	algs/sha2/sha2.c \
 	zfeature_common.c \
@@ -56,13 +65,23 @@ nodist_libzfs_la_SOURCES = \
 
 libzfs_la_LIBADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libshare/libshare.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
 	$(top_builddir)/lib/libzutil/libzutil.la
 
-libzfs_la_LIBADD += -lm $(LIBSSL)
+if BUILD_LINUX
+libzfs_la_LIBADD += \
+	$(top_builddir)/lib/libshare/libshare.la
+endif
+
+if BUILD_FREEBSD
+libzfs_la_LIBADD += -lutil -lgeom
+libzfs_la_LDFLAGS = -version-info 4:0:0
+else
 libzfs_la_LDFLAGS = -version-info 2:0:0
+endif
+
+libzfs_la_LIBADD += -lm $(LIBSSL)
 
 EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)
 

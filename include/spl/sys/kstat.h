@@ -24,11 +24,15 @@
 
 #ifndef _SPL_KSTAT_H
 #define	_SPL_KSTAT_H
-
+#ifdef __linux__
 #include <linux/module.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/kmem.h>
+#else
+#include <sys/sysctl.h>
+struct list_head {};
+#endif
 #include <sys/mutex.h>
 #include <sys/proc.h>
 
@@ -98,6 +102,7 @@ typedef struct kstat_raw_ops {
 	void *(*addr)(kstat_t *ksp, loff_t index);
 } kstat_raw_ops_t;
 
+#ifdef __linux__
 typedef struct kstat_proc_entry {
 	char	kpe_name[KSTAT_STRLEN+1];	/* kstat name */
 	char	kpe_module[KSTAT_STRLEN+1];	/* provider module name */
@@ -105,27 +110,39 @@ typedef struct kstat_proc_entry {
 	struct list_head	kpe_list;	/* kstat linkage */
 	struct proc_dir_entry	*kpe_proc;	/* procfs entry */
 } kstat_proc_entry_t;
+#endif
 
 struct kstat_s {
 	int		ks_magic;		/* magic value */
 	kid_t		ks_kid;			/* unique kstat ID */
 	hrtime_t	ks_crtime;		/* creation time */
 	hrtime_t	ks_snaptime;		/* last access time */
+	char		ks_module[KSTAT_STRLEN+1]; /* provider module name */
 	int		ks_instance;		/* provider module instance */
+	char		ks_name[KSTAT_STRLEN+1]; /* kstat name */
 	char		ks_class[KSTAT_STRLEN+1]; /* kstat class */
 	uchar_t		ks_type;		/* kstat data type */
 	uchar_t		ks_flags;		/* kstat flags */
 	void		*ks_data;		/* kstat type-specific data */
 	uint_t		ks_ndata;		/* # of data records */
 	size_t		ks_data_size;		/* size of kstat data section */
+#if defined(__linux__) || !defined(_KERNEL)
+	kstat_proc_entry_t ks_proc;		/* proc linkage */
+#endif
 	kstat_update_t	*ks_update;		/* dynamic updates */
 	void		*ks_private;		/* private data */
 	kmutex_t	ks_private_lock;	/* kstat private data lock */
 	kmutex_t	*ks_lock;		/* kstat data lock */
+	struct list_head ks_list;		/* kstat linkage */
+	kstat_module_t	*ks_owner;		/* kstat module linkage */
 	kstat_raw_ops_t	ks_raw_ops;		/* ops table for raw type */
 	char		*ks_raw_buf;		/* buf used for raw ops */
 	size_t		ks_raw_bufsize;		/* size of raw ops buffer */
-	kstat_proc_entry_t	ks_proc;	/* data for procfs entry */
+#if defined(_KERNEL) && defined(__FreeBSD__)
+	struct sysctl_ctx_list ks_sysctl_ctx;
+	struct sysctl_oid *ks_sysctl_root;
+#endif
+
 };
 
 typedef struct kstat_named_s {
@@ -193,11 +210,13 @@ extern kstat_t *__kstat_create(const char *ks_module, int ks_instance,
     const char *ks_name, const char *ks_class, uchar_t ks_type,
     uint_t ks_ndata, uchar_t ks_flags);
 
+#ifdef __linux__
 extern void kstat_proc_entry_init(kstat_proc_entry_t *kpep,
     const char *module, const char *name);
 extern void kstat_proc_entry_delete(kstat_proc_entry_t *kpep);
 extern void kstat_proc_entry_install(kstat_proc_entry_t *kpep, mode_t mode,
     const struct file_operations *file_ops, void *data);
+#endif
 
 extern void __kstat_install(kstat_t *ksp);
 extern void __kstat_delete(kstat_t *ksp);

@@ -42,6 +42,10 @@
 # 3. Verify the command aborts and generate a core file
 #
 
+if is_freebsd; then
+	log_unsupported "No coreadm on FreeBSD"
+fi
+
 verify_runnable "both"
 
 function cleanup

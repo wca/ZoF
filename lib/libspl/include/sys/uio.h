@@ -43,7 +43,7 @@
 #include_next <sys/uio.h>
 
 typedef struct iovec iovec_t;
-
+#ifdef __linux__
 typedef enum uio_rw {
 	UIO_READ =	0,
 	UIO_WRITE =	1,
@@ -54,6 +54,9 @@ typedef enum uio_seg {
 	UIO_SYSSPACE =	1,
 	UIO_USERISPACE = 2,
 } uio_seg_t;
+#else
+typedef enum uio_seg  uio_seg_t;
+#endif
 
 typedef struct uio {
 	struct iovec	*uio_iov;	/* pointer to array of iovecs */

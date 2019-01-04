@@ -45,6 +45,10 @@
 #	4. delete files and verify object count
 #
 
+if is_freebsd; then
+	log_unsupported "objused unsupported in FreeBSD"
+fi
+
 function cleanup
 {
 	if datasetexists $snapfs; then

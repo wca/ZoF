@@ -1,4 +1,10 @@
-SUBDIRS = linux spl sys
+SUBDIRS = sys
+SUBDIRS+= os
+
+if BUILD_LINUX
+SUBDIRS+= linux 
+SUBDIRS+= spl
+endif
 
 COMMON_H = \
 	$(top_srcdir)/include/zfeature_common.h \

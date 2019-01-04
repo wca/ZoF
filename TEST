@@ -61,12 +61,15 @@ case "$BB_NAME" in
 Amazon*)
     # ZFS enabled xfstests fails to build
     TEST_XFSTESTS_SKIP="yes"
+    export PYTHON=python
     ;;
 CentOS-7*)
     # ZFS enabled xfstests fails to build
     TEST_XFSTESTS_SKIP="yes"
+    export PYTHON=python
     ;;
 CentOS-6*)
+    export PYTHON=python
     ;;
 Debian*)
     ;;

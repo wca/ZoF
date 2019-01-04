@@ -44,7 +44,9 @@
 #include <sys/zfeature.h>
 #include <sys/blkptr.h>
 #include <sys/range_tree.h>
+#ifdef __linux__
 #include <sys/trace_dbuf.h>
+#endif
 #include <sys/callb.h>
 #include <sys/abd.h>
 #include <sys/vdev.h>
@@ -117,8 +119,39 @@ dbuf_stats_t dbuf_stats = {
 	{ "cache_lowater_bytes",		KSTAT_DATA_UINT64 },
 	{ "cache_hiwater_bytes",		KSTAT_DATA_UINT64 },
 	{ "cache_total_evicts",			KSTAT_DATA_UINT64 },
+#ifdef __FreeBSD__
+	{
+		{ "cache_level_0",			KSTAT_DATA_UINT64 },
+		{ "cache_level_1",			KSTAT_DATA_UINT64 },
+		{ "cache_level_2",			KSTAT_DATA_UINT64 },
+		{ "cache_level_3",			KSTAT_DATA_UINT64 },
+		{ "cache_level_4",			KSTAT_DATA_UINT64 },
+		{ "cache_level_5",			KSTAT_DATA_UINT64 },
+		{ "cache_level_6",			KSTAT_DATA_UINT64 },
+		{ "cache_level_7",			KSTAT_DATA_UINT64 },
+		{ "cache_level_8",			KSTAT_DATA_UINT64 },
+		{ "cache_level_9",			KSTAT_DATA_UINT64 },
+		{ "cache_level_10",			KSTAT_DATA_UINT64 },
+		{ "cache_level_11",			KSTAT_DATA_UINT64 },
+	},
+	{
+		{ "cache_level_0_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_1_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_2_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_3_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_4_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_5_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_6_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_7_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_8_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_9_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_10_bytes",		KSTAT_DATA_UINT64 },
+		{ "cache_level_11_bytes",		KSTAT_DATA_UINT64 },
+	},
+#else
 	{ { "cache_levels_N",			KSTAT_DATA_UINT64 } },
 	{ { "cache_levels_bytes_N",		KSTAT_DATA_UINT64 } },
+#endif
 	{ "hash_hits",				KSTAT_DATA_UINT64 },
 	{ "hash_misses",			KSTAT_DATA_UINT64 },
 	{ "hash_collisions",			KSTAT_DATA_UINT64 },
@@ -229,10 +262,10 @@ dbuf_cache_t dbuf_caches[DB_CACHE_MAX];
 
 /* Size limits for the caches */
 unsigned long dbuf_cache_max_bytes = 0;
-unsigned long dbuf_metadata_cache_max_bytes = 0;
+unsigned long dbuf_cache_metadata_max_bytes = 0;
 /* Set the default sizes of the caches to log2 fraction of arc size */
 int dbuf_cache_shift = 5;
-int dbuf_metadata_cache_shift = 6;
+int dbuf_cache_metadata_shift = 6;
 
 /*
  * The LRU dbuf cache uses a three-stage eviction policy:
@@ -449,7 +482,7 @@ dbuf_include_in_metadata_cache(dmu_buf_impl_t *db)
 		 */
 		if (zfs_refcount_count(
 		    &dbuf_caches[DB_DBUF_METADATA_CACHE].size) >
-		    dbuf_metadata_cache_max_bytes) {
+		    dbuf_cache_metadata_max_bytes) {
 			DBUF_STAT_BUMP(metadata_cache_overflow);
 			return (B_FALSE);
 		}
@@ -800,7 +833,7 @@ dbuf_init(void)
 	 * The hash table is big enough to fill all of physical memory
 	 * with an average block size of zfs_arc_average_blocksize (default 8K).
 	 * By default, the table will take up
-	 * totalmem * sizeof(void*) / 8K (1MB per GB with 8-byte pointers).
+	 * totalmem * sizeof (void*) / 8K (1MB per GB with 8-byte pointers).
 	 */
 	while (hsize * zfs_arc_average_blocksize < physmem * PAGESIZE)
 		hsize <<= 1;
@@ -843,10 +876,10 @@ retry:
 	    dbuf_cache_max_bytes >= arc_target_bytes()) {
 		dbuf_cache_max_bytes = arc_target_bytes() >> dbuf_cache_shift;
 	}
-	if (dbuf_metadata_cache_max_bytes == 0 ||
-	    dbuf_metadata_cache_max_bytes >= arc_target_bytes()) {
-		dbuf_metadata_cache_max_bytes =
-		    arc_target_bytes() >> dbuf_metadata_cache_shift;
+	if (dbuf_cache_metadata_max_bytes == 0 ||
+	    dbuf_cache_metadata_max_bytes >= arc_target_bytes()) {
+		dbuf_cache_metadata_max_bytes =
+		    arc_target_bytes() >> dbuf_cache_metadata_shift;
 	}
 
 	/*
@@ -1042,6 +1075,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 * partially fill in a hole.
 		 */
 		if (db->db_dirtycnt == 0) {
+#if defined(ZFS_DEBUG) && !defined(NDEBUG)
 			if (db->db_level == 0) {
 				uint64_t *buf = db->db.db_data;
 				int i;
@@ -1078,6 +1112,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 					ASSERT0(bp->blk_phys_birth);
 				}
 			}
+#endif
 		}
 	}
 	DB_DNODE_EXIT(db);
@@ -4697,30 +4732,24 @@ EXPORT_SYMBOL(dmu_buf_get_user);
 EXPORT_SYMBOL(dmu_buf_get_blkptr);
 
 /* BEGIN CSTYLED */
-module_param(dbuf_cache_max_bytes, ulong, 0644);
-MODULE_PARM_DESC(dbuf_cache_max_bytes,
+ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, max_bytes, UQUAD, ZMOD_RW,
 	"Maximum size in bytes of the dbuf cache.");
 
-module_param(dbuf_cache_hiwater_pct, uint, 0644);
-MODULE_PARM_DESC(dbuf_cache_hiwater_pct,
+ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, hiwater_pct, UINT, ZMOD_RW,
 	"Percentage over dbuf_cache_max_bytes when dbufs must be evicted "
 	"directly.");
 
-module_param(dbuf_cache_lowater_pct, uint, 0644);
-MODULE_PARM_DESC(dbuf_cache_lowater_pct,
+ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, lowater_pct, UINT, ZMOD_RW,
 	"Percentage below dbuf_cache_max_bytes when the evict thread stops "
 	"evicting dbufs.");
 
-module_param(dbuf_metadata_cache_max_bytes, ulong, 0644);
-MODULE_PARM_DESC(dbuf_metadata_cache_max_bytes,
+ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, metadata_max_bytes, UQUAD, ZMOD_RW,
 	"Maximum size in bytes of the dbuf metadata cache.");
 
-module_param(dbuf_cache_shift, int, 0644);
-MODULE_PARM_DESC(dbuf_cache_shift,
+ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, shift, UINT, ZMOD_RW,
 	"Set the size of the dbuf cache to a log2 fraction of arc size.");
 
-module_param(dbuf_metadata_cache_shift, int, 0644);
-MODULE_PARM_DESC(dbuf_cache_shift,
+ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, metadata_shift, UINT, ZMOD_RW,
 	"Set the size of the dbuf metadata cache to a log2 fraction of "
 	"arc size.");
 /* END CSTYLED */

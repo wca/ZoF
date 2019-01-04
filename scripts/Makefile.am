@@ -43,7 +43,7 @@ export INSTALL_MOUNT_HELPER_DIR=@mounthelperdir@
 export INSTALL_SYSCONF_DIR=@sysconfdir@
 export INSTALL_PYTHON_DIR=@pythonsitedir@
 
-export KMOD_SPL=@abs_top_builddir@/module/spl/spl.ko
+export KMOD_SPL=@abs_top_builddir@/module/os/linux/spl/spl.ko
 export KMOD_ZAVL=@abs_top_builddir@/module/avl/zavl.ko
 export KMOD_ZNVPAIR=@abs_top_builddir@/module/nvpair/znvpair.ko
 export KMOD_ZUNICODE=@abs_top_builddir@/module/unicode/zunicode.ko
@@ -61,6 +61,7 @@ all-local:
 		-e '\|^export ZTS_DIR=|s|$$|@abs_top_srcdir@/tests|' \
 		-e '\|^export SCRIPT_DIR=|s|$$|@abs_top_srcdir@/scripts|' \
 		$(abs_top_srcdir)/scripts/common.sh.in >common.sh
+	-echo 'export PYTHON=$${PYTHON:-@PYTHON@}' >>common.sh
 	-echo "$$EXTRA_ENVIRONMENT" >>common.sh
 
 clean-local:
@@ -73,3 +74,5 @@ install-data-hook:
 		-e '\|^export SCRIPT_DIR=|s|$$|@datadir@/@PACKAGE@|' \
 		$(abs_top_srcdir)/scripts/common.sh.in \
 		>$(DESTDIR)$(datadir)/@PACKAGE@/common.sh
+	-echo 'export PYTHON=$${PYTHON:-@PYTHON@}' \
+		>>$(DESTDIR)$(datadir)/@PACKAGE@/common.sh

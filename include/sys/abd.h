@@ -30,14 +30,18 @@
 #include <sys/debug.h>
 #include <sys/refcount.h>
 #ifdef _KERNEL
+#ifdef __linux__
 #include <linux/mm.h>
 #include <linux/bio.h>
+#endif
 #include <sys/uio.h>
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct bio;
 
 typedef enum abd_flags {
 	ABD_FLAG_LINEAR	= 1 << 0,	/* is buffer linear (or scattered)? */
@@ -56,8 +60,13 @@ typedef struct abd {
 	union {
 		struct abd_scatter {
 			uint_t		abd_offset;
+#if defined(__FreeBSD__) && defined(_KERNEL)
+			uint_t  abd_chunk_size;
+			void    *abd_chunks[];
+#else
 			uint_t		abd_nents;
 			struct scatterlist *abd_sgl;
+#endif
 		} abd_scatter;
 		struct abd_linear {
 			void		*abd_buf;

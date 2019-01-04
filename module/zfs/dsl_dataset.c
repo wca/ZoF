@@ -1067,7 +1067,7 @@ dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, void *arg,
 	}
 }
 
-void
+static void
 dsl_dataset_deactivate_feature_impl(dsl_dataset_t *ds, spa_feature_t f,
     dmu_tx_t *tx)
 {
@@ -1796,7 +1796,7 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 
 	dsl_dir_snap_cmtime_update(ds->ds_dir);
 
-	spa_history_log_internal_ds(ds->ds_prev, "snapshot", tx, "");
+	spa_history_log_internal_ds(ds->ds_prev, "snapshot", tx, " ");
 }
 
 void
@@ -1822,7 +1822,9 @@ dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx)
 			dsl_props_set_sync_impl(ds->ds_prev,
 			    ZPROP_SRC_LOCAL, ddsa->ddsa_props, tx);
 		}
+#ifndef __FreeBSD__
 		zvol_create_minors(dp->dp_spa, nvpair_name(pair), B_TRUE);
+#endif
 		dsl_dataset_rele(ds, FTAG);
 	}
 }
@@ -1896,7 +1898,15 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 		}
 		fnvlist_free(suspended);
 	}
-
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	if (error == 0) {
+		for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
+		    pair = nvlist_next_nvpair(snaps, pair)) {
+			char *snapname = nvpair_name(pair);
+			zvol_create_minors(spa, snapname, B_TRUE);
+		}
+	}
+#endif
 	return (error);
 }
 
@@ -2244,7 +2254,7 @@ get_receive_resume_stats_impl(dsl_dataset_t *ds)
 		kmem_free(compressed, packed_size);
 		return (propval);
 	}
-	return (strdup(""));
+	return (spl_strdup(""));
 }
 
 /*
@@ -2267,7 +2277,7 @@ get_child_receive_stats(dsl_dataset_t *ds)
 		dsl_dataset_rele(recv_ds, FTAG);
 		return (propval);
 	}
-	return (strdup(""));
+	return (spl_strdup(""));
 }
 
 static void
@@ -3520,7 +3530,7 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_phys(origin_ds)->ds_unique_bytes = ddpa->unique;
 
 	/* log history record */
-	spa_history_log_internal_ds(hds, "promote", tx, "");
+	spa_history_log_internal_ds(hds, "promote", tx, " ");
 
 	dsl_dir_rele(odd, FTAG);
 	promote_rele(ddpa, FTAG);
@@ -4665,13 +4675,14 @@ dsl_dataset_activate_redaction(dsl_dataset_t *ds, uint64_t *redact_snaps,
 
 #if defined(_KERNEL)
 #if defined(_LP64)
-module_param(zfs_max_recordsize, int, 0644);
-MODULE_PARM_DESC(zfs_max_recordsize, "Max allowed record size");
+#define	RECORDSIZE_PERM ZMOD_RW
 #else
 /* Limited to 1M on 32-bit platforms due to lack of virtual address space */
-module_param(zfs_max_recordsize, int, 0444);
-MODULE_PARM_DESC(zfs_max_recordsize, "Max allowed record size");
+#define	RECORDSIZE_PERM ZMOD_RD
 #endif
+ZFS_MODULE_PARAM(zfs, zfs_, max_recordsize, UINT, RECORDSIZE_PERM,
+	"Max allowed record size");
+
 
 module_param(zfs_allow_redacted_dataset_mount, int, 0644);
 MODULE_PARM_DESC(zfs_allow_redacted_dataset_mount,

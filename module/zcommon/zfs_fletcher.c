@@ -140,7 +140,13 @@
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
 #include <zfs_fletcher.h>
+#if defined(__linux__) || !defined(_KERNEL)
 #include <linux/simd.h>
+#elif defined(__amd64__)
+#include <sys/simd_x86.h>
+#else
+#define	kfpu_allowed() (0)
+#endif
 
 #define	FLETCHER_MIN_SIMD_SIZE	64
 
@@ -895,7 +901,7 @@ zio_abd_checksum_func_t fletcher_4_abd_ops = {
 };
 
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 #include <linux/mod_compat.h>
 
 static int

@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2017 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2018 Datto Inc.
@@ -129,6 +129,7 @@ zfs_share_proto_t share_all_proto[] = {
 	PROTO_END
 };
 
+#ifdef __linux__
 /*
  * Search the sharetab for the given mountpoint and protocol, returning
  * a zfs_share_type_t value.
@@ -183,7 +184,35 @@ is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
 
 	return (SHARED_NOT_SHARED);
 }
+#else
+static zfs_share_type_t
+is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
+{
+	char buf[MAXPATHLEN], *tab;
 
+	if (hdl->libzfs_sharetab == NULL)
+		return (SHARED_NOT_SHARED);
+
+	(void) fseek(hdl->libzfs_sharetab, 0, SEEK_SET);
+
+	while (fgets(buf, sizeof (buf), hdl->libzfs_sharetab) != NULL) {
+
+		/* the mountpoint is the first entry on each line */
+		if ((tab = strchr(buf, '\t')) == NULL)
+			continue;
+
+		*tab = '\0';
+		if (strcmp(buf, mountpoint) == 0) {
+			if (proto == PROTO_NFS)
+				return (SHARED_NFS);
+		}
+	}
+
+	return (SHARED_NOT_SHARED);
+}
+#endif
+
+#ifdef __linux__
 static boolean_t
 dir_is_empty_stat(const char *dirname)
 {
@@ -274,6 +303,7 @@ dir_is_empty(const char *dirname)
 	 */
 	return (dir_is_empty_stat(dirname));
 }
+#endif
 
 /*
  * Checks to see if the mount is active.  If the filesystem is mounted, we fill
@@ -306,7 +336,7 @@ zfs_is_mounted(zfs_handle_t *zhp, char **where)
  */
 static boolean_t
 zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
-    zprop_source_t *source, int flags)
+    zprop_source_t *source)
 {
 	char sourceloc[MAXNAMELEN];
 	zprop_source_t sourcetype;
@@ -327,13 +357,6 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 
 	if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED) &&
 	    getzoneid() == GLOBAL_ZONEID)
-		return (B_FALSE);
-
-	if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED) &&
-	    getzoneid() == GLOBAL_ZONEID)
-		return (B_FALSE);
-
-	if (zfs_prop_get_int(zhp, ZFS_PROP_REDACTED) && !(flags & MS_FORCE))
 		return (B_FALSE);
 
 	if (source)
@@ -358,7 +381,7 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
  *
  * http://www.kernel.org/pub/linux/utils/util-linux/libmount-docs/index.html
  */
-
+#ifdef __linux__
 static int
 do_mount(const char *src, const char *mntpt, char *opts)
 {
@@ -502,10 +525,8 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	if (zpool_get_prop_int(zhp->zpool_hdl, ZPOOL_PROP_READONLY, NULL))
 		(void) strlcat(mntopts, "," MNTOPT_RO, sizeof (mntopts));
 
-	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL,
-	    flags)) {
+	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
-	}
 
 	/*
 	 * Append default mount options which apply to the mount point.
@@ -640,7 +661,164 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	libzfs_mnttab_add(hdl, zfs_get_name(zhp), mountpoint, mntopts);
 	return (0);
 }
+#else
+extern int zmount(const char *spec, const char *dir, int mflag, char *fstype,
+    char *dataptr, int datalen, char *optptr, int optlen);
 
+
+/*
+ * Mount the given filesystem.
+ */
+int
+zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
+{
+	struct stat buf;
+	char mountpoint[ZFS_MAXPROPLEN];
+	char mntopts[MNT_LINE_MAX];
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	uint64_t keystatus;
+	int rc;
+
+	if (options == NULL)
+		mntopts[0] = '\0';
+	else
+		(void) strlcpy(mntopts, options, sizeof (mntopts));
+
+	/*
+	 * If the pool is imported read-only then all mounts must be read-only
+	 */
+	if (zpool_get_prop_int(zhp->zpool_hdl, ZPOOL_PROP_READONLY, NULL))
+		flags |= MS_RDONLY;
+
+	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
+		return (0);
+
+	/*
+	 * If the filesystem is encrypted the key must be loaded  in order to
+	 * mount. If the key isn't loaded, the MS_CRYPT flag decides whether
+	 * or not we attempt to load the keys. Note: we must call
+	 * zfs_refresh_properties() here since some callers of this function
+	 * (most notably zpool_enable_datasets()) may implicitly load our key
+	 * by loading the parent's key first.
+	 */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF) {
+		zfs_refresh_properties(zhp);
+		keystatus = zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS);
+
+		/*
+		 * If the key is unavailable and MS_CRYPT is set give the
+		 * user a chance to enter the key. Otherwise just fail
+		 * immediately.
+		 */
+		if (keystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
+#ifdef MS_CRYPT
+			if (flags & MS_CRYPT) {
+				rc = zfs_crypto_load_key(zhp, B_FALSE, NULL);
+				if (rc != 0)
+					return (rc);
+			} else
+#endif
+			{
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "encryption key not loaded"));
+				return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+				    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+				    mountpoint));
+			}
+		}
+
+	}
+
+	/*
+	 * If the filesystem is encrypted the key must be loaded  in order to
+	 * mount. If the key isn't loaded, the MS_CRYPT flag decides whether
+	 * or not we attempt to load the keys. Note: we must call
+	 * zfs_refresh_properties() here since some callers of this function
+	 * (most notably zpool_enable_datasets()) may implicitly load our key
+	 * by loading the parent's key first.
+	 */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF) {
+		zfs_refresh_properties(zhp);
+		keystatus = zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS);
+
+		/*
+		 * If the key is unavailable and MS_CRYPT is set give the
+		 * user a chance to enter the key. Otherwise just fail
+		 * immediately.
+		 */
+		if (keystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
+#ifdef MS_CRYPT
+			if (flags & MS_CRYPT) {
+				rc = zfs_crypto_load_key(zhp, B_FALSE, NULL);
+				if (rc != 0)
+					return (rc);
+			} else
+#endif
+			{
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "encryption key not loaded"));
+				return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+				    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+				    mountpoint));
+			}
+		}
+
+	}
+
+	/* Create the directory if it doesn't already exist */
+	if (lstat(mountpoint, &buf) != 0) {
+		if (mkdirp(mountpoint, 0755) != 0) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "failed to create mountpoint"));
+			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+			    mountpoint));
+		}
+	}
+
+	/* perform the mount */
+	if (zmount(zfs_get_name(zhp), mountpoint, flags,
+	    MNTTYPE_ZFS, NULL, 0, mntopts, sizeof (mntopts)) != 0) {
+		/*
+		 * Generic errors are nasty, but there are just way too many
+		 * from mount(), and they're well-understood.  We pick a few
+		 * common ones to improve upon.
+		 */
+		if (errno == EBUSY) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "mountpoint or dataset is busy"));
+		} else if (errno == EPERM) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Insufficient privileges"));
+		} else if (errno == ENOTSUP) {
+			char buf[256];
+			int spa_version;
+
+			VERIFY(zfs_spa_version(zhp, &spa_version) == 0);
+			(void) snprintf(buf, sizeof (buf),
+			    dgettext(TEXT_DOMAIN, "Can't mount a version %lld "
+			    "file system on a version %d pool. Pool must be"
+			    " upgraded to mount this file system."),
+			    (u_longlong_t)zfs_prop_get_int(zhp,
+			    ZFS_PROP_VERSION), spa_version);
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, buf));
+		} else {
+			zfs_error_aux(hdl, strerror(errno));
+		}
+		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+		    zhp->zfs_name));
+	}
+
+	/* add the mounted entry into our cache */
+	libzfs_mnttab_add(hdl, zfs_get_name(zhp), mountpoint,
+	    mntopts);
+	return (0);
+}
+#endif
+
+
+#ifdef __linux__
 /*
  * Unmount a single filesystem.
  */
@@ -728,7 +906,67 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 
 	return (0);
 }
+#else
 
+/*
+ * Unmount a single filesystem.
+ */
+static int
+unmount_one(libzfs_handle_t *hdl, const char *mountpoint, int flags)
+{
+	if (unmount(mountpoint, flags) != 0) {
+		zfs_error_aux(hdl, strerror(errno));
+		return (zfs_error_fmt(hdl, EZFS_UMOUNTFAILED,
+		    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
+		    mountpoint));
+	}
+
+	return (0);
+}
+
+/*
+ * Unmount the given filesystem.
+ */
+int
+zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
+{
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	struct mnttab entry;
+	char *mntpt = NULL;
+
+	/* check to see if we need to unmount the filesystem */
+	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
+	    libzfs_mnttab_find(hdl, zhp->zfs_name, &entry) == 0)) {
+		/*
+		 * mountpoint may have come from a call to
+		 * getmnt/getmntany if it isn't NULL. If it is NULL,
+		 * we know it comes from libzfs_mnttab_find which can
+		 * then get freed later. We strdup it to play it safe.
+		 */
+		if (mountpoint == NULL)
+			mntpt = zfs_strdup(hdl, entry.mnt_mountp);
+		else
+			mntpt = zfs_strdup(hdl, mountpoint);
+
+		/*
+		 * Unshare and unmount the filesystem
+		 */
+		if (zfs_unshare_proto(zhp, mntpt, share_all_proto) != 0)
+			return (-1);
+
+		if (unmount_one(hdl, mntpt, flags) != 0) {
+			free(mntpt);
+			(void) zfs_shareall(zhp);
+			return (-1);
+		}
+		libzfs_mnttab_remove(hdl, zhp->zfs_name);
+		free(mntpt);
+	}
+
+	return (0);
+}
+
+#endif
 /*
  * Unmount this filesystem and any children inheriting the mountpoint property.
  * To do this, just act like we're changing the mountpoint property, but don't
@@ -833,6 +1071,7 @@ zfs_init_libshare(libzfs_handle_t *zhandle, int service)
 {
 	int ret = SA_OK;
 
+#ifndef __FreeBSD__
 	if (ret == SA_OK && zhandle->libzfs_shareflags & ZFSSHARE_MISS) {
 		/*
 		 * We had a cache miss. Most likely it is a new ZFS
@@ -854,7 +1093,7 @@ zfs_init_libshare(libzfs_handle_t *zhandle, int service)
 
 	if (ret == SA_OK && zhandle->libzfs_sharehdl == NULL)
 		ret = SA_NO_MEMORY;
-
+#endif
 	return (ret);
 }
 
@@ -867,10 +1106,12 @@ zfs_init_libshare(libzfs_handle_t *zhandle, int service)
 void
 zfs_uninit_libshare(libzfs_handle_t *zhandle)
 {
+#ifndef __FreeBSD__
 	if (zhandle != NULL && zhandle->libzfs_sharehdl != NULL) {
 		sa_fini(zhandle->libzfs_sharehdl);
 		zhandle->libzfs_sharehdl = NULL;
 	}
+#endif
 }
 
 /*
@@ -882,8 +1123,12 @@ zfs_uninit_libshare(libzfs_handle_t *zhandle)
 int
 zfs_parse_options(char *options, zfs_share_proto_t proto)
 {
+#ifdef __FreeBSD__
+	return (SA_OK);
+#else
 	return (sa_parse_legacy_options(NULL, options,
 	    proto_table[proto].p_name));
+#endif
 }
 
 /*
@@ -898,12 +1143,12 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 	char shareopts[ZFS_MAXPROPLEN];
 	char sourcestr[ZFS_MAXPROPLEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	sa_share_t share;
+	sa_share_t share __attribute__((unused));
 	zfs_share_proto_t *curr_proto;
 	zprop_source_t sourcetype;
-	int ret;
+	int err, ret __attribute__((unused));
 
-	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL, 0))
+	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
 
 	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++) {
@@ -915,7 +1160,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		    ZFS_MAXPROPLEN, B_FALSE) != 0 ||
 		    strcmp(shareopts, "off") == 0)
 			continue;
-
+#ifndef __FreeBSD__
 		ret = zfs_init_libshare(hdl, SA_INIT_SHARE_API);
 		if (ret != SA_OK) {
 			(void) zfs_error_fmt(hdl, EZFS_SHARENFSFAILED,
@@ -923,7 +1168,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 			    zfs_get_name(zhp), sa_errorstr(ret));
 			return (-1);
 		}
-
+#endif
 		/*
 		 * If the 'zoned' property is set, then zfs_is_mountable()
 		 * will have already bailed out if we are in the global zone.
@@ -933,7 +1178,8 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 		if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED))
 			continue;
 
-		share = sa_find_share(hdl->libzfs_sharehdl, mountpoint);
+#ifndef __FreeBSD__
+		share = NULL; sa_find_share(hdl->libzfs_sharehdl, mountpoint);
 		if (share == NULL) {
 			/*
 			 * This may be a new file system that was just
@@ -959,7 +1205,6 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 			    mountpoint);
 		}
 		if (share != NULL) {
-			int err;
 			err = sa_enable_share(share,
 			    proto_table[*curr_proto].p_name);
 			if (err != SA_OK) {
@@ -969,7 +1214,21 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 				    zfs_get_name(zhp));
 				return (-1);
 			}
-		} else {
+		} else
+#else
+		if (*curr_proto != PROTO_NFS) {
+			fprintf(stderr, "Unsupported share protocol: %d.\n",
+			    *curr_proto);
+			continue;
+		}
+
+		if (strcmp(shareopts, "on") == 0)
+			err = fsshare(ZFS_EXPORTS_PATH, mountpoint, "");
+		else
+			err = fsshare(ZFS_EXPORTS_PATH, mountpoint, shareopts);
+		if (err != 0)
+#endif
+		{
 			(void) zfs_error_fmt(hdl,
 			    proto_table[*curr_proto].p_share_err,
 			    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
@@ -1000,6 +1259,7 @@ zfs_shareall(zfs_handle_t *zhp)
 	return (zfs_share_proto(zhp, share_all_proto));
 }
 
+#ifdef __linux__
 /*
  * Unshare a filesystem by mountpoint.
  */
@@ -1043,6 +1303,31 @@ unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
 	}
 	return (0);
 }
+#else
+/*
+ * Unshare a filesystem by mountpoint.
+ */
+static int
+unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
+    zfs_share_proto_t proto)
+{
+	int err;
+
+	if (proto != PROTO_NFS) {
+		fprintf(stderr, "No SMB support in FreeBSD yet.\n");
+		return (EOPNOTSUPP);
+	}
+
+	err = fsunshare(ZFS_EXPORTS_PATH, mountpoint);
+	if (err != 0) {
+		zfs_error_aux(hdl, "%s", strerror(err));
+		return (zfs_error_fmt(hdl, EZFS_UNSHARENFSFAILED,
+		    dgettext(TEXT_DOMAIN,
+		    "cannot unshare '%s'"), name));
+	}
+	return (0);
+}
+#endif
 
 /*
  * Unshare the given filesystem.
@@ -1170,7 +1455,8 @@ remove_mountpoint(zfs_handle_t *zhp)
 	char mountpoint[ZFS_MAXPROPLEN];
 	zprop_source_t source;
 
-	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), &source, 0))
+	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint),
+	    &source))
 		return;
 
 	if (source == ZPROP_SRC_DEFAULT ||

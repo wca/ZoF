@@ -35,6 +35,10 @@
 #include <libintl.h>
 #include <errno.h>
 
+#ifdef __FreeBSD__
+#define	fstat64 fstat
+#endif
+
 #define	MIN(a, b)	((a) < (b) ? (a) : (b))
 
 #define	BLOCK_SIZE	512		/* bytes */

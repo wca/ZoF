@@ -24,7 +24,9 @@
  */
 
 #include <sys/zfs_context.h>
+#ifdef __linux__
 #include <sys/vfs.h>
+#endif
 #include <sys/fs/zfs.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_sa.h>

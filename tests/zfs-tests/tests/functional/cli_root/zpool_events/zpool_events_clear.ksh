@@ -29,6 +29,10 @@
 
 verify_runnable "both"
 
+if is_freebsd; then
+	log_unsupported "Events not supported on FreeBSD"
+fi
+
 log_assert "'zpool events -c' should successfully clear events."
 
 # 1. Clear all ZFS events

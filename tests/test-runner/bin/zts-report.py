@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 #
 # This file and its contents are supplied under the terms of the
@@ -19,6 +19,7 @@
 #
 
 import os
+import platform
 import re
 import sys
 
@@ -142,6 +143,13 @@ trim_reason = 'DISKS must support discard (TRIM/UNMAP)'
 #
 na_reason = "N/A on Linux"
 
+#
+# Some tests are not applicable to FreeBSD or need to be updated to operate
+# in the manor required by Linux.  Any tests which are skipped for this
+# reason will be suppressed in the final analysis output.
+#
+na_reason_freebsd = "N/A on FreeBSD"
+
 summary = {
     'total': float(0),
     'passed': float(0),
@@ -203,6 +211,94 @@ known = {
     'zvol/zvol_swap/zvol_swap_005_pos': ['SKIP', na_reason],
     'zvol/zvol_swap/zvol_swap_006_pos': ['SKIP', na_reason],
 }
+
+# Add list of tests known to not run on FreeBSD
+if platform.system() == "FreeBSD":
+    known_freebsd = {
+        'acl/posix/setup': ['SKIP', na_reason_freebsd],
+        'arc/setup': ['SKIP', na_reason_freebsd],
+        'atime/atime_003_pos': ['SKIP', na_reason_freebsd],
+        'cli_user/misc/dbufstat_001_pos': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs/zfs_002_pos': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs/zfs_003_neg': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_mount/zfs_mount_remount': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_mount/zfs_multi_mount': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_sysfs/setup': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_sysfs/zfeature_set_unsupported':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_sysfs/zfs_get_unsupported': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_sysfs/zfs_set_unsupported': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_sysfs/zfs_sysfs_live': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_sysfs/zpool_get_unsupported':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_sysfs/zpool_set_unsupported':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_sysfs/cleanup': ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_events/setup': ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_events/zpool_events_clear':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_events/zpool_events_cliargs':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_events/zpool_events_follow':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_events/zpool_events_poolname':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_events/cleanup': ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_reopen/setup': ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_reopen/zpool_reopen_001_pos':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_reopen/zpool_reopen_002_pos':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_reopen/zpool_reopen_003_pos':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_reopen/zpool_reopen_004_pos':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_reopen/zpool_reopen_005_pos':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_reopen/zpool_reopen_006_neg':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_reopen/zpool_reopen_007_pos':
+            ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_reopen/cleanup': ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_split/zpool_split_wholedisk':
+            ['SKIP', na_reason_freebsd],
+        'compression/compress_004_pos': ['SKIP', na_reason_freebsd],
+        'deadman/deadman_sync': ['SKIP', na_reason_freebsd],
+        'deadman/deadman_zio': ['SKIP', na_reason_freebsd],
+        'events/setup': ['SKIP', na_reason_freebsd],
+        'events/events_001_pos': ['SKIP', na_reason_freebsd],
+        'events/events_002_pos': ['SKIP', na_reason_freebsd],
+        'events/zed_rc_filter': ['SKIP', na_reason_freebsd],
+        'events/cleanup': ['SKIP', na_reason_freebsd],
+        'fault/auto_offline_001_pos': ['SKIP', na_reason_freebsd],
+        'fault/auto_spare_shared': ['SKIP', na_reason_freebsd],
+        'fault/auto_spare_ashift': ['SKIP', na_reason_freebsd],
+        'fault/scrub_after_resilver': ['SKIP', na_reason_freebsd],
+        'fault/zpool_status_-s': ['SKIP', na_reason_freebsd],
+        'features/large_dnode/large_dnode_002_pos':
+            ['SKIP', na_reason_freebsd],
+        'features/large_dnode/large_dnode_006_pos':
+            ['SKIP', na_reason_freebsd],
+        'features/large_dnode/large_dnode_008_pos':
+            ['SKIP', na_reason_freebsd],
+        'io/libaio': ['SKIP', na_reason_freebsd],
+        'mmap/mmap_libaio_001_pos': ['SKIP', na_reason_freebsd],
+        'pool_checkpoint/checkpoint_zhack_feat': ['SKIP', na_reason_freebsd],
+        'projectquota/setup': ['SKIP', na_reason_freebsd],
+        'upgrade/upgrade_projectquota_001_pos': ['SKIP', na_reason_freebsd],
+        'userquota/groupspace_002_pos': ['SKIP', na_reason_freebsd],
+        'userquota/groupspace_003_pos': ['SKIP', na_reason_freebsd],
+        'userquota/userspace_003_pos': ['SKIP', na_reason_freebsd],
+        'userquota/userquota_013_pos': ['SKIP', na_reason_freebsd],
+        'rsend/send_encrypted_files': ['SKIP', na_reason_freebsd],
+        'rsend/send_realloc_dnode_size': ['SKIP', na_reason_freebsd],
+        'xattr/setup': ['SKIP', na_reason_freebsd],
+        'zvol/zvol_misc/zvol_misc_002_pos': ['SKIP', na_reason_freebsd],
+        'zvol/zvol_misc/zvol_misc_snapdev': ['SKIP', na_reason_freebsd],
+        'zvol/zvol_misc/zvol_misc_volmode': ['SKIP', na_reason_freebsd],
+        'zvol/zvol_swap/zvol_swap_003_pos': ['SKIP', na_reason_freebsd],
+    }
+    known.update(known_freebsd)
 
 #
 # These tests may occasionally fail or be skipped.  We want there failures

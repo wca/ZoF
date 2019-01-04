@@ -29,6 +29,12 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <limits.h>
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <errno.h>
+#endif
 
 const char *
 getexecname(void)
@@ -41,8 +47,25 @@ getexecname(void)
 	(void) pthread_mutex_lock(&mtx);
 
 	if (strlen(execname) == 0) {
+#ifdef __FreeBSD__
+		int error, name[4];
+		size_t len;
+
+		name[0] = CTL_KERN;
+		name[1] = KERN_PROC;
+		name[2] = KERN_PROC_PATHNAME;
+		name[3] = -1;
+		len = PATH_MAX;
+		error = sysctl(name, nitems(name), execname, &len, NULL, 0);
+		if (error != 0) {
+			rc = -1;
+		} else {
+			rc = len;
+		}
+#else
 		rc = readlink("/proc/self/exe",
 		    execname, sizeof (execname) - 1);
+#endif
 		if (rc == -1) {
 			execname[0] = '\0';
 		} else {

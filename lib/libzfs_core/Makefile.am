@@ -15,6 +15,9 @@ libzfs_core_la_LIBADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libuutil/libuutil.la
 
+if BUILD_FREEBSD
+libzfs_core_la_LDFLAGS = -version-info 3:0:0
+else
 libzfs_core_la_LDFLAGS = -version-info 1:0:0
-
+endif
 EXTRA_DIST = $(USER_C)

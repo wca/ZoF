@@ -103,7 +103,7 @@ array64_max(uint64_t array[], unsigned int len)
  * floating point numbers.
  */
 int
-isnumber(char *str)
+zfs_isnumber(char *str)
 {
 	for (; *str; str++)
 		if (!(isdigit(*str) || (*str == '.')))

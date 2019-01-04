@@ -33,6 +33,13 @@
 #ifndef _SYS_SPA_H
 #define	_SYS_SPA_H
 
+#ifndef __linux__
+#include <sys/cdefs.h>
+#else
+#if !defined(__printflike)
+#define	__printflike(x, y) __attribute__((__format__(__printf__, x, y)))
+#endif
+#endif
 #include <sys/avl.h>
 #include <sys/zfs_context.h>
 #include <sys/kstat.h>
@@ -823,6 +830,10 @@ extern int spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps);
 #define	SPA_REMOVE_UNSPARE	0x01
 #define	SPA_REMOVE_DONE		0x02
 
+extern int spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv,
+    vdev_t *parent, uint_t id, int atype);
+
+
 /* device manipulation */
 extern int spa_vdev_add(spa_t *spa, nvlist_t *nvroot);
 extern int spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot,
@@ -922,7 +933,9 @@ typedef struct spa_history_kstat {
 
 typedef struct spa_history_list {
 	uint64_t		size;
+#if defined(__linux__) || !defined(_KERNEL)
 	procfs_list_t		procfs_list;
+#endif
 } spa_history_list_t;
 
 typedef struct spa_stats {
@@ -1069,6 +1082,7 @@ extern void spa_evicting_os_deregister(spa_t *, objset_t *os);
 extern void spa_evicting_os_wait(spa_t *spa);
 extern int spa_max_replication(spa_t *spa);
 extern int spa_prev_software_version(spa_t *spa);
+extern int spa_busy(void);
 extern uint64_t spa_get_failmode(spa_t *spa);
 extern uint64_t spa_get_deadman_failmode(spa_t *spa);
 extern void spa_set_deadman_failmode(spa_t *spa, const char *failmode);
@@ -1145,11 +1159,11 @@ extern int spa_history_log_nvl(spa_t *spa, nvlist_t *nvl);
 extern void spa_history_log_version(spa_t *spa, const char *operation,
     dmu_tx_t *tx);
 extern void spa_history_log_internal(spa_t *spa, const char *operation,
-    dmu_tx_t *tx, const char *fmt, ...);
+	dmu_tx_t *tx, const char *fmt, ...) __printflike(4, 5);
 extern void spa_history_log_internal_ds(struct dsl_dataset *ds, const char *op,
-    dmu_tx_t *tx, const char *fmt, ...);
+	dmu_tx_t *tx, const char *fmt, ...) __printflike(4, 5);
 extern void spa_history_log_internal_dd(dsl_dir_t *dd, const char *operation,
-    dmu_tx_t *tx, const char *fmt, ...);
+	dmu_tx_t *tx, const char *fmt, ...) __printflike(4, 5);
 
 extern const char *spa_state_to_name(spa_t *spa);
 

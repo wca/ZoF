@@ -42,7 +42,13 @@
 
 #if defined(HAVE_AVX) && defined(HAVE_AVX2)
 
+#if defined(__linux__) || !defined(_KERNEL)
 #include <linux/simd_x86.h>
+#elif defined(__FreeBSD__)
+#include <os/freebsd/spl/sys/simd_x86.h>
+#define	asm __asm
+#endif
+
 #include <sys/spa_checksum.h>
 #include <sys/strings.h>
 #include <zfs_fletcher.h>

@@ -28,7 +28,11 @@
 #if defined(__x86_64) && defined(HAVE_AVX512BW)
 
 #include <sys/types.h>
+#if defined(__linux__) || !defined(_KERNEL)
 #include <linux/simd_x86.h>
+#elif defined(__FreeBSD__)
+#include <os/freebsd/spl/sys/simd_x86.h>
+#endif
 
 #define	__asm __asm__ __volatile__
 

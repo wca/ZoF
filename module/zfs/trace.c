@@ -38,6 +38,7 @@
 #include <sys/zil_impl.h>
 #include <sys/zrlock.h>
 
+#ifdef __linux__
 #define	CREATE_TRACE_POINTS
 #include <sys/trace.h>
 #include <sys/trace_acl.h>
@@ -52,3 +53,4 @@
 #include <sys/trace_zil.h>
 #include <sys/trace_zio.h>
 #include <sys/trace_zrlock.h>
+#endif

@@ -36,6 +36,12 @@ function cleanup
 	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
+if is_freebsd ; then
+	# FreeBSD won't allow writing to an in-use device without this set
+	log_must /sbin/sysctl kern.geom.debugflags=16
+	DEV_RDSKDIR="/dev"
+fi
+
 verify_runnable "global"
 verify_disk_count "$DISKS" 2
 

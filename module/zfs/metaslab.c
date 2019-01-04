@@ -5548,56 +5548,72 @@ metaslab_unflushed_txg(metaslab_t *ms)
 
 #if defined(_KERNEL)
 /* BEGIN CSTYLED */
-module_param(metaslab_aliquot, ulong, 0644);
-MODULE_PARM_DESC(metaslab_aliquot,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, aliquot, UQUAD, ZMOD_RW,
 	"allocation granularity (a.k.a. stripe size)");
 
-module_param(metaslab_debug_load, int, 0644);
-MODULE_PARM_DESC(metaslab_debug_load,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, debug_load, UINT, ZMOD_RW,
 	"load all metaslabs when pool is first opened");
 
-module_param(metaslab_debug_unload, int, 0644);
-MODULE_PARM_DESC(metaslab_debug_unload,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, debug_unload, UINT, ZMOD_RW,
 	"prevent metaslabs from being unloaded");
 
-module_param(metaslab_preload_enabled, int, 0644);
-MODULE_PARM_DESC(metaslab_preload_enabled,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, preload_enabled, UINT, ZMOD_RW,
 	"preload potential metaslabs during reassessment");
 
-module_param(zfs_mg_noalloc_threshold, int, 0644);
-MODULE_PARM_DESC(zfs_mg_noalloc_threshold,
-	"percentage of free space for metaslab group to allow allocation");
+/*
+ * The zfs_mg_noalloc_threshold defines which metaslab groups should
+ * be eligible for allocation. The value is defined as a percentage of
+ * free space. Metaslab groups that have more free space than
+ * zfs_mg_noalloc_threshold are always eligible for allocations. Once
+ * a metaslab group's free space is less than or equal to the
+ * zfs_mg_noalloc_threshold the allocator will avoid allocating to that
+ * group unless all groups in the pool have reached zfs_mg_noalloc_threshold.
+ * Once all groups in the pool reach zfs_mg_noalloc_threshold then all
+ * groups are allowed to accept allocations. Gang blocks are always
+ * eligible to allocate on any metaslab group. The default value of 0 means
+ * no metaslab group will be excluded based on this criterion.
+ */
+ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, noalloc_threshold, UINT, ZMOD_RW,
+    "Percentage of metaslab group size that should be free"
+    " to make it eligible for allocation");
 
-module_param(zfs_mg_fragmentation_threshold, int, 0644);
-MODULE_PARM_DESC(zfs_mg_fragmentation_threshold,
-	"fragmentation for metaslab group to allow allocation");
+/*
+ * Metaslab groups are considered eligible for allocations if their
+ * fragmenation metric (measured as a percentage) is less than or equal to
+ * zfs_mg_fragmentation_threshold. If a metaslab group exceeds this threshold
+ * then it will be skipped unless all metaslab groups within the metaslab
+ * class have also crossed this threshold.
+ */
+ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, fragmentation_threshold, UINT, ZMOD_RW,
+    "Percentage of metaslab group size that should be considered "
+    "eligible for allocations unless all metaslab groups within the metaslab class "
+    "have also crossed this threshold");
 
-module_param(zfs_metaslab_fragmentation_threshold, int, 0644);
-MODULE_PARM_DESC(zfs_metaslab_fragmentation_threshold,
+/*
+ * Allow metaslabs to keep their active state as long as their fragmentation
+ * percentage is less than or equal to zfs_metaslab_fragmentation_threshold. An
+ * active metaslab that exceeds this threshold will no longer keep its active
+ * status allowing better metaslabs to be selected.
+ */
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, fragmentation_threshold, UINT, ZMOD_RW,
 	"fragmentation for metaslab to allow allocation");
 
-module_param(metaslab_fragmentation_factor_enabled, int, 0644);
-MODULE_PARM_DESC(metaslab_fragmentation_factor_enabled,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, fragmentation_factor_enabled, UINT, ZMOD_RW,
 	"use the fragmentation metric to prefer less fragmented metaslabs");
 
-module_param(metaslab_lba_weighting_enabled, int, 0644);
-MODULE_PARM_DESC(metaslab_lba_weighting_enabled,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, lba_weighting_enabled, UINT, ZMOD_RW,
 	"prefer metaslabs with lower LBAs");
 
-module_param(metaslab_bias_enabled, int, 0644);
-MODULE_PARM_DESC(metaslab_bias_enabled,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, bias_enabled, UINT, ZMOD_RW,
 	"enable metaslab group biasing");
 
-module_param(zfs_metaslab_segment_weight_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_metaslab_segment_weight_enabled,
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, segment_weight_enabled, UINT, ZMOD_RW,
 	"enable segment-based metaslab selection");
 
-module_param(zfs_metaslab_switch_threshold, int, 0644);
-MODULE_PARM_DESC(zfs_metaslab_switch_threshold,
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, switch_threshold, UINT, ZMOD_RW,
 	"segment-based metaslab selection maximum buckets before switching");
 
-module_param(metaslab_force_ganging, ulong, 0644);
-MODULE_PARM_DESC(metaslab_force_ganging,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging, UQUAD, ZMOD_RW,
 	"blocks larger than this size are forced to be gang blocks");
 
 module_param(metaslab_df_max_search, int, 0644);

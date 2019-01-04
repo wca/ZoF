@@ -557,8 +557,10 @@ nvlist_nv_alloc(int kmflag)
 	switch (kmflag) {
 	case KM_SLEEP:
 		return (nv_alloc_sleep);
+#ifndef __FreeBSD__
 	case KM_PUSHPAGE:
 		return (nv_alloc_pushpage);
+#endif
 	default:
 		return (nv_alloc_nosleep);
 	}
@@ -3587,7 +3589,7 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 	return (err);
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 static int __init
 nvpair_init(void)
 {

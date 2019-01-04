@@ -382,9 +382,9 @@ zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx)
 void
 zfs_fuid_map_ids(znode_t *zp, cred_t *cr, uid_t *uidp, uid_t *gidp)
 {
-	*uidp = zfs_fuid_map_id(ZTOZSB(zp), KUID_TO_SUID(ZTOI(zp)->i_uid),
+	*uidp = zfs_fuid_map_id(ZTOZSB(zp), KUID_TO_SUID(ZTOUID(zp)),
 	    cr, ZFS_OWNER);
-	*gidp = zfs_fuid_map_id(ZTOZSB(zp), KGID_TO_SGID(ZTOI(zp)->i_gid),
+	*gidp = zfs_fuid_map_id(ZTOZSB(zp), KGID_TO_SGID(ZTOGID(zp)),
 	    cr, ZFS_GROUP);
 }
 
@@ -403,6 +403,9 @@ zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
 	domain = zfs_fuid_find_by_idx(zfsvfs, index);
 	ASSERT(domain != NULL);
 
+#ifdef __FreeBSD__
+	id = UID_NOBODY;
+#else
 	if (type == ZFS_OWNER || type == ZFS_ACE_USER) {
 		(void) kidmap_getuidbysid(crgetzone(cr), domain,
 		    FUID_RID(fuid), &id);
@@ -410,6 +413,7 @@ zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
 		(void) kidmap_getgidbysid(crgetzone(cr), domain,
 		    FUID_RID(fuid), &id);
 	}
+#endif
 	return (id);
 #else
 	/*
@@ -610,6 +614,7 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
 		};
 		domain = fuidp->z_domain_table[idx - 1];
 	} else {
+		rid = 0;
 		if (type == ZFS_OWNER || type == ZFS_ACE_USER)
 			status = kidmap_getsidbyuid(crgetzone(cr), id,
 			    &domain, &rid);
@@ -712,9 +717,10 @@ boolean_t
 zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 {
 #ifdef HAVE_KSID
+	uid_t		gid;
+#ifndef __FreeBSD__
 	ksid_t		*ksid = crgetsid(cr, KSID_GROUP);
 	ksidlist_t	*ksidlist = crgetsidlist(cr);
-	uid_t		gid;
 
 	if (ksid && ksidlist) {
 		int		i;
@@ -747,7 +753,7 @@ zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 			}
 		}
 	}
-
+#endif
 	/*
 	 * Not found in ksidlist, check posix groups
 	 */

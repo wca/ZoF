@@ -32,6 +32,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
+#include <sys/vdev_initialize.h>
 
 /*
  * Value that is written to disk during initialization.
@@ -415,7 +416,7 @@ vdev_initialize_load(vdev_t *vd)
  * Convert the logical range into a physical range and add it to our
  * avl tree.
  */
-void
+static void
 vdev_initialize_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	vdev_t *vd = arg;
@@ -728,7 +729,6 @@ EXPORT_SYMBOL(vdev_initialize_stop_wait);
 EXPORT_SYMBOL(vdev_initialize_restart);
 
 /* CSTYLED */
-module_param(zfs_initialize_value, ulong, 0644);
-MODULE_PARM_DESC(zfs_initialize_value,
+ZFS_MODULE_PARAM(zfs, zfs_, initialize_value, UQUAD, ZMOD_RW,
 	"Value written during zpool initialize");
 #endif

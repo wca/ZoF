@@ -30,6 +30,10 @@
 
 verify_runnable "both"
 
+if is_freebsd; then
+	log_unsupported "Events not supported on FreeBSD"
+fi
+
 function cleanup
 {
 	[[ -n $pid ]] && kill $pid 2>/dev/null

@@ -4,6 +4,7 @@ VPATH = \
 	$(top_srcdir)/module/zfs \
 	$(top_srcdir)/module/zcommon \
 	$(top_srcdir)/module/lua \
+	$(top_srcdir)/module/os/linux/zfs \
 	$(top_srcdir)/lib/libzpool
 
 # Suppress unused but set variable warnings often due to ASSERTs
@@ -13,6 +14,11 @@ AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
+
+if BUILD_LINUX
+# To pick up files like qat.h
+AM_CFLAGS += -I$(top_srcdir)/module/os/linux/zfs
+endif
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
@@ -198,7 +204,12 @@ libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libzutil/libzutil.la
 
+if BUILD_FREEBSD
+libzpool_la_LIBADD += $(ZLIB) -ldl -lgeom
+libzpool_la_LDFLAGS = -pthread -version-info 4:0:0
+else
 libzpool_la_LIBADD += $(ZLIB) -ldl
 libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
+endif
 
 EXTRA_DIST = $(USER_C)

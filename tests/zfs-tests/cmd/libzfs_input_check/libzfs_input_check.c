@@ -26,6 +26,10 @@
 #include <sys/nvpair.h>
 #include <sys/zfs_ioctl.h>
 
+#ifdef __FreeBSD__
+#define	EBADE EILSEQ
+#endif
+
 /*
  * Test the nvpair inputs for the non-legacy zfs ioctl commands.
  */
@@ -850,7 +854,11 @@ zfs_ioc_input_tests(const char *pool)
 }
 
 enum zfs_ioc_ref {
+#ifdef __FreeBSD__
+	ZFS_IOC_BASE = 0,
+#else
 	ZFS_IOC_BASE = ('Z' << 8),
+#endif
 	LINUX_IOC_BASE = ('Z' << 8) + 0x80,
 	FREEBSD_IOC_BASE = ('Z' << 8) + 0xC0,
 };

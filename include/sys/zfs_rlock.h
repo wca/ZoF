@@ -45,7 +45,7 @@ struct locked_range;
 
 typedef void (rangelock_cb_t)(struct locked_range *, void *);
 
-typedef struct rangelock {
+typedef struct zfs_rangelock {
 	avl_tree_t rl_tree; /* contains locked_range_t */
 	kmutex_t rl_lock;
 	rangelock_cb_t *rl_cb;
@@ -66,8 +66,8 @@ typedef struct locked_range {
 	uint8_t lr_read_wanted;	/* reader wants to lock this range */
 } locked_range_t;
 
-void rangelock_init(rangelock_t *, rangelock_cb_t *, void *);
-void rangelock_fini(rangelock_t *);
+void zfs_rangelock_init(rangelock_t *, rangelock_cb_t *, void *);
+void zfs_rangelock_fini(rangelock_t *);
 
 locked_range_t *rangelock_enter(rangelock_t *,
     uint64_t, uint64_t, rangelock_type_t);
