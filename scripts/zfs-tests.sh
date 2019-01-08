@@ -633,8 +633,13 @@ export __ZFS_POOL_EXCLUDE
 export TESTFAIL_CALLBACKS
 export PATH=$STF_PATH
 
-RESULTS_FILE=$(mktemp -u -t zts-results.XXXX -p "$FILEDIR")
-REPORT_FILE=$(mktemp -u -t zts-report.XXXX -p "$FILEDIR")
+if [ "$UNAME" = "FreeBSD" ] ; then
+	RESULTS_FILE=$(mktemp -u -t "${FILEDIR}/zts-results.XXXX")
+	REPORT_FILE=$(mktemp -u -t "${FILEDIR}/zts-report.XXXX")
+else
+	RESULTS_FILE=$(mktemp -u -t zts-results.XXXX -p "$FILEDIR")
+	REPORT_FILE=$(mktemp -u -t zts-report.XXXX -p "$FILEDIR")
+fi
 
 #
 # Run all the tests as specified.
