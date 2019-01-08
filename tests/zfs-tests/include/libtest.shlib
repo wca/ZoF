@@ -1516,7 +1516,7 @@ function setup_nfs_server
 #
 function is_global_zone
 {
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		return 0
 	else
 		typeset cur_zone=$(zonename 2>/dev/null)
