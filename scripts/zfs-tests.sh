@@ -268,14 +268,14 @@ constrain_path() {
 		chmod 755 "$STF_PATH" || fail "Couldn't chmod $STF_PATH"
 
 		# Special case links for standard zfs utilities
-		create_links "/bin /usr/bin /sbin /usr/sbin" "$ZFS_FILES"
+		create_links "/bin /usr/bin /usr/local/bin /sbin /usr/sbin /usr/local/sbin" "$ZFS_FILES"
 
 		# Special case links for zfs test suite utilities
 		create_links "$STF_SUITE/bin" "$ZFSTEST_FILES"
 	fi
 
 	# Standard system utilities
-	create_links "/bin /usr/bin /sbin /usr/sbin" "$SYSTEM_FILES"
+	create_links "/bin /usr/bin /usr/local/bin /sbin /usr/sbin /usr/local/sbin" "$SYSTEM_FILES"
 
 	# Exceptions
 	ln -fs "$STF_PATH/awk" "$STF_PATH/nawk"
