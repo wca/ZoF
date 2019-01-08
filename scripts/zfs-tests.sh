@@ -79,9 +79,6 @@ fail() {
 cleanup_freebsd_loopback() {
 	for TEST_LOOPBACK in ${LOOPBACKS}; do
 		if [ -n "/dev/${TEST_LOOPBACK}" ]; then
-			sudo "${DMSETUP}" destroy -F "${TEST_LOOPBACK}" ||
-			echo "Failed to gpart destroy: ${TEST_LOOPBACK}"
-
 			sudo "${LOSETUP}" -d -u "${TEST_LOOPBACK}" ||
 			    echo "Failed to destroy: ${TEST_LOOPBACK}"
 		fi
