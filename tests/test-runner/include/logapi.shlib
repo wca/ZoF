@@ -28,6 +28,15 @@
 
 . ${STF_TOOLS}/include/stf.shlib
 
+if [ "$(uname -o)" = "FreeBSD" ]; then
+
+function print
+{
+	echo $@
+}
+
+fi
+
 # Output an assertion
 #
 # $@ - assertion text
