@@ -1748,7 +1748,9 @@ dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx)
 			dsl_props_set_sync_impl(ds->ds_prev,
 			    ZPROP_SRC_LOCAL, ddsa->ddsa_props, tx);
 		}
+#ifndef __FreeBSD__
 		zvol_create_minors(dp->dp_spa, nvpair_name(pair), B_TRUE);
+#endif
 		dsl_dataset_rele(ds, FTAG);
 	}
 }
