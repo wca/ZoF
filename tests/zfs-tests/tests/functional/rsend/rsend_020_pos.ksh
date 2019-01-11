@@ -1,4 +1,4 @@
-#!/usr/bin/env ksh
+#!/bin/ksh
 
 #
 # This file and its contents are supplied under the terms of the
