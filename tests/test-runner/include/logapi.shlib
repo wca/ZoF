@@ -32,7 +32,11 @@ if [ "$(uname -o)" = "FreeBSD" ]; then
 
 function print
 {
-	echo $@
+	if [ "$1" = "-u2" ] ; then
+		echo $@ | cut -d ' ' -f 2-
+	else
+		echo $@
+	fi
 }
 
 fi
