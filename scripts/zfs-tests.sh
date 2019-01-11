@@ -635,8 +635,8 @@ export PATH=$STF_PATH
 
 if [ "$UNAME" = "FreeBSD" ] ; then
 	mkdir -p "$FILEDIR" || true
-	RESULTS_FILE=$(mktemp -u -t "${FILEDIR}/zts-results.XXXX")
-	REPORT_FILE=$(mktemp -u -t "${FILEDIR}/zts-report.XXXX")
+	RESULTS_FILE=$(mktemp -u "${FILEDIR}/zts-results.XXXX")
+	REPORT_FILE=$(mktemp -u "${FILEDIR}/zts-report.XXXX")
 else
 	RESULTS_FILE=$(mktemp -u -t zts-results.XXXX -p "$FILEDIR")
 	REPORT_FILE=$(mktemp -u -t zts-report.XXXX -p "$FILEDIR")
