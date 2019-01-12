@@ -32,8 +32,10 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/acl/acl_common.kshlib
 
-log_must getfacl --version
-log_must setfacl --version
+if [[ `$UNAME -s` != "FreeBSD" ]]; then
+	log_must getfacl --version
+	log_must setfacl --version
+fi
 
 cleanup_user_group
 
