@@ -1,4 +1,4 @@
-#!/bin/ksh -p
+#!/usr/bin/env ksh -p
 
 source "${STF_SUITE}/include/libtest.shlib"
 source "${STF_SUITE}/tests/functional/mv_files/mv_files.cfg"

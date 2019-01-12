@@ -37,12 +37,12 @@
 #
 function check_bg_procs_limit_num
 {
-echo "#!/bin/ksh" > $TEST_BASE_DIR/exitsZero.ksh
+echo "#!/usr/bin/env ksh" > $TEST_BASE_DIR/exitsZero.ksh
 echo  "exit 0" >> $TEST_BASE_DIR/exitsZero.ksh
 chmod 777 $TEST_BASE_DIR/exitsZero.ksh
 
 cat <<EOF > $TEST_BASE_DIR/testbackgprocs.ksh
-#!/bin/ksh
+#!/usr/bin/env ksh
 #
 # exitsZero.ksh is a one line script
 # that exit with status of "0"
