@@ -127,6 +127,12 @@ extern void SHA512Update(SHA512_CTX *, const void *, size_t);
 
 extern void SHA512Final(void *, SHA512_CTX *);
 
+extern void SHA512_256_Init(SHA512_CTX *);
+
+extern void SHA512_256_Update(SHA512_CTX *, const void *, size_t);
+
+extern void SHA512_256_Final(void *, SHA512_CTX *);
+
 #if defined(__FreeBSD__) && defined(_KERNEL)
 
 static inline void
@@ -141,6 +147,9 @@ SHA2Init(uint64_t mech, SHA2_CTX *c)
 			break;
 		case SHA512:
 			SHA512_Init(&c->SHA512_ctx);
+			break;
+		case SHA512_256:
+			SHA512_256_Init(&c->SHA512_ctx);
 			break;
 		default:
 			panic("unknown mechanism %lu", mech);
@@ -161,6 +170,9 @@ SHA2Update(SHA2_CTX *c, const void *p, size_t s)
 		case SHA512:
 			SHA512_Update(&c->SHA512_ctx, p, s);
 			break;
+		case SHA512_256:
+			SHA512_256_Update(&c->SHA512_ctx, p, s);
+			break;
 		default:
 			panic("unknown mechanism %d", c->algotype);
 	}
@@ -179,6 +191,11 @@ SHA2Final(void *p, SHA2_CTX *c)
 		case SHA512:
 			SHA512_Final(p, &c->SHA512_ctx);
 			break;
+		case SHA512_256:
+			SHA512_256_Final(p, &c->SHA512_ctx);
+			break;
+		default:
+			panic("unknown mechanism %d", c->algotype);
 	}
 }
 
