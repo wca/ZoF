@@ -490,7 +490,16 @@ constrain_path
 #
 # Check if ksh exists
 #
-[ -e "$STF_PATH/ksh" ] || fail "This test suite requires ksh."
+if [ "$UNAME" = "FreeBSD" ] ; then
+	[ ! -e "/usr/local/bin/ksh93" ] || fail \
+		"Missing /usr/local/bin/ksh93 - Please install ksh93"
+	if [ ! -e "/bin/ksh" ] ; then
+		ln -s /usr/local/bin/ksh93 /bin/ksh
+	fi
+else
+	[ -e "$STF_PATH/ksh" ] || fail "This test suite requires ksh."
+fi
+
 [ -e "$STF_SUITE/include/default.cfg" ] || fail \
     "Missing $STF_SUITE/include/default.cfg file."
 
@@ -533,7 +542,11 @@ fi
 #
 # See libzfs/libzfs_config.c for more information.
 #
-__ZFS_POOL_EXCLUDE="$(echo "$KEEP" | sed ':a;N;s/\n/ /g;ba')"
+if [ "$UNAME" = "FreeBSD" ] ; then
+	__ZFS_POOL_EXCLUDE="$(echo "$KEEP" | tr -s '\n' ' ')"
+else
+	__ZFS_POOL_EXCLUDE="$(echo "$KEEP" | sed ':a;N;s/\n/ /g;ba')"
+fi
 
 . "$STF_SUITE/include/default.cfg"
 
