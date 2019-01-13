@@ -32,12 +32,19 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/acl/acl_common.kshlib
 
-if [[ `$UNAME -s` != "FreeBSD" ]]; then
+if [[ `uname -s` != "FreeBSD" ]]; then
 	log_must getfacl --version
 	log_must setfacl --version
+else
+	log_unsupported "ACL tests not fully implemented on FreeBSD"
 fi
 
 cleanup_user_group
+
+if [[ `uname -s` = "FreeBSD" ]]; then
+	# Add wheel group user
+	log_must add_user wheel $ZFS_ACL_ADMIN
+fi
 
 # Create staff group and add user to it
 log_must add_group $ZFS_ACL_STAFF_GROUP
@@ -47,8 +54,11 @@ DISK=${DISKS%% *}
 default_setup_noexit $DISK
 log_must chmod 777 $TESTDIR
 
-# Use POSIX ACLs on filesystem
-log_must zfs set acltype=posixacl $TESTPOOL/$TESTFS
-log_must zfs set xattr=sa $TESTPOOL/$TESTFS
+# These ACLs are not enabled on FreeBSD yet
+if [[ `uname -s` != "FreeBSD" ]]; then
+	# Use POSIX ACLs on filesystem
+	log_must zfs set acltype=posixacl $TESTPOOL/$TESTFS
+	log_must zfs set xattr=sa $TESTPOOL/$TESTFS
+fi
 
 log_pass
