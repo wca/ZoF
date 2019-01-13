@@ -74,6 +74,7 @@ extern "C" {
 #include <crypto/sha2/sha256.h>
 #include <crypto/sha2/sha384.h>
 #include <crypto/sha2/sha512.h>
+#include <crypto/sha2/sha512t.h>
 typedef struct 	{
 	uint32_t algotype;		/* Algorithm Type */
 	union {
@@ -126,12 +127,6 @@ extern void SHA512Init(SHA512_CTX *);
 extern void SHA512Update(SHA512_CTX *, const void *, size_t);
 
 extern void SHA512Final(void *, SHA512_CTX *);
-
-extern void SHA512_256_Init(SHA512_CTX *);
-
-extern void SHA512_256_Update(SHA512_CTX *, const void *, size_t);
-
-extern void SHA512_256_Final(void *, SHA512_CTX *);
 
 #if defined(__FreeBSD__) && defined(_KERNEL)
 
