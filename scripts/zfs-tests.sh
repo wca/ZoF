@@ -491,7 +491,7 @@ constrain_path
 # Check if ksh exists
 #
 if [ "$UNAME" = "FreeBSD" ] ; then
-	[ ! -e "/usr/local/bin/ksh93" ] || fail \
+	[ -e "/usr/local/bin/ksh93" ] || fail \
 		"Missing /usr/local/bin/ksh93 - Please install ksh93"
 	if [ ! -e "/bin/ksh" ] ; then
 		ln -s /usr/local/bin/ksh93 /bin/ksh
