@@ -26,5 +26,9 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if [[ `uname -s` = "FreeBSD" ]]; then
+	log_unsupported "dbuf stat tests not implemented on FreeBSD"
+fi
+
 DISK=${DISKS%% *}
 default_setup $DISK
