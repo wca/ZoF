@@ -143,7 +143,7 @@ SHA2Init(uint64_t mech, SHA2_CTX *c)
 			SHA512_Init(&c->SHA512_ctx);
 			break;
 		default:
-			panic("unknown mechanism");
+			panic("unknown mechanism %lu", mech);
 	}
 	c->algotype = (uint32_t)mech;
 }
@@ -162,7 +162,7 @@ SHA2Update(SHA2_CTX *c, const void *p, size_t s)
 			SHA512_Update(&c->SHA512_ctx, p, s);
 			break;
 		default:
-			panic("unknown mechanism");
+			panic("unknown mechanism %d", c->algotype);
 	}
 }
 
