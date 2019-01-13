@@ -1239,7 +1239,7 @@ construct_spec(int argc, char **argv)
 	nvlist_t *nvroot, *nv, **top, **spares, **l2cache;
 	int t, toplevels, mindev, maxdev, nspares, nlogs, nl2cache;
 	const char *type;
-	uint64_t is_log;
+	uint64_t is_log, is_special, is_dedup;
 	boolean_t seen_logs;
 
 	top = NULL;
@@ -1249,8 +1249,9 @@ construct_spec(int argc, char **argv)
 	nspares = 0;
 	nlogs = 0;
 	nl2cache = 0;
-	is_log = B_FALSE;
+	is_log = is_special = is_dedup = B_FALSE;
 	seen_logs = B_FALSE;
+	nvroot = NULL;
 
 	while (argc > 0) {
 		nv = NULL;
@@ -1269,7 +1270,7 @@ construct_spec(int argc, char **argv)
 					    gettext("invalid vdev "
 					    "specification: 'spare' can be "
 					    "specified only once\n"));
-					return (NULL);
+					goto spec_out;
 				}
 				is_log = B_FALSE;
 			}
@@ -1280,7 +1281,7 @@ construct_spec(int argc, char **argv)
 					    gettext("invalid vdev "
 					    "specification: 'log' can be "
 					    "specified only once\n"));
-					return (NULL);
+					goto spec_out;
 				}
 				seen_logs = B_TRUE;
 				is_log = B_TRUE;
@@ -1292,6 +1293,23 @@ construct_spec(int argc, char **argv)
 				 */
 				continue;
 			}
+			if (strcmp(type, VDEV_ALLOC_BIAS_SPECIAL) == 0) {
+				is_special = B_TRUE;
+				is_log = B_FALSE;
+				is_dedup = B_FALSE;
+				argc--;
+				argv++;
+				continue;
+			}
+
+			if (strcmp(type, VDEV_ALLOC_BIAS_DEDUP) == 0) {
+				is_dedup = B_TRUE;
+				is_log = B_FALSE;
+				is_special = B_FALSE;
+				argc--;
+				argv++;
+				continue;
+			}
 
 			if (strcmp(type, VDEV_TYPE_L2CACHE) == 0) {
 				if (l2cache != NULL) {
@@ -1299,18 +1317,19 @@ construct_spec(int argc, char **argv)
 					    gettext("invalid vdev "
 					    "specification: 'cache' can be "
 					    "specified only once\n"));
-					return (NULL);
+					goto spec_out;
 				}
 				is_log = B_FALSE;
 			}
 
-			if (is_log) {
+			if (is_log || is_special || is_dedup) {
 				if (strcmp(type, VDEV_TYPE_MIRROR) != 0) {
 					(void) fprintf(stderr,
 					    gettext("invalid vdev "
-					    "specification: unsupported 'log' "
-					    "device: %s\n"), type);
-					return (NULL);
+					    "specification: unsupported '%s' "
+					    "device: %s\n"), is_log ? "log" :
+					    "special", type);
+					goto spec_out;
 				}
 				nlogs++;
 			}
@@ -1324,8 +1343,12 @@ construct_spec(int argc, char **argv)
 				if (child == NULL)
 					zpool_no_memory();
 				if ((nv = make_leaf_vdev(argv[c], B_FALSE))
-				    == NULL)
-					return (NULL);
+				    == NULL) {
+					for (c = 0; c < children - 1; c++)
+						nvlist_free(child[c]);
+					free(child);
+					goto spec_out;
+				}
 				child[children - 1] = nv;
 			}
 
@@ -1333,14 +1356,20 @@ construct_spec(int argc, char **argv)
 				(void) fprintf(stderr, gettext("invalid vdev "
 				    "specification: %s requires at least %d "
 				    "devices\n"), argv[0], mindev);
-				return (NULL);
+				for (c = 0; c < children; c++)
+					nvlist_free(child[c]);
+				free(child);
+				goto spec_out;
 			}
 
 			if (children > maxdev) {
 				(void) fprintf(stderr, gettext("invalid vdev "
 				    "specification: %s supports no more than "
 				    "%d devices\n"), argv[0], maxdev);
-				return (NULL);
+				for (c = 0; c < children; c++)
+					nvlist_free(child[c]);
+				free(child);
+				goto spec_out;
 			}
 
 			argc -= c;
@@ -1361,6 +1390,20 @@ construct_spec(int argc, char **argv)
 				    type) == 0);
 				verify(nvlist_add_uint64(nv,
 				    ZPOOL_CONFIG_IS_LOG, is_log) == 0);
+				if (is_log)
+					verify(nvlist_add_string(nv,
+					    ZPOOL_CONFIG_ALLOCATION_BIAS,
+					    VDEV_ALLOC_BIAS_LOG) == 0);
+				if (is_special) {
+					verify(nvlist_add_string(nv,
+					    ZPOOL_CONFIG_ALLOCATION_BIAS,
+					    VDEV_ALLOC_BIAS_SPECIAL) == 0);
+				}
+				if (is_dedup) {
+					verify(nvlist_add_string(nv,
+					    ZPOOL_CONFIG_ALLOCATION_BIAS,
+					    VDEV_ALLOC_BIAS_DEDUP) == 0);
+				}
 				if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
 					verify(nvlist_add_uint64(nv,
 					    ZPOOL_CONFIG_NPARITY,
@@ -1380,9 +1423,19 @@ construct_spec(int argc, char **argv)
 			 * construct the appropriate nvlist describing the vdev.
 			 */
 			if ((nv = make_leaf_vdev(argv[0], is_log)) == NULL)
-				return (NULL);
+				goto spec_out;
 			if (is_log)
 				nlogs++;
+			if (is_special) {
+				verify(nvlist_add_string(nv,
+				    ZPOOL_CONFIG_ALLOCATION_BIAS,
+				    VDEV_ALLOC_BIAS_SPECIAL) == 0);
+			}
+			if (is_dedup) {
+				verify(nvlist_add_string(nv,
+				    ZPOOL_CONFIG_ALLOCATION_BIAS,
+				    VDEV_ALLOC_BIAS_DEDUP) == 0);
+			}
 			argc--;
 			argv++;
 		}
@@ -1398,13 +1451,13 @@ construct_spec(int argc, char **argv)
 		(void) fprintf(stderr, gettext("invalid vdev "
 		    "specification: at least one toplevel vdev must be "
 		    "specified\n"));
-		return (NULL);
+		goto spec_out;
 	}
 
 	if (seen_logs && nlogs == 0) {
 		(void) fprintf(stderr, gettext("invalid vdev specification: "
 		    "log requires at least 1 device\n"));
-		return (NULL);
+		goto spec_out;
 	}
 
 	/*
@@ -1422,6 +1475,7 @@ construct_spec(int argc, char **argv)
 		verify(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
 		    l2cache, nl2cache) == 0);
 
+ spec_out:
 	for (t = 0; t < toplevels; t++)
 		nvlist_free(top[t]);
 	for (t = 0; t < nspares; t++)
