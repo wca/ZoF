@@ -297,17 +297,11 @@ zfs_prop_init(void)
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "standard | always | disabled", "SYNC",
 	    sync_table);
-
 	zprop_register_index(ZFS_PROP_CHECKSUM, "checksum",
 	    ZIO_CHECKSUM_DEFAULT, PROP_INHERIT, ZFS_TYPE_FILESYSTEM |
 	    ZFS_TYPE_VOLUME,
 	    "on | off | fletcher2 | fletcher4 | sha256 | sha512 | "
-#ifdef __FreeBSD__
-		"skein",
-#else
-		"skein | edonr",
-#endif
-		"CHECKSUM", checksum_table);
+	    "skein | edonr", "CHECKSUM", checksum_table);
 	zprop_register_index(ZFS_PROP_DEDUP, "dedup", ZIO_CHECKSUM_OFF,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "on | off | verify | sha256[,verify], sha512[,verify], "
