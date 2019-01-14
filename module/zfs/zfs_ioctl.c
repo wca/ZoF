@@ -4224,7 +4224,10 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			    intval & ZIO_CHECKSUM_MASK);
 			if (feature == SPA_FEATURE_NONE)
 				break;
-
+#ifdef __FreeBSD__
+			if (feature == SPA_FEATURE_EDONR)
+				return (SET_ERROR(ENOTSUP));
+#endif
 			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 				return (err);
 
