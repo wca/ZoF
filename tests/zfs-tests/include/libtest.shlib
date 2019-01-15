@@ -2337,6 +2337,117 @@ EOF
 	echo $unused
 }
 
+function add_user_freebsd #<group_name> <user_name>
+{
+	typeset gname=$1
+	typeset uname=$2
+
+	if (( ${#gname} == 0 || ${#uname} == 0 )); then
+		log_fail "group name or user name are not defined."
+	fi
+
+	# Check to see if the user exists.
+	/usr/bin/id $uname > /dev/null 2>&1 && return 0
+
+	# Assign 1000 as the base uid
+	typeset -i uid=1000
+	while true; do
+		typeset -i ret
+		/usr/sbin/pw useradd -u $uid -g $gname -d /var/tmp/$uname -m -n $uname
+		ret=$?
+		case $ret in
+			0) return 0 ;;
+			# The uid is not unique
+			65) ((uid += 1)) ;;
+			*) return 1 ;;
+		esac
+		if [[ $uid == 65000 ]]; then
+			log_fail "No user id available under 65000 for $uname"
+		fi
+	done
+
+	return 0
+}
+
+#
+# Delete the specified user.
+#
+# $1 login name
+#
+function del_user_freebsd #<logname>
+{
+	typeset user=$1
+
+	if (( ${#user} == 0 )); then
+		log_fail "login name is necessary."
+	fi
+
+	if /usr/bin/id $user > /dev/null 2>&1; then
+		log_must /usr/sbin/pw userdel $user
+	fi
+
+	return 0
+}
+
+#
+# Select valid gid and create specified group.
+#
+# $1 group name
+#
+function add_group_freebsd #<group_name>
+{
+	typeset group=$1
+
+	if (( ${#group} == 0 )); then
+		log_fail "group name is necessary."
+	fi
+
+	# See if the group already exists.
+	/usr/sbin/pw groupshow $group >/dev/null 2>&1
+	[[ $? == 0 ]] && return 0
+
+	# Assign 100 as the base gid
+	typeset -i gid=100
+	while true; do
+		/usr/sbin/pw groupadd -g $gid -n $group > /dev/null 2>&1
+		typeset -i ret=$?
+		case $ret in
+			0) return 0 ;;
+			# The gid is not  unique
+			65) ((gid += 1)) ;;
+			*) return 1 ;;
+		esac
+		if [[ $gid == 65000 ]]; then
+			log_fail "No user id available under 65000 for $group"
+		fi
+	done
+}
+
+#
+# Delete the specified group.
+#
+# $1 group name
+#
+function del_group_freebsd #<group_name>
+{
+	typeset grp=$1
+	if (( ${#grp} == 0 )); then
+		log_fail "group name is necessary."
+	fi
+
+	/usr/sbin/pw groupdel -n $grp > /dev/null 2>&1
+	typeset -i ret=$?
+	case $ret in
+		# Group does not exist, or was deleted successfully.
+		0|6|65) return 0 ;;
+		# Name already exists as a group name
+		9) log_must /usr/sbin/pw groupdel $grp ;;
+		*) return 1 ;;
+	esac
+
+	return 0
+}
+
 #
 # Add specified user to specified group
 #
@@ -2346,6 +2457,11 @@ EOF
 #
 function add_user #<group_name> <user_name> <basedir>
 {
+	if [ is_freebsd ] ; then
+		add_user_freebsd "$1" "$2" "$3"
+		return $?
+	fi
+
 	typeset gname=$1
 	typeset uname=$2
 	typeset basedir=${3:-"/var/tmp"}
@@ -2378,6 +2494,11 @@ function add_user #<group_name> <user_name> <basedir>
 #
 function del_user #<logname> <basedir>
 {
+	if [ is_freebsd ] ; then
+		del_user_freebsd "$1" "$2"
+		return $?
+	fi
+
 	typeset user=$1
 	typeset basedir=${2:-"/var/tmp"}
 
@@ -2401,6 +2522,11 @@ function del_user #<logname> <basedir>
 #
 function add_group #<group_name>
 {
+	if [ is_freebsd ] ; then
+		add_group_freebsd "$1"
+		return $?
+	fi
+
 	typeset group=$1
 
 	if ((${#group} == 0)); then
@@ -2440,6 +2566,11 @@ function add_group #<group_name>
 #
 function del_group #<group_name>
 {
+	if [ is_freebsd ] ; then
+		del_group_freebsd "$1"
+		return $?
+	fi
+
 	typeset grp=$1
 	if ((${#grp} == 0)); then
 		log_fail "group name is necessary."
@@ -3030,8 +3161,13 @@ function user_run
 	shift
 
 	log_note "user:$user $@"
-	eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
-	return $?
+	if [ is_freebsd ]; then
+		eval "su \$user -c \"$@\"" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
+		return $?
+	else
+		eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
+		return $?
+	fi
 }
 
 #
