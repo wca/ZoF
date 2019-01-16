@@ -43,7 +43,7 @@ int dmu_send_estimate(struct dsl_dataset *ds, struct dsl_dataset *fromds,
     boolean_t stream_compressed, uint64_t *sizep);
 int dmu_send_estimate_from_txg(struct dsl_dataset *ds, uint64_t fromtxg,
     boolean_t stream_compressed, uint64_t *sizep);
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 int dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     boolean_t large_block_ok, boolean_t compressok, boolean_t rawok, int outfd,
     uint64_t resumeobj, uint64_t resumeoff, struct file *vp, offset_t *off);

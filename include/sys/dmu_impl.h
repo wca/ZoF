@@ -258,7 +258,7 @@ typedef enum {
 typedef struct dmu_sendarg {
 	list_node_t dsa_link;
 	dmu_replay_record_t *dsa_drr;
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 	kthread_t *dsa_td;
 	struct file *dsa_fp;
 #else
