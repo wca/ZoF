@@ -159,7 +159,157 @@ SYSCTL_UINT(_vfs_zfs, OID_AUTO, arc_min_prefetch_ms, CTLFLAG_RW,
 SYSCTL_UINT(_vfs_zfs, OID_AUTO, arc_min_prescient_prefetch_ms, CTLFLAG_RW,
     &arc_min_prescient_prefetch_ms, 0, "Min life of prescient prefetched block in ms");
 
+extern unsigned long zfs_arc_max;
+extern unsigned long zfs_arc_min;
+extern unsigned long zfs_arc_meta_limit;
+extern unsigned long zfs_arc_meta_min;
+extern int			arc_no_grow_shift;
+extern int		arc_shrink_shift;
+static uint64_t arc_abs_min = 16 << 20;
 
+extern arc_stats_t arc_stats;
+#define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
+#define	arc_p		ARCSTAT(arcstat_p)	/* target size of MRU */
+#define	arc_c		ARCSTAT(arcstat_c)	/* target size of cache */
+#define	arc_c_min	ARCSTAT(arcstat_c_min)	/* min target cache size */
+#define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
+#define	arc_no_grow	ARCSTAT(arcstat_no_grow) /* do not grow cache size */
+#define	arc_tempreserve	ARCSTAT(arcstat_tempreserve)
+#define	arc_loaned_bytes	ARCSTAT(arcstat_loaned_bytes)
+#define	arc_meta_limit	ARCSTAT(arcstat_meta_limit) /* max size for metadata */
+#define	arc_dnode_limit	ARCSTAT(arcstat_dnode_limit) /* max size for dnodes */
+#define	arc_meta_min	ARCSTAT(arcstat_meta_min) /* min size for metadata */
+#define	arc_meta_max	ARCSTAT(arcstat_meta_max) /* max size of metadata */
+#define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
+#define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
+
+#ifdef notyet
+static int
+sysctl_vfs_zfs_arc_meta_limit(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_arc_meta_limit;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+        if (val <= 0 || val > arc_c_max)
+		return (EINVAL);
+
+	arc_meta_limit = val;
+	return (0);
+}
+#endif
+
+static int
+sysctl_vfs_zfs_arc_no_grow_shift(SYSCTL_HANDLER_ARGS)
+{
+	uint32_t val;
+	int err;
+
+	val = arc_no_grow_shift;
+	err = sysctl_handle_32(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+        if (val >= arc_shrink_shift)
+		return (EINVAL);
+
+	arc_no_grow_shift = val;
+	return (0);
+}
+
+static int
+sysctl_vfs_zfs_arc_max(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_arc_max;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	if (zfs_arc_max == 0) {
+		/* Loader tunable so blindly set */
+		zfs_arc_max = val;
+		return (0);
+	}
+
+	if (val < arc_abs_min || val > kmem_size())
+		return (EINVAL);
+	if (val < arc_c_min)
+		return (EINVAL);
+	if (zfs_arc_meta_limit > 0 && val < zfs_arc_meta_limit)
+		return (EINVAL);
+
+	arc_c_max = val;
+
+	arc_c = arc_c_max;
+        arc_p = (arc_c >> 1);
+
+	if (zfs_arc_meta_limit == 0) {
+		/* limit meta-data to 1/4 of the arc capacity */
+		arc_meta_limit = arc_c_max / 4;
+	}
+
+	/* if kmem_flags are set, lets try to use less memory */
+	if (kmem_debugging())
+		arc_c = arc_c / 2;
+
+	zfs_arc_max = arc_c;
+
+	return (0);
+}
+
+static int
+sysctl_vfs_zfs_arc_min(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_arc_min;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	if (zfs_arc_min == 0) {
+		/* Loader tunable so blindly set */
+		zfs_arc_min = val;
+		return (0);
+	}
+
+	if (val < arc_abs_min || val > arc_c_max)
+		return (EINVAL);
+
+	arc_c_min = val;
+
+	if (zfs_arc_meta_min == 0)
+                arc_meta_min = arc_c_min / 2;
+
+	if (arc_c < arc_c_min)
+                arc_c = arc_c_min;
+
+	zfs_arc_min = arc_c_min;
+
+	return (0);
+}
+
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_max, CTLTYPE_U64 | CTLFLAG_RWTUN,
+    0, sizeof(uint64_t), sysctl_vfs_zfs_arc_max, "QU", "Maximum ARC size");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_min, CTLTYPE_U64 | CTLFLAG_RWTUN,
+    0, sizeof(uint64_t), sysctl_vfs_zfs_arc_min, "QU", "Minimum ARC size");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_no_grow_shift, CTLTYPE_U32 | CTLFLAG_RWTUN,
+    0, sizeof(uint32_t), sysctl_vfs_zfs_arc_no_grow_shift, "U",
+    "log2(fraction of ARC which must be free to allow growing)");
+#ifdef notyet
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_meta_limit,
+    CTLTYPE_U64 | CTLFLAG_MPSAFE | CTLFLAG_RW, 0, sizeof(uint64_t),
+    sysctl_vfs_zfs_arc_meta_limit, "QU",
+    "ARC metadata limit");
+#endif
 /* dbuf.c */
 
 extern uint64_t dbuf_cache_max_bytes;
