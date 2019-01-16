@@ -59,7 +59,7 @@
 #include <sys/zvol.h>
 #include <sys/policy.h>
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 #include <sys/buf.h>
 #endif
 
@@ -984,7 +984,7 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
     zfs_bookmark_phys_t *ancestor_zb, boolean_t is_clone,
     boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
     boolean_t rawok, int outfd, uint64_t resumeobj, uint64_t resumeoff,
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 	struct file *fp,
 #else
 	vnode_t *vp,
@@ -1110,7 +1110,7 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
 	dsp = kmem_zalloc(sizeof (dmu_sendarg_t), KM_SLEEP);
 
 	dsp->dsa_drr = drr;
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 	dsp->dsa_td = curthread;
 	dsp->dsa_fp = fp;
 #else
@@ -1250,7 +1250,7 @@ out:
 	return (err);
 }
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 int
 dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
     boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
@@ -1308,7 +1308,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	return (err);
 }
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 int
 dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     boolean_t large_block_ok, boolean_t compressok, boolean_t rawok,
