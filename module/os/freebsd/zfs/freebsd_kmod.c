@@ -123,8 +123,6 @@ zfsdev_ioctl(struct cdev *dev, u_long zcmd, caddr_t arg, int flag,
 			   len, vecnum, sizeof(zfs_cmd_t));
 		return (EINVAL);
 	}
-	if (bootverbose)
-		printf("%s vecnum: %d\n", __func__, vecnum);
 	rc = zfsdev_ioctl_common(vecnum, (unsigned long) zp->zfs_cmd);
 	return (-rc);
 }
