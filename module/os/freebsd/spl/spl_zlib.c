@@ -68,6 +68,10 @@ zlib_deflateEnd(z_stream *stream)
 static int
 zlib_inflateInit(z_stream *stream)
 {
+	stream->zalloc = zcalloc;
+	stream->opaque = NULL;
+	stream->zfree = zcfree;
+
 	return inflateInit(stream);
 }
 
@@ -177,6 +181,8 @@ z_uncompress(void *dest, size_t *destLen, const void *source, size_t sourceLen)
 {
 	z_stream stream;
 	int err;
+
+	bzero(&stream, sizeof (stream));
 
 	stream.next_in = (Byte *)source;
 	stream.avail_in = (uInt)sourceLen;
