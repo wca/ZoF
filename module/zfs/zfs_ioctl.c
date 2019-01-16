@@ -4616,8 +4616,13 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 	}
 
 	off = input_fp->f_offset;
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	error = dmu_recv_stream(&drc, input_fp, &off, cleanup_fd,
+	    action_handle);
+#else
 	error = dmu_recv_stream(&drc, input_fp->f_vnode, &off, cleanup_fd,
 	    action_handle);
+#endif
 
 	if (error == 0) {
 		zfsvfs_t *zfsvfs = NULL;
