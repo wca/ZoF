@@ -258,7 +258,12 @@ typedef enum {
 typedef struct dmu_sendarg {
 	list_node_t dsa_link;
 	dmu_replay_record_t *dsa_drr;
+#ifdef __FreeBSD__
+	kthread_t *dsa_td;
+	struct file *dsa_fp;
+#else
 	vnode_t *dsa_vp;
+#endif
 	int dsa_outfd;
 	proc_t *dsa_proc;
 	offset_t *dsa_off;

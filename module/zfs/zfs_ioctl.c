@@ -5080,6 +5080,22 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);
 	} else {
+#ifdef __FreeBSD__
+		file_t *fp;
+
+		fget_write(curthread, zc->zc_cookie, &cap_write_rights, &fp);
+
+		if (fp == NULL)
+			return (SET_ERROR(EBADF));
+
+		off = fp->f_offset;
+		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
+		    zc->zc_fromobj, embedok, large_block_ok, compressok, rawok,
+		    zc->zc_cookie, fp, &off);
+
+		if (off >= 0 && off <= MAXOFFSET_T)
+			fp->f_offset = off;
+#else
 		file_t *fp = getf(zc->zc_cookie);
 		if (fp == NULL)
 			return (SET_ERROR(EBADF));
@@ -5091,6 +5107,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 
 		if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
 			fp->f_offset = off;
+#endif
 		releasef(zc->zc_cookie);
 	}
 	return (error);
@@ -5973,6 +5990,50 @@ static const zfs_ioc_key_t zfs_keys_send_new[] = {
 };
 
 /* ARGSUSED */
+#ifdef __FreeBSD__
+/* ARGSUSED */
+static int
+zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	file_t *fp;
+	int error;
+	offset_t off;
+	char *fromname = NULL;
+	int fd;
+	boolean_t largeblockok;
+	boolean_t embedok;
+	boolean_t compressok;
+	boolean_t rawok;
+	uint64_t resumeobj = 0;
+	uint64_t resumeoff = 0;
+
+	error = nvlist_lookup_int32(innvl, "fd", &fd);
+	if (error != 0)
+		return (SET_ERROR(EINVAL));
+
+	(void) nvlist_lookup_string(innvl, "fromsnap", &fromname);
+
+	largeblockok = nvlist_exists(innvl, "largeblockok");
+	embedok = nvlist_exists(innvl, "embedok");
+	compressok = nvlist_exists(innvl, "compressok");
+	rawok = nvlist_exists(innvl, "rawok");
+
+	(void) nvlist_lookup_uint64(innvl, "resume_object", &resumeobj);
+	(void) nvlist_lookup_uint64(innvl, "resume_offset", &resumeoff);
+
+	fget_write(curthread, fd, &cap_write_rights, &fp);
+	if (fp == NULL)
+		return (SET_ERROR(EBADF));
+
+	off = fp->f_offset;
+	error = dmu_send(snapname, fromname, embedok, largeblockok, compressok, rawok,
+	    fd, resumeobj, resumeoff, fp, &off);
+	fp->f_offset = off;
+
+	releasef(fd);
+	return (error);
+}
+#else
 static int
 zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 {
@@ -6013,6 +6074,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	releasef(fd);
 	return (error);
 }
+#endif
 
 /*
  * Determine approximately how large a zfs send stream will be -- the number

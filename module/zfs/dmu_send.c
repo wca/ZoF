@@ -59,6 +59,11 @@
 #include <sys/zvol.h>
 #include <sys/policy.h>
 
+#ifdef __FreeBSD__
+#include <sys/buf.h>
+#endif
+
+
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
 int zfs_send_corrupt_data = B_FALSE;
 int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
@@ -105,7 +110,6 @@ dump_bytes_cb(void *arg)
 	dump_bytes_io_t *dbi = (dump_bytes_io_t *)arg;
 	dmu_sendarg_t *dsp = dbi->dbi_dsp;
 	dsl_dataset_t *ds = dmu_objset_ds(dsp->dsa_os);
-	ssize_t resid; /* have to get resid to get detailed errno */
 
 	/*
 	 * The code does not rely on len being a multiple of 8.  We keep
@@ -120,9 +124,32 @@ dump_bytes_cb(void *arg)
 	ASSERT(dbi->dbi_len % 8 == 0 ||
 	    (dsp->dsa_featureflags & DMU_BACKUP_FEATURE_RAW) != 0);
 
+#if defined(_KERNEL) && defined(__FreeBSD__)
+	struct uio auio;
+	struct iovec aiov;
+
+
+	aiov.iov_base = dbi->dbi_buf;
+	aiov.iov_len = dbi->dbi_len;
+	auio.uio_iov = &aiov;
+	auio.uio_iovcnt = 1;
+	auio.uio_resid = dbi->dbi_len;
+	auio.uio_segflg = UIO_SYSSPACE;
+	auio.uio_rw = UIO_WRITE;
+	auio.uio_offset = (off_t)-1;
+	auio.uio_td = dsp->dsa_td;
+
+	if (dsp->dsa_fp->f_type == DTYPE_VNODE)
+		bwillwrite();
+	dsp->dsa_err = fo_write(dsp->dsa_fp, &auio, dsp->dsa_td->td_ucred, 0,
+	    dsp->dsa_td);
+#else
+	ssize_t resid; /* have to get resid to get detailed errno */
+
 	dsp->dsa_err = vn_rdwr(UIO_WRITE, dsp->dsa_vp,
 	    (caddr_t)dbi->dbi_buf, dbi->dbi_len,
 	    0, UIO_SYSSPACE, FAPPEND, RLIM64_INFINITY, CRED(), &resid);
+#endif
 
 	mutex_enter(&ds->ds_sendstream_lock);
 	*dsp->dsa_off += dbi->dbi_len;
@@ -957,7 +984,12 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
     zfs_bookmark_phys_t *ancestor_zb, boolean_t is_clone,
     boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
     boolean_t rawok, int outfd, uint64_t resumeobj, uint64_t resumeoff,
-    vnode_t *vp, offset_t *off)
+#ifdef __FreeBSD__
+	struct file *fp,
+#else
+	vnode_t *vp,
+#endif
+	offset_t *off)
 {
 	objset_t *os;
 	dmu_replay_record_t *drr;
@@ -1078,7 +1110,12 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
 	dsp = kmem_zalloc(sizeof (dmu_sendarg_t), KM_SLEEP);
 
 	dsp->dsa_drr = drr;
+#ifdef __FreeBSD__
+	dsp->dsa_td = curthread;
+	dsp->dsa_fp = fp;
+#else
 	dsp->dsa_vp = vp;
+#endif
 	dsp->dsa_outfd = outfd;
 	dsp->dsa_proc = curproc;
 	dsp->dsa_os = os;
@@ -1213,10 +1250,17 @@ out:
 	return (err);
 }
 
+#ifdef __FreeBSD__
+int
+dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
+    boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
+    boolean_t rawok, int outfd, struct file *vp, offset_t *off)
+#else
 int
 dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
     boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
     boolean_t rawok, int outfd, vnode_t *vp, offset_t *off)
+#endif
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
@@ -1264,11 +1308,19 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	return (err);
 }
 
+#ifdef __FreeBSD__
+int
+dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
+    boolean_t large_block_ok, boolean_t compressok, boolean_t rawok,
+    int outfd, uint64_t resumeobj, uint64_t resumeoff, struct file *vp,
+    offset_t *off)
+#else
 int
 dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     boolean_t large_block_ok, boolean_t compressok, boolean_t rawok,
     int outfd, uint64_t resumeobj, uint64_t resumeoff, vnode_t *vp,
     offset_t *off)
+#endif
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;

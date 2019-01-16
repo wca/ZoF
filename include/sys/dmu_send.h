@@ -39,15 +39,24 @@ struct drr_begin;
 struct avl_tree;
 struct dmu_replay_record;
 
-int dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
-    boolean_t large_block_ok, boolean_t compressok, boolean_t rawok, int outfd,
-    uint64_t resumeobj, uint64_t resumeoff, struct vnode *vp, offset_t *off);
 int dmu_send_estimate(struct dsl_dataset *ds, struct dsl_dataset *fromds,
     boolean_t stream_compressed, uint64_t *sizep);
 int dmu_send_estimate_from_txg(struct dsl_dataset *ds, uint64_t fromtxg,
     boolean_t stream_compressed, uint64_t *sizep);
+#ifdef __FreeBSD__
+int dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
+    boolean_t large_block_ok, boolean_t compressok, boolean_t rawok, int outfd,
+    uint64_t resumeobj, uint64_t resumeoff, struct file *vp, offset_t *off);
+int dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
+    boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
+    boolean_t rawok, int outfd, struct file *fp, offset_t *off);
+#else
+int dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
+    boolean_t large_block_ok, boolean_t compressok, boolean_t rawok, int outfd,
+    uint64_t resumeobj, uint64_t resumeoff, struct vnode *vp, offset_t *off);
 int dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
     boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
     boolean_t rawok, int outfd, struct vnode *vp, offset_t *off);
+#endif
 
 #endif /* _DMU_SEND_H */
