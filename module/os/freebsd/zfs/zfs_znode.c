@@ -212,7 +212,6 @@ zfs_znode_move_impl(znode_t *ozp, znode_t *nzp)
 	nzp->z_sync_cnt = ozp->z_sync_cnt;
 	nzp->z_is_sa = ozp->z_is_sa;
 	nzp->z_sa_hdl = ozp->z_sa_hdl;
-	bcopy(ozp->z_atime, nzp->z_atime, sizeof (uint64_t) * 2);
 	nzp->z_links = ozp->z_links;
 	nzp->z_size = ozp->z_size;
 	nzp->z_pflags = ozp->z_pflags;
@@ -628,6 +627,9 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	vnode_t *vp;
 	uint64_t mode;
 	uint64_t parent;
+#ifdef notyet
+	uint64_t mtime[2], ctime[2];
+#endif
 	sa_bulk_attr_t bulk[9];
 	int count = 0;
 	int error;
@@ -675,6 +677,12 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zfsvfs), NULL, &parent, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zfsvfs), NULL,
 	    &zp->z_atime, 16);
+#ifdef notyet
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL,
+	    &mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL,
+	    &ctime, 16);
+#endif
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zfsvfs), NULL,
 	    &zp->z_uid, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zfsvfs), NULL,
@@ -1461,14 +1469,24 @@ zfs_znode_free(znode_t *zp)
 }
 
 void
-zfs_tstamp_update_setup(znode_t *zp, uint_t flag, uint64_t mtime[2],
-    uint64_t ctime[2])
+zfs_tstamp_update_setup_ext(znode_t *zp, uint_t flag, uint64_t mtime[2],
+	uint64_t ctime[2], boolean_t have_tx)
 {
 	timestruc_t	now;
 
 	vfs_timestamp(&now);
 
-	zp->z_seq++;
+	if (have_tx) {	/* will sa_bulk_update happen really soon? */
+		zp->z_atime_dirty = 0;
+		zp->z_seq++;
+	} else {
+		zp->z_atime_dirty = 1;
+	}
+
+	if (flag & AT_ATIME) {
+		ZFS_TIME_ENCODE(&now, zp->z_atime);
+	}
+
 	if (flag & AT_MTIME) {
 		ZFS_TIME_ENCODE(&now, mtime);
 		if (zp->z_zfsvfs->z_use_fuids) {
@@ -1484,6 +1502,13 @@ zfs_tstamp_update_setup(znode_t *zp, uint_t flag, uint64_t mtime[2],
 	}
 }
 
+
+void
+zfs_tstamp_update_setup(znode_t *zp, uint_t flag, uint64_t mtime[2],
+	uint64_t ctime[2])
+{
+	zfs_tstamp_update_setup_ext(zp, flag, mtime, ctime, B_TRUE);
+}
 /*
  * Grow the block size for a file.
  *

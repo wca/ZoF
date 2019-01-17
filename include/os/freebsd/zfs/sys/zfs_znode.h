@@ -349,7 +349,7 @@ VTOZ(vnode_t *vp)
 
 #define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp) \
 	if ((zfsvfs)->z_atime && !((zfsvfs)->z_vfs->vfs_flag & VFS_RDONLY)) \
-		zfs_tstamp_update_setup(zp, ACCESSED, NULL, NULL);
+		zfs_tstamp_update_setup_ext(zp, ACCESSED, NULL, NULL, B_FALSE);
 
 extern int	zfs_init_fs(zfsvfs_t *, znode_t **);
 extern void	zfs_set_dataprop(objset_t *);
@@ -357,6 +357,8 @@ extern void	zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *,
     dmu_tx_t *tx);
 extern void	zfs_tstamp_update_setup(znode_t *, uint_t, uint64_t [2],
     uint64_t [2]);
+extern void	zfs_tstamp_update_setup_ext(znode_t *, uint_t, uint64_t [2],
+    uint64_t [2], boolean_t have_tx);
 extern void	zfs_grow_blocksize(znode_t *, uint64_t, dmu_tx_t *);
 extern int	zfs_freesp(znode_t *, uint64_t, uint64_t, int, boolean_t);
 extern void	zfs_znode_init(void);
