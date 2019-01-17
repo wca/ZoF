@@ -60,8 +60,13 @@ int dmu_recv_begin(char *tofs, char *tosnap,
     struct dmu_replay_record *drr_begin, boolean_t force, boolean_t resumable,
     nvlist_t *localprops, nvlist_t *hidden_args, char *origin,
     dmu_recv_cookie_t *drc);
+#if defined(__FreeBSD__) && defined(_KERNEL)
+int dmu_recv_stream(dmu_recv_cookie_t *drc, struct file *vp, offset_t *voffp,
+    int cleanup_fd, uint64_t *action_handlep);
+#else
 int dmu_recv_stream(dmu_recv_cookie_t *drc, struct vnode *vp, offset_t *voffp,
     int cleanup_fd, uint64_t *action_handlep);
+#endif
 int dmu_recv_end(dmu_recv_cookie_t *drc, void *owner);
 boolean_t dmu_objset_is_receiving(objset_t *os);
 
