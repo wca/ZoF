@@ -17,6 +17,7 @@
 #
 
 import os
+import platform
 import re
 import sys
 
@@ -133,6 +134,13 @@ fio_reason = 'Fio v2.3 or newer required'
 #
 na_reason = "N/A on Linux"
 
+#
+# Some tests are not applicable to FreeBSD or need to be updated to operate
+# in the manor required by Linux.  Any tests which are skipped for this
+# reason will be suppressed in the final analysis output.
+#
+na_reason_freebsd = "N/A on FreeBSD"
+
 summary = {
     'total': float(0),
     'passed': float(0),
@@ -195,6 +203,14 @@ known = {
     'zvol/zvol_swap/zvol_swap_005_pos': ['SKIP', na_reason],
     'zvol/zvol_swap/zvol_swap_006_pos': ['SKIP', na_reason],
 }
+
+# Add list of tests known to not run on FreeBSD
+if platform.system() == "FreeBSD":
+    known_freebsd = {
+        'arc/setup': ['SKIP', na_reason_freebsd],
+        'atime/atime_003_pos': ['SKIP', na_reason_freebsd],
+    }
+    known.update(known_freebsd)
 
 #
 # These tests may occasionally fail or be skipped.  We want there failures

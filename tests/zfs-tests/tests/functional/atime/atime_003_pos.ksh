@@ -41,6 +41,10 @@
 # 5. Expect the access time is updated for first read but not on second.
 #
 
+if is_freebsd; then
+	log_unsupported "relatime is not supported on FreeBSD"
+fi
+
 verify_runnable "both"
 
 log_assert "Setting relatime=on, the access time for files is updated when \

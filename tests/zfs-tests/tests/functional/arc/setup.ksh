@@ -26,7 +26,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-if [[ `uname -s` = "FreeBSD" ]]; then
+if is_freebsd; then
 	log_unsupported "dbuf stat tests not implemented on FreeBSD"
 fi
 
