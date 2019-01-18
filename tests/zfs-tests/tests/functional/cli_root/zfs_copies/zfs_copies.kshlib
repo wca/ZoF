@@ -95,8 +95,13 @@ function do_vol_test
 	typeset mntp=$3
 
 	vol=$TESTPOOL/$TESTVOL1
-	vol_b_path=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL1
-	vol_r_path=$ZVOL_RDEVDIR/$TESTPOOL/$TESTVOL1
+	if is_freebsd; then
+		vol_b_path=/dev/zvol/$TESTPOOL/$TESTVOL1
+		vol_r_path=/dev/zvol/$TESTPOOL/$TESTVOL1
+	else
+		vol_b_path=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL1
+		vol_r_path=$ZVOL_RDEVDIR/$TESTPOOL/$TESTVOL1
+	fi
 
 	log_must zfs create -V $VOLSIZE -o copies=$copy $vol
 	log_must zfs set refreservation=none $vol
