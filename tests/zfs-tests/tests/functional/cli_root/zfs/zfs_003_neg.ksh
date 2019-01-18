@@ -43,6 +43,10 @@
 # 3. Verify the command aborts and generate a core file
 #
 
+if is_freebsd; then
+	log_unsupported "FreeBSD cannot move devfs files"
+fi
+
 verify_runnable "global"
 
 log_assert "zfs fails with unexpected scenario."
