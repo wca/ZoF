@@ -52,6 +52,8 @@ opensolaris_load(void *dummy)
 {
 	int i;
 
+	utsname()->nodename = prison0.pr_hostname;
+
 	/*
 	 * "Enable" all CPUs even though they may not exist just so
 	 * that the asserts work. On FreeBSD, if a CPU exists, it is
@@ -76,30 +78,3 @@ opensolaris_unload(void)
 }
 
 SYSUNINIT(opensolaris_unregister, SI_SUB_OPENSOLARIS, SI_ORDER_FIRST, opensolaris_unload, NULL);
-
-static int
-opensolaris_modevent(module_t mod __unused, int type, void *data __unused)
-{
-	int error = 0;
-
-	switch (type) {
-	case MOD_LOAD:
-		utsname()->nodename = prison0.pr_hostname;
-		break;
-
-	case MOD_UNLOAD:
-		break;
-
-	case MOD_SHUTDOWN:
-		break;
-
-	default:
-		error = EOPNOTSUPP;
-		break;
-
-	}
-	return (error);
-}
-
-DEV_MODULE(opensolaris, opensolaris_modevent, NULL);
-MODULE_VERSION(opensolaris, 1);
