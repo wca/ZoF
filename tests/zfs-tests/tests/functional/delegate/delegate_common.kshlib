@@ -482,8 +482,14 @@ function verify_userprop
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
 
+	echo "RUNNING: $user zfs set $user:ts=$stamp $dtst"
 	user_run $user zfs set "$user:ts=$stamp" $dtst
+	# On FreeBSD this can fail if run immediately
+	if is_freebsd; then
+		sleep 2
+	fi
 	if [[ $stamp != $(get_prop "$user:ts" $dtst) ]]; then
+		echo "FAILED get_prop"
 		return 1
 	fi
 
@@ -684,7 +690,7 @@ function verify_fs_destroy
 
 # Verify that given the correct delegation, a regular user can:
 #	Take a snapshot of an unmounted dataset
-#	Take a snapshot of an mounted dataset
+# 	Take a snapshot of an mounted dataset
 #	Create a snapshot by making a directory in the .zfs/snapshot directory
 function verify_fs_snapshot
 {
