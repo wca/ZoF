@@ -207,6 +207,7 @@ known = {
 # Add list of tests known to not run on FreeBSD
 if platform.system() == "FreeBSD":
     known_freebsd = {
+        'acl/posix/setup': ['SKIP', na_reason_freebsd],
         'arc/setup': ['SKIP', na_reason_freebsd],
         'atime/atime_003_pos': ['SKIP', na_reason_freebsd],
         'cli_root/zfs/zfs_002_pos': ['SKIP', na_reason_freebsd],
