@@ -76,6 +76,9 @@ function is_physical_device #device
 		[[ -b "$DEV_DSKDIR/$device" ]] && \
 		[[ -f /sys/module/loop/parameters/max_part ]]
 		return $?
+	elif is_freebsd; then
+		echo $device | grep -q -e '^ada[0-9]*$' -e '^da[0-9]*$' > /dev/null 2>&1
+		return $?
 	else
 		echo $device | egrep "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
 		return $?
@@ -445,7 +448,7 @@ function get_pool_devices #testpool #devdir
 	typeset devdir=$2
 	typeset out=""
 
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		out=$(zpool status -P $testpool |grep ${devdir} | awk '{print $1}')
 		out=$(echo $out | sed -e "s|${devdir}/||g" | tr '\n' ' ')
 	fi
