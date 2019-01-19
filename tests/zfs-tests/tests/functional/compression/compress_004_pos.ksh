@@ -43,6 +43,10 @@
 #	   storage space with different range, the system should work normally.
 #
 
+if is_freebsd; then
+	log_unsupported "randfree_file not supported on FreeBSD"
+fi
+
 verify_runnable "both"
 
 function cleanup
