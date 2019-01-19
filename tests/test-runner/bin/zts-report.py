@@ -213,6 +213,7 @@ if platform.system() == "FreeBSD":
         'cli_root/zfs/zfs_002_pos': ['SKIP', na_reason_freebsd],
         'cli_root/zfs/zfs_003_pos': ['SKIP', na_reason_freebsd],
         'compression/compress_004_pos': ['SKIP', na_reason_freebsd],
+        'xattr/setup': ['SKIP', na_reason_freebsd],
     }
     known.update(known_freebsd)
 
