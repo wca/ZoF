@@ -2267,7 +2267,7 @@ function cleanup_devices #vdevs
 function find_disks
 {
 	# Trust provided list, no attempt is made to locate unused devices.
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		echo "$@"
 		return
 	fi
