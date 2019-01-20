@@ -2409,8 +2409,8 @@ function add_group_freebsd #<group_name>
 	/usr/sbin/pw groupshow $group >/dev/null 2>&1
 	[[ $? == 0 ]] && return 0
 
-	# Assign 100 as the base gid
-	typeset -i gid=100
+	# Assign 1000 as the base gid
+	typeset -i gid=1000
 	while true; do
 		/usr/sbin/pw groupadd -g $gid -n $group > /dev/null 2>&1
 		typeset -i ret=$?
