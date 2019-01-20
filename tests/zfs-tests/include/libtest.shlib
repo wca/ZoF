@@ -1002,6 +1002,9 @@ function delete_partitions
 				j=1
 			done
 		fi
+	elif is_freebsd; then
+		/sbin/gpart destroy -F $DEV_DSKDIR/$DISK
+		return $?
 	fi
 	return 0
 }
@@ -1460,7 +1463,7 @@ function setup_nfs_server
 		return
 	fi
 
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		#
 		# Re-synchronize /var/lib/nfs/etab with /etc/exports and
 		# /etc/exports.d./* to provide a clean test environment.
@@ -2967,7 +2970,7 @@ function labelvtoc
 	typeset label_file=/var/tmp/labelvtoc.$$
 	typeset arch=$(uname -p)
 
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		log_note "Currently unsupported by the test framework"
 		return 1
 	fi
@@ -3025,7 +3028,11 @@ function get_rootfs
 {
 	typeset rootfs=""
 
-	if ! is_linux; then
+	if is_freebsd; then
+		rootfs=$(mount | grep 'on / ' | awk '{print $1}')
+	fi
+
+	if ! is_linux && ! is_freebsd; then
 		rootfs=$(awk '{if ($2 == "/" && $3 == "zfs") print $1}' \
 			/etc/mnttab)
 	fi
@@ -3050,7 +3057,11 @@ function get_rootpool
 	typeset rootfs=""
 	typeset rootpool=""
 
-	if ! is_linux; then
+	if is_freebsd; then
+		rootfs=$(mount | grep 'on / ' | awk '{print $1}')
+	fi
+
+	if ! is_linux && ! is_freebsd; then
 		rootfs=$(awk '{if ($2 == "/" && $3 =="zfs") print $1}' \
 			 /etc/mnttab)
 	fi
@@ -3138,6 +3149,8 @@ function is_mp
 {
 	if is_linux; then
 		(($(nproc) > 1))
+	elif is_freebsd; then
+		/sbin/sysctl -n kern.smp.cpus
 	else
 		(($(psrinfo | wc -l) > 1))
 	fi
@@ -3149,6 +3162,8 @@ function get_cpu_freq
 {
 	if is_linux; then
 		lscpu | awk '/CPU MHz/ { print $3 }'
+	elif is_freebsd; then
+		cat /var/run/dmesg.boot | grep '^CPU:' | cut -d '(' -f 2 | cut -d ')' -f 1
 	else
 		psrinfo -v 0 | awk '/processor operates at/ {print $6}'
 	fi
@@ -3548,6 +3563,8 @@ function is_swap_inuse
 
 	if is_linux; then
 		swapon -s | grep -w $(readlink -f $device) > /dev/null 2>&1
+	elif is_freebsd; then
+		/sbin/swapctl -l | grep -w $device
 	else
 		swap -l | grep -w $device > /dev/null 2>&1
 	fi
@@ -3565,6 +3582,8 @@ function swap_setup
 	if is_linux; then
 		log_must eval "mkswap $swapdev > /dev/null 2>&1"
 		log_must swapon $swapdev
+	elif is_freebsd; then
+		log_must /sbin/swapctl -a $swapdev
 	else
 	        log_must swap -a $swapdev
 	fi
@@ -3582,6 +3601,8 @@ function swap_cleanup
 	if is_swap_inuse $swapdev; then
 		if is_linux; then
 			log_must swapoff $swapdev
+		elif is_freebsd; then
+			log_must /sbin/swapoff $swapdev
 		else
 			log_must swap -d $swapdev
 		fi
@@ -3630,6 +3651,10 @@ function set_tunable_impl
 		echo -n "$value" > "$zfs_tunables/$tunable"
 		return "$?"
 		;;
+	FreeBSD)
+		/sbin/sysctl $tunable=$value
+		return "$?"
+		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
@@ -3662,6 +3687,9 @@ function get_tunable_impl
 		cat $zfs_tunables/$tunable
 		return "$?"
 		;;
+	FreeBSD)
+		/sbin/sysctl -n $tunable
+                ;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		;;
