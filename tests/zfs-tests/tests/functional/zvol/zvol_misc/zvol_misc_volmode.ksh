@@ -46,6 +46,10 @@
 # NOTE: changing volmode may need to remove minors, which could be open, so call
 #       udev_wait() before we "zfs set volmode=<value>".
 
+if is_freebsd; then
+	log_unsupported "volmode unsupported on FreeBSD"
+fi
+
 verify_runnable "global"
 
 function cleanup

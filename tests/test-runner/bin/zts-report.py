@@ -214,6 +214,10 @@ if platform.system() == "FreeBSD":
         'cli_root/zfs/zfs_003_pos': ['SKIP', na_reason_freebsd],
         'compression/compress_004_pos': ['SKIP', na_reason_freebsd],
         'xattr/setup': ['SKIP', na_reason_freebsd],
+        'zvol/zvol_misc/zvol_misc_002_pos': ['SKIP', na_reason_freebsd],
+        'zvol/zvol_misc/zvol_misc_snapdev': ['SKIP', na_reason_freebsd],
+        'zvol/zvol_misc/zvol_misc_volmode': ['SKIP', na_reason_freebsd],
+        'zvol/zvol_swap/zvol_swap_003_pos': ['SKIP', na_reason_freebsd],
     }
     known.update(known_freebsd)
 

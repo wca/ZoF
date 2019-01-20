@@ -27,5 +27,8 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+bleah
+exit $?
+
 DISK=${DISKS%% *}
 default_setup $DISK

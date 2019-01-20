@@ -156,7 +156,15 @@ function ismounted
 			fi
 		;;
 		ufs|nfs)
-			out=$(df -F $fstype $1 2>/dev/null)
+			if is_freebsd; then
+				# a = device, b = "on", c = mount point", d = flags
+				mount | grep $fstype | while read a b c d
+				do
+					 [[ "$1" == "$a" || "$1" == "$c" ]] && return 0
+				done
+			else
+				out=$(df -F $fstype $1 2>/dev/null)
+			fi
 			ret=$?
 			(($ret != 0)) && return $ret
 
