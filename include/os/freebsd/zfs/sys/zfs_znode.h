@@ -239,8 +239,6 @@ typedef struct zfs_soft_state {
         void *zss_data;
 } zfs_soft_state_t;
 
-extern void *zfsdev_get_soft_state(minor_t minor,
-    enum zfs_soft_state_type which);
 extern minor_t zfsdev_minor_alloc(void);
 
 /*
