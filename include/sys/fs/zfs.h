@@ -1201,6 +1201,9 @@ typedef enum zfs_ioc {
 	ZFS_IOC_EVENTS_NEXT,			/* 0x5a81 */
 	ZFS_IOC_EVENTS_CLEAR,			/* 0x5a82 */
 	ZFS_IOC_EVENTS_SEEK,			/* 0x5a83 */
+#ifdef __FreeBSD__
+	ZFS_IOC_NEXTBOOT,			/* 0x5a84 */
+#endif
 
 	/*
 	 * FreeBSD - 1/64 numbers reserved.
