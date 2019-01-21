@@ -511,7 +511,11 @@ enum zfsdev_state_type {
  */
 typedef struct zfsdev_state {
 	struct zfsdev_state	*zs_next;	/* next zfsdev_state_t link */
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	struct cdev		*zs_cdev;	/* associated device node*/
+#else
 	struct file		*zs_file;	/* associated file struct */
+#endif
 	minor_t			zs_minor;	/* made up minor number */
 	void			*zs_onexit;	/* onexit data */
 	void			*zs_zevent;	/* zevent data */

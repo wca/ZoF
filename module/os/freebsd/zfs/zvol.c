@@ -124,7 +124,6 @@ static char *zvol_ftag = "zvol_tag";
  * In FreeBSD we've replaced the upstream zfsdev_state_lock with the
  * spa_namespace_lock in the ZVOL code.
  */
-#define zfsdev_state_lock spa_namespace_lock
 static uint32_t zvol_minors;
 
 SYSCTL_DECL(_vfs_zfs);

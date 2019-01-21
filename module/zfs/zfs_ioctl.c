@@ -230,8 +230,9 @@
  * for zc->zc_nvlist_src_size, since we will need to allocate that much memory.
  */
 #define	MAX_NVLIST_SRC_SIZE	KMALLOC_MAX_SIZE
-
+#ifndef __FreeBSD__
 kmutex_t zfsdev_state_lock;
+#endif
 zfsdev_state_t *zfsdev_state_list;
 
 extern void zfs_init(void);
@@ -5105,7 +5106,6 @@ zfs_ioc_send(zfs_cmd_t *zc)
 
 		if (fp == NULL)
 			return (SET_ERROR(EBADF));
-
 		off = fp->f_offset;
 		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
 		    zc->zc_fromobj, embedok, large_block_ok, compressok, rawok,
@@ -5744,13 +5744,13 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 	if (nvlist_lookup_int32(args, "cleanup_fd", &cleanup_fd) == 0) {
 		error = zfs_onexit_fd_hold(cleanup_fd, &minor);
 		if (error != 0)
-			return (error);
+			return (SET_ERROR(error));
 	}
 
 	error = dsl_dataset_user_hold(holds, minor, errlist);
 	if (minor != 0)
 		zfs_onexit_fd_rele(cleanup_fd);
-	return (error);
+	return (SET_ERROR(error));
 }
 
 /*
@@ -6025,10 +6025,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	uint64_t resumeobj = 0;
 	uint64_t resumeoff = 0;
 
-	error = nvlist_lookup_int32(innvl, "fd", &fd);
-	if (error != 0)
-		return (SET_ERROR(EINVAL));
-
+	fd = fnvlist_lookup_int32(innvl, "fd");
 	(void) nvlist_lookup_string(innvl, "fromsnap", &fromname);
 
 	largeblockok = nvlist_exists(innvl, "largeblockok");
@@ -6042,7 +6039,6 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	fget_write(curthread, fd, &cap_write_rights, &fp);
 	if (fp == NULL)
 		return (SET_ERROR(EBADF));
-
 	off = fp->f_offset;
 	error = dmu_send(snapname, fromname, embedok, largeblockok, compressok, rawok,
 	    fd, resumeobj, resumeoff, fp, &off);

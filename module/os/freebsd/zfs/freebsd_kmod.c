@@ -31,6 +31,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
+#include <sys/fm/util.h>
 #include <sys/sunddi.h>
 #include <sys/policy.h>
 #include <sys/zone.h>
@@ -87,6 +88,7 @@ static void zfs_shutdown(void *, int);
 
 static eventhandler_tag zfs_shutdown_event_tag;
 extern void *zfsdev_state;
+extern zfsdev_state_t *zfsdev_state_list;
 
 #define ZFS_MIN_KSTACK_PAGES 4
 
@@ -128,38 +130,33 @@ zfsdev_ioctl(struct cdev *dev, u_long zcmd, caddr_t arg, int flag,
 }
 
 static void
-zfs_ctldev_destroy(zfs_onexit_t *zo, minor_t minor)
-{
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-
-	zfs_onexit_destroy(zo);
-	ddi_soft_state_free(zfsdev_state, minor);
-}
-
-static void
 zfsdev_close(void *data)
 {
-	zfs_onexit_t *zo;
+	zfsdev_state_t *zs;
 	minor_t minor = (minor_t)(uintptr_t)data;
 
 	if (minor == 0)
 		return;
 
 	mutex_enter(&spa_namespace_lock);
-	zo = zfsdev_get_soft_state(minor, ZSST_CTLDEV);
-	if (zo == NULL) {
-		mutex_exit(&spa_namespace_lock);
-		return;
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+		if (zs->zs_minor == minor)
+			break;
 	}
-	zfs_ctldev_destroy(zo, minor);
+	if (zs == NULL)
+		return;
+	zs->zs_minor = -1;
+	zfs_onexit_destroy(zs->zs_onexit);
+	zfs_zevent_destroy(zs->zs_zevent);
 	mutex_exit(&spa_namespace_lock);
 }
 
 static int
 zfs_ctldev_init(struct cdev *devp)
 {
+	boolean_t newzs = B_FALSE;
 	minor_t minor;
-	zfs_soft_state_t *zs;
+	zfsdev_state_t *zs, *zsprev = NULL;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -167,28 +164,33 @@ zfs_ctldev_init(struct cdev *devp)
 	if (minor == 0)
 		return (SET_ERROR(ENXIO));
 
-	if (ddi_soft_state_zalloc(zfsdev_state, minor) != DDI_SUCCESS)
-		return (SET_ERROR(EAGAIN));
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+		if (zs->zs_minor == -1)
+			break;
+		zsprev = zs;
+	}
+
+	if (!zs) {
+		zs = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
+		newzs = B_TRUE;
+	}
 
 	devfs_set_cdevpriv((void *)(uintptr_t)minor, zfsdev_close);
+	zs->zs_cdev = devp;
+	devp->si_drv1 = zs;
 
-	zs = ddi_get_soft_state(zfsdev_state, minor);
-	zs->zss_type = ZSST_CTLDEV;
-	zfs_onexit_init((zfs_onexit_t **)&zs->zss_data);
+	zfs_onexit_init((zfs_onexit_t **)&zs->zs_onexit);
+	zfs_zevent_init((zfs_zevent_t **)&zs->zs_zevent);
 
+	if (newzs) {
+		zs->zs_minor = minor;
+		wmb();
+		zsprev->zs_next = zs;
+	} else {
+		wmb();
+		zs->zs_minor = minor;
+	}
 	return (0);
-}
-
-void *
-zfsdev_get_soft_state(minor_t minor, enum zfs_soft_state_type which)
-{
-	zfs_soft_state_t *zp;
-
-	zp = ddi_get_soft_state(zfsdev_state, minor);
-	if (zp == NULL || zp->zss_type != which)
-		return (NULL);
-
-	return (zp->zss_data);
 }
 
 static int
@@ -205,7 +207,6 @@ zfsdev_open(struct cdev *devp, int flag, int mode, struct thread *td)
 
 	return (error);
 }
-
 
 static struct cdevsw zfs_cdevsw = {
 	.d_version =	D_VERSION,
@@ -265,6 +266,9 @@ zfs__init(void)
 
 	zfsdev_init();
 	zcommon_init();
+
+	zfsdev_state_list = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
+	zfsdev_state_list->zs_minor = -1;
 
 	return (0);
 }
