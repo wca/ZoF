@@ -109,6 +109,7 @@ struct g_class zfs_zvol_class = {
 
 DECLARE_GEOM_CLASS(zfs_zvol_class, zfs_zvol);
 
+#define zfsdev_state_lock spa_namespace_lock
 void *zfsdev_state;
 static char *zvol_ftag = "zvol_tag";
 

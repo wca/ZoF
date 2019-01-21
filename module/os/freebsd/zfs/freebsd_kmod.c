@@ -89,6 +89,7 @@ static void zfs_shutdown(void *, int);
 static eventhandler_tag zfs_shutdown_event_tag;
 extern void *zfsdev_state;
 extern zfsdev_state_t *zfsdev_state_list;
+extern kmutex_t zfsdev_state_lock;
 
 #define ZFS_MIN_KSTACK_PAGES 4
 
@@ -138,17 +139,19 @@ zfsdev_close(void *data)
 	if (minor == 0)
 		return;
 
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter(&zfsdev_state_lock);
 	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
 		if (zs->zs_minor == minor)
 			break;
 	}
-	if (zs == NULL)
+	if (zs == NULL) {
+		mutex_exit(&zfsdev_state_lock);
 		return;
+	}
 	zs->zs_minor = -1;
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
-	mutex_exit(&spa_namespace_lock);
+	mutex_exit(&zfsdev_state_lock);
 }
 
 static int
@@ -158,7 +161,7 @@ zfs_ctldev_init(struct cdev *devp)
 	minor_t minor;
 	zfsdev_state_t *zs, *zsprev = NULL;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 
 	minor = zfsdev_minor_alloc();
 	if (minor == 0)
@@ -200,9 +203,9 @@ zfsdev_open(struct cdev *devp, int flag, int mode, struct thread *td)
 
 	/* This is the control device. Allocate a new minor if requested. */
 	if (flag & FEXCL) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter(&zfsdev_state_lock);
 		error = zfs_ctldev_init(devp);
-		mutex_exit(&spa_namespace_lock);
+		mutex_exit(&zfsdev_state_lock);
 	}
 
 	return (error);
@@ -225,6 +228,7 @@ zfs_allow_log_destroy(void *arg)
 static void
 zfsdev_init(void)
 {
+	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	zfsdev = make_dev(&zfs_cdevsw, 0x0, UID_ROOT, GID_OPERATOR, 0666,
 	    ZFS_DRIVER);
 }
@@ -234,6 +238,7 @@ zfsdev_fini(void)
 {
 	if (zfsdev != NULL)
 		destroy_dev(zfsdev);
+	mutex_destroy(&zfsdev_state_lock);
 }
 
 int

@@ -230,9 +230,7 @@
  * for zc->zc_nvlist_src_size, since we will need to allocate that much memory.
  */
 #define	MAX_NVLIST_SRC_SIZE	KMALLOC_MAX_SIZE
-#ifndef __FreeBSD__
 kmutex_t zfsdev_state_lock;
-#endif
 zfsdev_state_t *zfsdev_state_list;
 
 extern void zfs_init(void);

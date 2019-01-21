@@ -79,8 +79,6 @@
 #include <sys/conf.h>
 /* XXX move us */
 
-#define zfsdev_state_lock spa_namespace_lock
-
 #define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
 	    (taskq_create(a, b, maxclsyspri, d, e, f))
 
