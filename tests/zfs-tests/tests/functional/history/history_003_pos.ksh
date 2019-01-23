@@ -64,8 +64,9 @@ spool=smallpool.$$; sfs=smallfs.$$
 log_must zpool create $spool $VDEV0
 log_must zfs create $spool/$sfs
 
+
 typeset -i orig_count=$(zpool history $spool | wc -l)
-typeset orig_md5=$(zpool history $spool | head -2 | md5sum | \
+typeset orig_md5=$(zpool history $spool | head -2 | md5 | \
     awk '{print $1}')
 
 typeset -i i=0
@@ -82,7 +83,7 @@ done
 TMPFILE=$TEST_BASE_DIR/spool.$$
 zpool history $spool >$TMPFILE
 typeset -i entry_count=$(wc -l $TMPFILE | awk '{print $1}')
-typeset final_md5=$(head -2 $TMPFILE | md5sum | awk '{print $1}')
+typeset final_md5=$(head -2 $TMPFILE | md5 | awk '{print $1}')
 
 grep 'zpool create' $TMPFILE >/dev/null 2>&1 ||
     log_fail "'zpool create' was not found in pool history"
