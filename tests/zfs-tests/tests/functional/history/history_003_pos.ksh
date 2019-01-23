@@ -72,6 +72,7 @@ if [ ! is_freebsd ]; then
 else
 	typeset orig_md5=$(zpool history $spool | head -2 | md5 | \
 	    awk '{print $1}')
+fi
 
 typeset -i i=0
 while ((i < 300)); do
@@ -91,6 +92,7 @@ if [ ! is_freebsd ]; then
 	typeset final_md5=$(head -2 $TMPFILE | md5sum | awk '{print $1}')
 else
 	typeset final_md5=$(head -2 $TMPFILE | md5 | awk '{print $1}')
+fi
 
 grep 'zpool create' $TMPFILE >/dev/null 2>&1 ||
     log_fail "'zpool create' was not found in pool history"
