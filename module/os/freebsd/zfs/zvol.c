@@ -732,7 +732,7 @@ zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 
 	ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, B_TRUE, B_TRUE,
-	    zvol_ftag, &os);
+	    zv, &os);
 	if (error)
 		goto out_mutex;
 
