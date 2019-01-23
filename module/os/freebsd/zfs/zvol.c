@@ -102,6 +102,15 @@
 struct proc *zfsproc;
 extern uint_t zfs_geom_probe_vdev_key;
 
+/*
+ * This lock protects the zfsdev_state structure from being modified
+ * while it's being used, e.g. an open that comes in before a create
+ * finishes.  It also protects temporary opens of the dataset so that,
+ * e.g., an open doesn't get a spurious EBUSY.
+ */
+
+static krwlock_t zvol_state_lock;
+
 struct g_class zfs_zvol_class = {
 	.name = "ZFS::ZVOL",
 	.version = G_VERSION,
@@ -109,22 +118,10 @@ struct g_class zfs_zvol_class = {
 
 DECLARE_GEOM_CLASS(zfs_zvol_class, zfs_zvol);
 
-#define zfsdev_state_lock spa_namespace_lock
-void *zfsdev_state;
 static char *zvol_ftag = "zvol_tag";
 
 #define	ZVOL_DUMPSIZE		"dumpsize"
 
-/*
- * This lock protects the zfsdev_state structure from being modified
- * while it's being used, e.g. an open that comes in before a create
- * finishes.  It also protects temporary opens of the dataset so that,
- * e.g., an open doesn't get a spurious EBUSY.
- */
-/*
- * In FreeBSD we've replaced the upstream zfsdev_state_lock with the
- * spa_namespace_lock in the ZVOL code.
- */
 static uint32_t zvol_minors;
 
 SYSCTL_DECL(_vfs_zfs);
@@ -155,7 +152,7 @@ struct zvol_state {
 	uint8_t		zv_min_bs;	/* minimum addressable block shift */
 	uint8_t		zv_flags;	/* readonly, dumpified, etc. */
 	objset_t	*zv_objset;	/* objset handle */
-	uint32_t	zv_total_opens;	/* total open count */
+	uint32_t	zv_open_count;	/* total open count */
 	uint32_t	zv_sync_cnt;	/* synchronous open count */
 	zilog_t		*zv_zilog;	/* ZIL handle */
 	list_t		zv_extents;	/* List of extents for dump */
@@ -165,7 +162,26 @@ struct zvol_state {
 	int		zv_volmode;	/* Provide GEOM or cdev */
 	struct bio_queue_head zv_queue;
 	struct mtx	zv_queue_mtx;	/* zv_queue mutex */
+	kmutex_t		zv_state_lock;	/* protects zvol_state_t */
 };
+
+typedef enum {
+	ZVOL_ASYNC_CREATE_MINORS,
+	ZVOL_ASYNC_REMOVE_MINORS,
+	ZVOL_ASYNC_RENAME_MINORS,
+	ZVOL_ASYNC_SET_SNAPDEV,
+	ZVOL_ASYNC_SET_VOLMODE,
+	ZVOL_ASYNC_MAX
+} zvol_async_op_t;
+
+typedef struct {
+	zvol_async_op_t op;
+	char pool[MAXNAMELEN];
+	char name1[MAXNAMELEN];
+	char name2[MAXNAMELEN];
+	zprop_source_t source;
+	uint64_t value;
+} zvol_task_t;
 
 static LIST_HEAD(, zvol_state) all_zvols;
 /*
@@ -232,6 +248,11 @@ extern int zfs_set_prop_nvlist(const char *, zprop_source_t,
 static int zvol_remove_zv(zvol_state_t *);
 static int zvol_get_data(void *arg, lr_write_t *lr, char *buf,
     struct lwb *lwb, zio_t *zio);
+
+static int zvol_create_minors_impl(const char *name);
+static void zvol_remove_minors_impl(const char *name);
+static void zvol_rename_minors_impl(const char *old, const char *new);
+
 
 static void
 zvol_size_changed(zvol_state_t *zv, uint64_t volsize)
@@ -336,8 +357,7 @@ zvol_minor_lookup(const char *name)
 {
 	zvol_state_t *zv;
 
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-
+	ASSERT(RW_WRITE_HELD(&zvol_state_lock));
 	LIST_FOREACH(zv, &all_zvols, zv_links) {
 		if (strcmp(zv->zv_name, name) == 0)
 			return (zv);
@@ -488,7 +508,7 @@ zil_replay_func_t *zvol_replay_vector[TX_MAX_TYPE] = {
 /*
  * Create a minor node (plus a whole lot more) for the specified volume.
  */
-int
+static int
 zvol_create_minor(const char *name)
 {
 	zvol_state_t *zv;
@@ -500,10 +520,10 @@ zvol_create_minor(const char *name)
 
 	ZFS_LOG(1, "Creating ZVOL %s...", name);
 
-	mutex_enter(&zfsdev_state_lock);
+	rw_enter(&zvol_state_lock, RW_WRITER);
 
 	if (zvol_minor_lookup(name) != NULL) {
-		mutex_exit(&zfsdev_state_lock);
+	    rw_exit(&zvol_state_lock);
 		return (SET_ERROR(EEXIST));
 	}
 
@@ -511,7 +531,7 @@ zvol_create_minor(const char *name)
 	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, B_TRUE, FTAG, &os);
 
 	if (error) {
-		mutex_exit(&zfsdev_state_lock);
+	    rw_exit(&zvol_state_lock);
 		return (error);
 	}
 
@@ -524,6 +544,7 @@ zvol_create_minor(const char *name)
 
 	DROP_GIANT();
 	zv->zv_volmode = mode;
+	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		g_topology_lock();
 		gp = g_new_geomf(&zfs_zvol_class, "zfs::zvol::%s", name);
@@ -552,14 +573,13 @@ zvol_create_minor(const char *name)
 		error = make_dev_s(&args, &zv->zv_dev,
 		    "%s/%s", ZVOL_DRIVER, name);
 		if (error != 0) {
+			mutex_destroy(&zv->zv_state_lock);
 			kmem_free(zv, sizeof(*zv));
 			dmu_objset_disown(os, 1, FTAG);
-			mutex_exit(&zfsdev_state_lock);
 			return (error);
 		}
 		zv->zv_dev->si_iosize_max = MAXPHYS;
 	}
-	LIST_INSERT_HEAD(&all_zvols, zv, zv_links);
 
 	(void) strlcpy(zv->zv_name, name, MAXPATHLEN);
 	zv->zv_min_bs = DEV_BSHIFT;
@@ -578,17 +598,17 @@ zvol_create_minor(const char *name)
 	dmu_objset_disown(os, 1, FTAG);
 	zv->zv_objset = NULL;
 
-	zvol_minors++;
 
-	mutex_exit(&zfsdev_state_lock);
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		zvol_geom_run(zv);
 		g_topology_unlock();
 	}
+
+	LIST_INSERT_HEAD(&all_zvols, zv, zv_links);
+	zvol_minors++;
+	rw_exit(&zvol_state_lock);
 	PICKUP_GIANT();
-
 	ZFS_LOG(1, "ZVOL %s created.", name);
-
 	return (0);
 }
 
@@ -598,8 +618,8 @@ zvol_create_minor(const char *name)
 static int
 zvol_remove_zv(zvol_state_t *zv)
 {
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-	if (zv->zv_total_opens != 0)
+	ASSERT(RW_WRITE_HELD(&zvol_state_lock));
+	if (zv->zv_open_count != 0)
 		return (SET_ERROR(EBUSY));
 
 	ZFS_LOG(1, "ZVOL %s destroyed.", zv->zv_name);
@@ -614,6 +634,7 @@ zvol_remove_zv(zvol_state_t *zv)
 			destroy_dev(zv->zv_dev);
 	}
 
+	mutex_destroy(&zv->zv_state_lock);
 	kmem_free(zv, sizeof (zvol_state_t));
 	zvol_minors--;
 	return (0);
@@ -625,70 +646,114 @@ zvol_remove_minor(const char *name)
 	zvol_state_t *zv;
 	int rc;
 
-	mutex_enter(&zfsdev_state_lock);
+	rw_enter(&zvol_state_lock, RW_WRITER);
 	if ((zv = zvol_minor_lookup(name)) == NULL) {
-		mutex_exit(&zfsdev_state_lock);
-		return (SET_ERROR(ENXIO));
+		rw_exit(&zvol_state_lock);
+		SET_ERROR(ENXIO);
 	}
 	rc = zvol_remove_zv(zv);
-	mutex_exit(&zfsdev_state_lock);
+	rw_exit(&zvol_state_lock);
 	return (rc);
 }
 
-int
-zvol_first_open(zvol_state_t *zv)
+
+/*
+ * Setup zv after we just own the zv->objset
+ */
+static int
+zvol_setup_zv(zvol_state_t *zv)
 {
-	dmu_object_info_t doi;
-	objset_t *os;
 	uint64_t volsize;
 	int error;
-	uint64_t readonly;
+	uint64_t ro;
+	objset_t *os = zv->zv_objset;
 
-	/* lie and say we're read-only */
+	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
+	//	ASSERT(RW_LOCK_HELD(&zv->zv_suspend_lock));
+
+	error = dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL);
+	if (error)
+		return (SET_ERROR(error));
+
+	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
+	if (error)
+		return (SET_ERROR(error));
+
+	error = dnode_hold(os, ZVOL_OBJ, FTAG, &zv->zv_dn);
+	if (error)
+		return (SET_ERROR(error));
+
+	//set_capacity(zv->zv_disk, volsize >> 9);
+	zv->zv_volsize = volsize;
+	zv->zv_zilog = zil_open(os, zvol_get_data);
+
+	if (ro || dmu_objset_is_snapshot(os) ||
+	    !spa_writeable(dmu_objset_spa(os))) {
+		zv->zv_flags |= ZVOL_RDONLY;
+	} else {
+		zv->zv_flags &= ~ZVOL_RDONLY;
+	}
+	return (0);
+}
+
+static int
+zvol_first_open(zvol_state_t *zv, boolean_t readonly)
+{
+	objset_t *os;
+	int error, locked = 0;
+	boolean_t ro;
+
+	//ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
+	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
+
+	/*
+	 * In all other cases the spa_namespace_lock is taken before the
+	 * bdev->bd_mutex lock.	 But in this case the Linux __blkdev_get()
+	 * function calls fops->open() with the bdev->bd_mutex lock held.
+	 * This deadlock can be easily observed with zvols used as vdevs.
+	 *
+	 * To avoid a potential lock inversion deadlock we preemptively
+	 * try to take the spa_namespace_lock().  Normally it will not
+	 * be contended and this is safe because spa_open_common() handles
+	 * the case where the caller already holds the spa_namespace_lock.
+	 *
+	 * When it is contended we risk a lock inversion if we were to
+	 * block waiting for the lock.	Luckily, the __blkdev_get()
+	 * function allows us to return -ERESTARTSYS which will result in
+	 * bdev->bd_mutex being dropped, reacquired, and fops->open() being
+	 * called again.  This process can be repeated safely until both
+	 * locks are acquired.
+	 */
+	if (!mutex_owned(&spa_namespace_lock)) {
+		locked = mutex_tryenter(&spa_namespace_lock);
+		if (!locked)
+			return (SET_ERROR(ERESTART));
+	}
+
+	ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, B_TRUE, B_TRUE,
 	    zvol_ftag, &os);
 	if (error)
-		return (error);
+		goto out_mutex;
 
 	zv->zv_objset = os;
-	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
+	error = zvol_setup_zv(zv);
+
 	if (error) {
-		ASSERT(error == 0);
-		dmu_objset_disown(os, 1, zvol_ftag);
-		return (error);
+		dmu_objset_disown(os, 1, zv);
+		zv->zv_objset = NULL;
 	}
+ out_mutex:
+	if (locked)
+		mutex_exit(&spa_namespace_lock);
 
-	/* get and cache the blocksize */
-	error = dmu_object_info(os, ZVOL_OBJ, &doi);
-	if (error) {
-		ASSERT(error == 0);
-		dmu_objset_disown(os, 1, zvol_ftag);
-		return (error);
-	}
-	zv->zv_volblocksize = doi.doi_data_block_size;
-
-	error = dnode_hold(os, ZVOL_OBJ, zvol_ftag, &zv->zv_dn);
-	if (error) {
-		dmu_objset_disown(os, 1, zvol_ftag);
-		return (error);
-	}
-
-	zvol_size_changed(zv, volsize);
-	zv->zv_zilog = zil_open(os, zvol_get_data);
-
-	VERIFY(dsl_prop_get_integer(zv->zv_name, "readonly", &readonly,
-	    NULL) == 0);
-	if (readonly || dmu_objset_is_snapshot(os) ||
-	    !spa_writeable(dmu_objset_spa(os)))
-		zv->zv_flags |= ZVOL_RDONLY;
-	else
-		zv->zv_flags &= ~ZVOL_RDONLY;
-	return (error);
+	return (SET_ERROR(error));
 }
 
 void
 zvol_last_close(zvol_state_t *zv)
 {
+	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 	zil_close(zv->zv_zilog);
 	zv->zv_zilog = NULL;
 
@@ -712,7 +777,7 @@ zvol_update_volsize(objset_t *os, uint64_t volsize)
 	dmu_tx_t *tx;
 	int error;
 
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
+	ASSERT(RW_WRITE_HELD(&zvol_state_lock));
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_zap(tx, ZVOL_ZAP_OBJ, TRUE, NULL);
@@ -733,8 +798,8 @@ zvol_update_volsize(objset_t *os, uint64_t volsize)
 	return (error);
 }
 
-void
-zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
+static void
+zvol_remove_minors_impl(const char *name)
 {
 	zvol_state_t *zv, *tzv;
 	size_t namelen;
@@ -742,7 +807,7 @@ zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
 	namelen = strlen(name);
 
 	DROP_GIANT();
-	mutex_enter(&zfsdev_state_lock);
+	rw_enter(&zvol_state_lock, RW_WRITER);
 
 	LIST_FOREACH_SAFE(zv, &all_zvols, zv_links, tzv) {
 		if (strcmp(zv->zv_name, name) == 0 ||
@@ -753,7 +818,7 @@ zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
 		}
 	}
 
-	mutex_exit(&zfsdev_state_lock);
+	rw_exit(&zvol_state_lock);
 	PICKUP_GIANT();
 }
 
@@ -763,7 +828,7 @@ zvol_update_live_volsize(zvol_state_t *zv, uint64_t volsize)
 	uint64_t old_volsize = 0ULL;
 	int error = 0;
 
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
+	ASSERT(RW_WRITE_HELD(&zvol_state_lock));
 
 	/*
 	 * Reinitialize the dump area to the new size. If we
@@ -809,13 +874,13 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	if (readonly)
 		return (SET_ERROR(EROFS));
 
-	mutex_enter(&zfsdev_state_lock);
+	rw_enter(&zvol_state_lock, RW_WRITER);
 	zv = zvol_minor_lookup(name);
 
 	if (zv == NULL || zv->zv_objset == NULL) {
 		if ((error = dmu_objset_own(name, DMU_OST_ZVOL, B_FALSE, B_TRUE,
 		    FTAG, &os)) != 0) {
-			mutex_exit(&zfsdev_state_lock);
+			rw_exit(&zvol_state_lock);
 			return (error);
 		}
 		owned = B_TRUE;
@@ -839,7 +904,7 @@ out:
 		if (zv != NULL)
 			zv->zv_objset = NULL;
 	}
-	mutex_exit(&zfsdev_state_lock);
+	rw_exit(&zvol_state_lock);
 	return (error);
 }
 
@@ -849,7 +914,6 @@ zvol_open(struct g_provider *pp, int flag, int count)
 {
 	zvol_state_t *zv;
 	int err = 0;
-	boolean_t locked = B_FALSE;
 
 	if (!zpool_on_zvol && tsd_get(zfs_geom_probe_vdev_key) != NULL) {
 		/*
@@ -860,38 +924,28 @@ zvol_open(struct g_provider *pp, int flag, int count)
 		 * to use a zvol as a vdev.  Deadlocks can result if another
 		 * thread has spa_namespace_lock
 		 */
-		return (EOPNOTSUPP);
-	}
-	/*
-	 * Protect against recursively entering spa_namespace_lock
-	 * when spa_open() is used for a pool on a (local) ZVOL(s).
-	 * This is needed since we replaced upstream zfsdev_state_lock
-	 * with spa_namespace_lock in the ZVOL code.
-	 * We are using the same trick as spa_open().
-	 * Note that calls in zvol_first_open which need to resolve
-	 * pool name to a spa object will enter spa_open()
-	 * recursively, but that function already has all the
-	 * necessary protection.
-	 */
-	if (!MUTEX_HELD(&zfsdev_state_lock)) {
-		mutex_enter(&zfsdev_state_lock);
-		locked = B_TRUE;
+		return (SET_ERROR(EOPNOTSUPP));
 	}
 
+	rw_enter(&zvol_state_lock, RW_READER);
 	zv = pp->private;
 	if (zv == NULL) {
-		if (locked)
-			mutex_exit(&zfsdev_state_lock);
+		rw_exit(&zvol_state_lock);
 		return (SET_ERROR(ENXIO));
 	}
 
-	if (zv->zv_total_opens == 0) {
-		err = zvol_first_open(zv);
-		if (err) {
-			if (locked)
-				mutex_exit(&zfsdev_state_lock);
-			return (err);
-		}
+	mutex_enter(&zv->zv_state_lock);
+	rw_exit(&zvol_state_lock);
+	/*
+	 * XXX
+	 * make sure zvol is not suspended during first open
+	 * (hold zv_suspend_lock) and respect proper lock acquisition
+	 * ordering - zv_suspend_lock before zv_state_lock
+	 */
+	if (zv->zv_open_count == 0) {
+		err = zvol_first_open(zv, !(flag & FWRITE));
+		if (err)
+			goto out_mutex;
 		pp->mediasize = zv->zv_volsize;
 		pp->stripeoffset = 0;
 		pp->stripesize = zv->zv_volblocksize;
@@ -903,34 +957,34 @@ zvol_open(struct g_provider *pp, int flag, int count)
 	 */
 	if ((flag & FWRITE) && ((zv->zv_flags & ZVOL_RDONLY) ||
 	    dmu_objset_incompatible_encryption_version(zv->zv_objset))) {
-		err = SET_ERROR(EROFS);
-		goto out;
+		err = EROFS;
+		goto out_open_count;
 	}
 	if (zv->zv_flags & ZVOL_EXCL) {
-		err = SET_ERROR(EBUSY);
-		goto out;
+		err = EBUSY;
+		goto out_open_count;
 	}
 #ifdef FEXCL
 	if (flag & FEXCL) {
-		if (zv->zv_total_opens != 0) {
-			err = SET_ERROR(EBUSY);
-			goto out;
+		if (zv->zv_open_count != 0) {
+			err = EBUSY;
+			goto out_open_count;
 		}
 		zv->zv_flags |= ZVOL_EXCL;
 	}
 #endif
 
-	zv->zv_total_opens += count;
-	if (locked)
-		mutex_exit(&zfsdev_state_lock);
+	zv->zv_open_count += count;
+	mutex_exit(&zv->zv_state_lock);
 
-	return (err);
-out:
-	if (zv->zv_total_opens == 0)
+	return (0);
+ out_open_count:
+	if (zv->zv_open_count == 0)
 		zvol_last_close(zv);
-	if (locked)
-		mutex_exit(&zfsdev_state_lock);
-	return (err);
+ out_mutex:
+	mutex_exit(&zv->zv_state_lock);
+
+	return (SET_ERROR(err));
 }
 
 /*ARGSUSED*/
@@ -939,23 +993,19 @@ zvol_close(struct g_provider *pp, int flag, int count)
 {
 	zvol_state_t *zv;
 	int error = 0;
-	boolean_t locked = B_FALSE;
 
-	/* See comment in zvol_open(). */
-	if (!MUTEX_HELD(&zfsdev_state_lock)) {
-		mutex_enter(&zfsdev_state_lock);
-		locked = B_TRUE;
-	}
-
+	ASSERT(!RW_LOCK_HELD(&zvol_state_lock));
+	rw_enter(&zvol_state_lock, RW_READER);
 	zv = pp->private;
 	if (zv == NULL) {
-		if (locked)
-			mutex_exit(&zfsdev_state_lock);
+		rw_exit(&zvol_state_lock);
 		return (SET_ERROR(ENXIO));
 	}
 
+	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
+	mutex_enter(&zv->zv_state_lock);
 	if (zv->zv_flags & ZVOL_EXCL) {
-		ASSERT(zv->zv_total_opens == 1);
+		ASSERT(zv->zv_open_count == 1);
 		zv->zv_flags &= ~ZVOL_EXCL;
 	}
 
@@ -963,18 +1013,21 @@ zvol_close(struct g_provider *pp, int flag, int count)
 	 * If the open count is zero, this is a spurious close.
 	 * That indicates a bug in the kernel / DDI framework.
 	 */
-	ASSERT(zv->zv_total_opens != 0);
+	ASSERT(zv->zv_open_count > 0);
+	rw_exit(&zvol_state_lock);
+
+	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
+	//ASSERT(zv->zv_open_count != 1 /* || RW_READ_HELD(&zv->zv_suspend_lock) */ );
 
 	/*
 	 * You may get multiple opens, but only one close.
 	 */
-	zv->zv_total_opens -= count;
+	zv->zv_open_count -= count;
 
-	if (zv->zv_total_opens == 0)
+	if (zv->zv_open_count == 0)
 		zvol_last_close(zv);
 
-	if (locked)
-		mutex_exit(&zfsdev_state_lock);
+	mutex_exit(&zv->zv_state_lock);
 	return (error);
 }
 
@@ -1377,11 +1430,121 @@ zvol_busy(void)
 	return (zvol_minors != 0);
 }
 
+
+static zvol_task_t *
+zvol_task_alloc(zvol_async_op_t op, const char *name1, const char *name2,
+    uint64_t value)
+{
+	zvol_task_t *task;
+	char *delim;
+
+	/* Never allow tasks on hidden names. */
+	if (name1[0] == '$')
+		return (NULL);
+
+	task = kmem_zalloc(sizeof (zvol_task_t), KM_SLEEP);
+	task->op = op;
+	task->value = value;
+	delim = strchr(name1, '/');
+	strlcpy(task->pool, name1, delim ? (delim - name1 + 1) : MAXNAMELEN);
+
+	strlcpy(task->name1, name1, MAXNAMELEN);
+	if (name2 != NULL)
+		strlcpy(task->name2, name2, MAXNAMELEN);
+
+	return (task);
+}
+
+static void
+zvol_task_free(zvol_task_t *task)
+{
+	kmem_free(task, sizeof (zvol_task_t));
+}
+
+/*
+ * The worker thread function performed asynchronously.
+ */
+static void
+zvol_task_cb(void *param)
+{
+	zvol_task_t *task = (zvol_task_t *)param;
+
+	switch (task->op) {
+	case ZVOL_ASYNC_CREATE_MINORS:
+		(void) zvol_create_minors_impl(task->name1);
+		break;
+	case ZVOL_ASYNC_REMOVE_MINORS:
+		zvol_remove_minors_impl(task->name1);
+		break;
+	case ZVOL_ASYNC_RENAME_MINORS:
+		zvol_rename_minors_impl(task->name1, task->name2);
+		break;
+#ifdef notyet
+	case ZVOL_ASYNC_SET_SNAPDEV:
+		zvol_set_snapdev_impl(task->name1, task->value);
+		break;
+	case ZVOL_ASYNC_SET_VOLMODE:
+		zvol_set_volmode_impl(task->name1, task->value);
+		break;
+#endif
+	default:
+		VERIFY(0);
+		break;
+	}
+
+	zvol_task_free(task);
+}
+
+void
+zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
+{
+	zvol_task_t *task;
+	taskqid_t id;
+
+	task = zvol_task_alloc(ZVOL_ASYNC_CREATE_MINORS, name, NULL, ~0ULL);
+	if (task == NULL)
+		return;
+
+	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
+	if ((async == B_FALSE) && (id != TASKQID_INVALID))
+		taskq_wait_id(spa->spa_zvol_taskq, id);
+}
+
+void
+zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
+{
+	zvol_task_t *task;
+	taskqid_t id;
+
+	task = zvol_task_alloc(ZVOL_ASYNC_REMOVE_MINORS, name, NULL, ~0ULL);
+	if (task == NULL)
+		return;
+
+	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
+	if ((async == B_FALSE) && (id != TASKQID_INVALID))
+		taskq_wait_id(spa->spa_zvol_taskq, id);
+}
+
+void
+zvol_rename_minors(spa_t *spa, const char *name1, const char *name2,
+    boolean_t async)
+{
+	zvol_task_t *task;
+	taskqid_t id;
+
+	task = zvol_task_alloc(ZVOL_ASYNC_RENAME_MINORS, name1, name2, ~0ULL);
+	if (task == NULL)
+		return;
+
+	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
+	if ((async == B_FALSE) && (id != TASKQID_INVALID))
+		taskq_wait_id(spa->spa_zvol_taskq, id);
+}
+
 int
 zvol_init(void)
 {
-	VERIFY(ddi_soft_state_init(&zfsdev_state, sizeof (zfs_soft_state_t),
-	    1) == 0);
+	rw_init(&zvol_state_lock, NULL, RW_DEFAULT, NULL);
 	ZFS_LOG(1, "ZVOL Initialized.");
 	return (0);
 }
@@ -1389,7 +1552,7 @@ zvol_init(void)
 void
 zvol_fini(void)
 {
-	ddi_soft_state_fini(&zfsdev_state);
+	rw_destroy(&zvol_state_lock);
 	ZFS_LOG(1, "ZVOL Deinitialized.");
 }
 
@@ -1418,7 +1581,6 @@ zvol_geom_destroy(zvol_state_t *zv)
 	while (zv->zv_state != 2)
 		msleep(&zv->zv_state, &zv->zv_queue_mtx, 0, "zvol:w", 0);
 	mtx_destroy(&zv->zv_queue_mtx);
-
 	pp = zv->zv_provider;
 	zv->zv_provider = NULL;
 	pp->private = NULL;
@@ -1634,8 +1796,8 @@ zvol_create_snapshots(objset_t *os, const char *name)
 	return (error);
 }
 
-void
-zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
+static int
+zvol_create_minors_impl(const char *name)
 {
 	uint64_t cookie;
 	objset_t *os;
@@ -1643,12 +1805,12 @@ zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
 	int error, len;
 
 	if (dataset_name_hidden(name))
-		return;
+		return (0);
 
 	if ((error = dmu_objset_hold(name, FTAG, &os)) != 0) {
 		printf("ZFS WARNING: Unable to put hold on %s (error=%d).\n",
 		    name, error);
-		return;
+		return (0);
 	}
 	if (dmu_objset_type(os) == DMU_OST_ZVOL) {
 		dsl_dataset_long_hold(os->os_dsl_dataset, FTAG);
@@ -1662,18 +1824,18 @@ zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
 		}
 		dsl_dataset_long_rele(os->os_dsl_dataset, FTAG);
 		dsl_dataset_rele(os->os_dsl_dataset, FTAG);
-		return;
+		return (0);
 	}
 	if (dmu_objset_type(os) != DMU_OST_ZFS) {
 		dmu_objset_rele(os, FTAG);
-		return;
+		return (0);
 	}
 
 	osname = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 	if (snprintf(osname, MAXPATHLEN, "%s/", name) >= MAXPATHLEN) {
 		dmu_objset_rele(os, FTAG);
 		kmem_free(osname, MAXPATHLEN);
-		return;
+		return (0);
 	}
 	p = osname + strlen(osname);
 	len = MAXPATHLEN - (p - osname);
@@ -1691,16 +1853,17 @@ zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
 	while (dmu_dir_list_next(os, MAXPATHLEN - (p - osname), p, NULL,
 	    &cookie) == 0) {
 		dmu_objset_rele(os, FTAG);
-		(void)zvol_create_minors(spa, osname, async);
+		(void)zvol_create_minors_impl(osname);
 		if ((error = dmu_objset_hold(name, FTAG, &os)) != 0) {
 			printf("ZFS WARNING: Unable to put hold on %s (error=%d).\n",
 			    name, error);
-			return;
+			return (SET_ERROR(error));
 		}
 	}
 
 	dmu_objset_rele(os, FTAG);
 	kmem_free(osname, MAXPATHLEN);
+	return (0);
 }
 
 static void
@@ -1710,7 +1873,8 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 	struct g_provider *pp;
 	struct cdev *dev;
 
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
+	ASSERT(RW_LOCK_HELD(&zvol_state_lock));
+	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		g_topology_lock();
@@ -1736,9 +1900,9 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 		if ((dev = zv->zv_dev) != NULL) {
 			zv->zv_dev = NULL;
 			destroy_dev(dev);
-			if (zv->zv_total_opens > 0) {
+			if (zv->zv_open_count > 0) {
 				zv->zv_flags &= ~ZVOL_EXCL;
-				zv->zv_total_opens = 0;
+				zv->zv_open_count = 0;
 				zvol_last_close(zv);
 			}
 		}
@@ -1758,26 +1922,28 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 	strlcpy(zv->zv_name, newname, sizeof(zv->zv_name));
 }
 
-void
-zvol_rename_minors(spa_t *spa, const char *oldname, const char *newname,
-	boolean_t async)
+static void
+zvol_rename_minors_impl(const char *oldname, const char *newname)
 {
 	char name[MAXPATHLEN];
 	size_t oldnamelen, newnamelen;
 	zvol_state_t *zv;
-	boolean_t locked = B_FALSE;
 
 	oldnamelen = strlen(oldname);
 	newnamelen = strlen(newname);
 
 	DROP_GIANT();
 	/* See comment in zvol_open(). */
-	if (!MUTEX_HELD(&zfsdev_state_lock)) {
-		mutex_enter(&zfsdev_state_lock);
-		locked = B_TRUE;
-	}
+	rw_enter(&zvol_state_lock, RW_READER);
 
 	LIST_FOREACH(zv, &all_zvols, zv_links) {
+		mutex_enter(&zv->zv_state_lock);
+
+		/* If in use, leave alone */
+		if (zv->zv_open_count > 0) {
+			mutex_exit(&zv->zv_state_lock);
+			continue;
+		}
 		if (strcmp(zv->zv_name, oldname) == 0) {
 			zvol_rename_minor(zv, newname);
 		} else if (strncmp(zv->zv_name, oldname, oldnamelen) == 0 &&
@@ -1788,10 +1954,9 @@ zvol_rename_minors(spa_t *spa, const char *oldname, const char *newname,
 			    zv->zv_name + oldnamelen + 1);
 			zvol_rename_minor(zv, name);
 		}
+		mutex_exit(&zv->zv_state_lock);
 	}
-
-	if (locked)
-		mutex_exit(&zfsdev_state_lock);
+	rw_exit(&zvol_state_lock);
 	PICKUP_GIANT();
 }
 
@@ -1801,44 +1966,51 @@ zvol_d_open(struct cdev *dev, int flags, int fmt, struct thread *td)
 	zvol_state_t *zv = dev->si_drv2;
 	int err = 0;
 
-	mutex_enter(&zfsdev_state_lock);
-	if (zv->zv_total_opens == 0)
-		err = zvol_first_open(zv);
+	rw_enter(&zvol_state_lock, RW_READER);
+	mutex_enter(&zv->zv_state_lock);
+	rw_exit(&zvol_state_lock);
+
+	if (zv->zv_open_count == 0)
+		err = zvol_first_open(zv, !(flags & FWRITE));
+
 	if (err) {
-		mutex_exit(&zfsdev_state_lock);
+		goto out_locked;
 		return (err);
 	}
 	if ((flags & FWRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
-		err = SET_ERROR(EROFS);
-		goto out;
+		err = EROFS;
+		goto out_opened;
 	}
 	if (zv->zv_flags & ZVOL_EXCL) {
-		err = SET_ERROR(EBUSY);
-		goto out;
+		err = EBUSY;
+		goto out_opened;
 	}
 #ifdef FEXCL
 	if (flags & FEXCL) {
-		if (zv->zv_total_opens != 0) {
-			err = SET_ERROR(EBUSY);
-			goto out;
+		if (zv->zv_open_count != 0) {
+			err = EBUSY;
+			goto out_opened;
 		}
 		zv->zv_flags |= ZVOL_EXCL;
 	}
 #endif
 
-	zv->zv_total_opens++;
+	zv->zv_open_count++;
 	if (flags & (FSYNC | FDSYNC)) {
 		zv->zv_sync_cnt++;
 		if (zv->zv_sync_cnt == 1)
 			zil_async_to_sync(zv->zv_zilog, ZVOL_OBJ);
 	}
-	mutex_exit(&zfsdev_state_lock);
-	return (err);
-out:
-	if (zv->zv_total_opens == 0)
+	mutex_exit(&zv->zv_state_lock);
+	return (0);
+
+ out_opened:
+	if (zv->zv_open_count == 0)
 		zvol_last_close(zv);
-	mutex_exit(&zfsdev_state_lock);
-	return (err);
+
+ out_locked:
+	mutex_exit(&zv->zv_state_lock);
+	return SET_ERROR(err);
 }
 
 static int
@@ -1846,9 +2018,11 @@ zvol_d_close(struct cdev *dev, int flags, int fmt, struct thread *td)
 {
 	zvol_state_t *zv = dev->si_drv2;
 
-	mutex_enter(&zfsdev_state_lock);
+	rw_enter(&zvol_state_lock, RW_READER);
+	mutex_enter(&zv->zv_state_lock);
+	rw_exit(&zvol_state_lock);
 	if (zv->zv_flags & ZVOL_EXCL) {
-		ASSERT(zv->zv_total_opens == 1);
+		ASSERT(zv->zv_open_count == 1);
 		zv->zv_flags &= ~ZVOL_EXCL;
 	}
 
@@ -1856,19 +2030,19 @@ zvol_d_close(struct cdev *dev, int flags, int fmt, struct thread *td)
 	 * If the open count is zero, this is a spurious close.
 	 * That indicates a bug in the kernel / DDI framework.
 	 */
-	ASSERT(zv->zv_total_opens != 0);
+	ASSERT(zv->zv_open_count != 0);
 
 	/*
 	 * You may get multiple opens, but only one close.
 	 */
-	zv->zv_total_opens--;
+	zv->zv_open_count--;
 	if (flags & (FSYNC | FDSYNC))
 		zv->zv_sync_cnt--;
 
-	if (zv->zv_total_opens == 0)
+	if (zv->zv_open_count == 0)
 		zvol_last_close(zv);
+	mutex_exit(&zv->zv_state_lock);
 
-	mutex_exit(&zfsdev_state_lock);
 	return (0);
 }
 
@@ -1884,7 +2058,7 @@ zvol_d_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int fflag, struct threa
 	zv = dev->si_drv2;
 
 	error = 0;
-	KASSERT(zv->zv_total_opens > 0,
+	KASSERT(zv->zv_open_count > 0,
 	    ("Device with zero access count in zvol_d_ioctl"));
 
 	i = IOCPARM_LEN(cmd);
@@ -2007,5 +2181,5 @@ void *
 zvol_tag(zvol_state_t *zv)
 {
 	//ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
-	return (zv->zv_total_opens > 0 ? zv : NULL);
+	return (zv->zv_open_count > 0 ? zv : NULL);
 }

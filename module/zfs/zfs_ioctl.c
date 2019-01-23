@@ -3376,8 +3376,14 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		}
 	}
 #if defined(__FreeBSD__) && defined(_KERNEL)
-	if (error == 0 && type == DMU_OST_ZVOL)
-		zvol_create_minors(NULL, fsname, B_TRUE);
+	if (error == 0 && type == DMU_OST_ZVOL) {
+		spa_t *spa;
+
+		if (spa_open(fsname, &spa, FTAG) == 0) {
+			zvol_create_minors(spa, fsname, B_TRUE);
+			spa_close(spa, FTAG);
+		}
+	}
 #endif
 	return (error);
 }
@@ -3428,8 +3434,14 @@ zfs_ioc_clone(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 			(void) dsl_destroy_head(fsname);
 	}
 #if defined(__FreeBSD__) && defined(_KERNEL)
-	if (error == 0)
-		zvol_create_minors(NULL, fsname, B_TRUE);
+	if (error == 0) {
+		spa_t *spa;
+
+		if (spa_open(fsname, &spa, FTAG) == 0) {
+			zvol_create_minors(spa, fsname, B_TRUE);
+			spa_close(spa, FTAG);
+		}
+	}
 #endif
 	return (error);
 }
@@ -3634,6 +3646,7 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	nvlist_t *snaps;
 	nvpair_t *pair;
 	boolean_t defer;
+	spa_t *spa;
 
 	if (nvlist_lookup_nvlist(innvl, "snaps", &snaps) != 0)
 		return (SET_ERROR(EINVAL));
@@ -3653,7 +3666,10 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 			return (SET_ERROR(EXDEV));
 
 		zfs_unmount_snap(nvpair_name(pair));
-		zvol_remove_minors(NULL, name, B_FALSE);
+		if (spa_open(name, &spa, FTAG) == 0) {
+			zvol_remove_minors(spa, name, B_TRUE);
+			spa_close(spa, FTAG);
+		}
 	}
 
 	return (dsl_destroy_snapshots_nvl(snaps, defer, outnvl));
@@ -4703,8 +4719,14 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 #endif
 
 #if defined(__FreeBSD__) && defined(_KERNEL)
-	if (error == 0)
-		zvol_create_minors(NULL, tofs, B_TRUE);
+	if (error == 0) {
+		spa_t *spa;
+
+		if (spa_open(tofs, &spa, FTAG) == 0) {
+			zvol_create_minors(spa, tofs, B_TRUE);
+			spa_close(spa, FTAG);
+		}
+	}
 #endif
 
 	/*

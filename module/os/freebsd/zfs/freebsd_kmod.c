@@ -87,7 +87,6 @@ static int zfs__fini(void);
 static void zfs_shutdown(void *, int);
 
 static eventhandler_tag zfs_shutdown_event_tag;
-extern void *zfsdev_state;
 extern zfsdev_state_t *zfsdev_state_list;
 extern kmutex_t zfsdev_state_lock;
 
