@@ -798,14 +798,30 @@ SYSCTL_PROC(_vfs_zfs, OID_AUTO, debugflags,
     sysctl_vfs_zfs_debug_flags, "IU", "Debug flags for ZFS testing.");
 
 extern uint64_t zfs_deadman_synctime_ms;
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_synctime_ms, CTLFLAG_RDTUN,
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_synctime_ms, CTLFLAG_RWTUN,
     &zfs_deadman_synctime_ms, 0,
     "Stalled ZFS I/O expiration time in milliseconds");
 
 extern uint64_t zfs_deadman_checktime_ms;
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_checktime_ms, CTLFLAG_RDTUN,
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_checktime_ms, CTLFLAG_RWTUN,
     &zfs_deadman_checktime_ms, 0,
     "Period of checks for stalled ZFS I/O in milliseconds");
+
+extern uint64_t zfs_deadman_ziotime_ms;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_ziotime_ms, CTLFLAG_RWTUN,
+    &zfs_deadman_ziotime_ms, 0,
+    "Time until an individual I/O is considered to be \"hung\" in milliseconds");
+
+static int 
+zfs_deadman_failmode(SYSCTL_HANDLER_ARGS)
+{
+	char buf[16];
+	return sysctl_handle_string(oidp, buf, sizeof(buf), req);
+}
+
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, deadman_failmode, CTLTYPE_STRING|CTLFLAG_RWTUN,
+    0, 0, &zfs_deadman_failmode, "A",
+    "Behavior when a \"hung\" I/O value is detected as wait, continue, or panic");
 
 extern int zfs_deadman_enabled;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, deadman_enabled, CTLFLAG_RDTUN,

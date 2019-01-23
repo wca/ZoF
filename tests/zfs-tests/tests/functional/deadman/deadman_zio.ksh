@@ -29,8 +29,8 @@
 #	Verify zio deadman detects a hung zio
 #
 # STRATEGY:
-#	1. Reduce the zfs_deadman_ziotime_ms to 5s.
-#	2. Reduce the zfs_deadman_checktime_ms to 1s.
+#	1. Reduce the vfs.zfs.deadman_ziotime_ms to 5s.
+#	2. Reduce the vfs.zfs.deadman_checktime_ms to 1s.
 #	3. Inject a 10s zio delay to force long IOs.
 #	4. Read an uncached file in the background.
 #	5. Verify a "deadman" event is posted.
@@ -49,19 +49,19 @@ function cleanup
 	log_must zinject -c all
 	default_cleanup_noexit
 
-	log_must set_tunable64 zfs_deadman_ziotime_ms $ZIOTIME_DEFAULT
-	log_must set_tunable64 zfs_deadman_checktime_ms $CHECKTIME_DEFAULT
-	log_must set_tunable64 zfs_deadman_failmode $FAILMODE_DEFAULT
+	log_must set_tunable64 vfs.zfs.deadman_ziotime_ms $ZIOTIME_DEFAULT
+	log_must set_tunable64 vfs.zfs.deadman_checktime_ms $CHECKTIME_DEFAULT
+	log_must set_tunable64 vfz.zfs.deadman_failmode $FAILMODE_DEFAULT
 }
 
 log_assert "Verify zio deadman detects a hung zio"
 log_onexit cleanup
 
-# 1. Reduce the zfs_deadman_ziotime_ms to 5s.
-log_must set_tunable64 zfs_deadman_ziotime_ms 5000
-# 2. Reduce the zfs_deadman_checktime_ms to 1s.
-log_must set_tunable64 zfs_deadman_checktime_ms 1000
-log_must set_tunable64 zfs_deadman_failmode "wait"
+# 1. Reduce the vfs.zfs.deadman_ziotime_ms to 5s.
+log_must set_tunable64 vfs.zfs.deadman_ziotime_ms 5000
+# 2. Reduce the vfs.zfs.deadman_checktime_ms to 1s.
+log_must set_tunable64 vfs.zfs.deadman_checktime_ms 1000
+log_must set_tunable64 vfs.zfs.deadman_failmode "wait"
 
 # Create a new pool in order to use the updated deadman settings.
 default_setup_noexit $DISK1
