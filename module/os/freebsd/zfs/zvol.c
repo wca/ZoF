@@ -767,7 +767,7 @@ zvol_last_close(zvol_state_t *zv)
 		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
 	dmu_objset_evict_dbufs(zv->zv_objset);
 
-	dmu_objset_disown(zv->zv_objset, 1, zvol_ftag);
+	dmu_objset_disown(zv->zv_objset, 1, zv);
 	zv->zv_objset = NULL;
 }
 
