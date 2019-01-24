@@ -87,6 +87,9 @@ log_must stat -t /$mntpnt/file1
 log_must stat -t /$mntpnt/file2
 
 # 3. Inject a 10s zio delay to force long IOs and serialize them..
+if [ is_freebsd ]; then
+	log_unsupported "Events not supported on FreeBSD"
+fi
 log_must zpool events -c
 log_must zinject -d $DISK1 -D10000:1 $TESTPOOL
 
