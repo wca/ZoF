@@ -72,7 +72,7 @@ fi
 
 # Create a new pool in order to use the updated deadman settings.
 default_setup_noexit $DISK1
-if [ is _freebsd ]; then
+if [ is_freebsd ]; then
 	log_unsupported "Events not supported in FreeBSD"
 fi
 log_must zpool events -c
