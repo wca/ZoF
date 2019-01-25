@@ -29,6 +29,8 @@
 # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
+log_unsupported "Skipped for now"
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rename/zfs_rename.kshlib
 
