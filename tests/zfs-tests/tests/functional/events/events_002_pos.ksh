@@ -54,6 +54,10 @@ function cleanup
 	log_must zed_stop
 }
 
+if [ is_freebsd ]; then
+	log_unsupported "Events not supported on FreeBSD"
+fi
+
 log_assert "Verify ZED handles missed events on when starting"
 log_onexit cleanup
 
@@ -61,9 +65,6 @@ log_must truncate -s $MINVDEVSIZE $VDEV1 $VDEV2
 
 # 1. Create a pool and generate some events.
 log_must truncate -s 0 $ZED_DEBUG_LOG
-if [ is_freebsd ]; then
-	log_unsupported "Events not supported on FreeBSD"
-fi
 log_must zpool events -c
 log_must zpool create $MPOOL mirror $VDEV1 $VDEV2
 

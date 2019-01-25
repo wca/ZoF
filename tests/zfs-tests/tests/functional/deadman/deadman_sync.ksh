@@ -57,6 +57,10 @@ function cleanup
 	fi
 }
 
+if [ is_freebsd ]; then
+	log_unsupported "Events not supported in FreeBSD"
+fi
+
 log_assert "Verify spa deadman detects a hung txg"
 log_onexit cleanup
 
@@ -72,9 +76,6 @@ fi
 
 # Create a new pool in order to use the updated deadman settings.
 default_setup_noexit $DISK1
-if [ is_freebsd ]; then
-	log_unsupported "Events not supported in FreeBSD"
-fi
 log_must zpool events -c
 
 # Force each IO to take 10s by allow them to run concurrently.
