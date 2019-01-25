@@ -47,7 +47,11 @@ then
     svcadm enable svc:/network/nis/client:default
 fi
 
-userdel $ZFS_USER
+if is_freebsd; then
+	rmuser $ZFS_USER
+else
+	userdel $ZFS_USER
+fi
 [[ -d /export/home/$ZFS_USER ]] && rm -rf /export/home/$ZFS_USER
 rm $TEST_BASE_DIR/zfs-privs-test-nis.txt
 rm $TEST_BASE_DIR/zfs-privs-test-user.txt
