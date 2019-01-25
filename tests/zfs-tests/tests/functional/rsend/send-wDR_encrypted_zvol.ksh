@@ -64,7 +64,11 @@ log_must zfs create -o dedup=on -o encryption=on -o keyformat=passphrase \
 	-o keylocation=file://$keyfile -V 128M $TESTPOOL/$TESTVOL
 log_must block_device_wait
 
-log_must eval "echo 'y' | newfs -t ext4 -v $zdev"
+if [ is_freebsd ];then
+	log_must eval "echo 'y' | /sbin/newfs -t ext4 -v $zdev"
+else
+	log_must eval "echo 'y' | newfs -t ext4 -v $zdev"
+fi
 log_must mkdir -p $mntpnt
 log_must mkdir -p $recvmnt
 log_must mount $zdev $mntpnt

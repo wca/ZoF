@@ -87,10 +87,20 @@ log_must zfs set compression=on $TESTPOOL/$TESTVOL
 log_must zfs set sync=always $TESTPOOL/$TESTVOL
 log_must mkdir -p $TESTDIR
 log_must block_device_wait
-echo "y" | newfs -t ext4 -v $VOLUME
-log_must mkdir -p $MNTPNT
-log_must mount -o discard $VOLUME $MNTPNT
-log_must rmdir $MNTPNT/lost+found
+if [ is_freebsd ];then
+	echo "y" | /sbin/newfs -T ext4 $VOLUME
+else
+	echo "y" | newfs -t ext4 -v $VOLUME
+fi
+log_must mkdir -p $MNTPNT if [ is_freebsd ];then
+	#-o discard not supported on FreeBSD
+	log_must mount $VOLUME $MNTPNT
+else
+	log_must mount -o discard $VOLUME $MNTPNT
+fi
+if ! [ is_freebsd ];then
+	log_must rmdir $MNTPNT/lost+found
+fi
 log_must zpool sync
 
 #
