@@ -31,6 +31,10 @@
 
 . $STF_SUITE/tests/functional/projectquota/projectquota_common.kshlib
 
+if is_freebsd; then
+	log_unsupported "projectquota unsupported on FreeBSD"
+fi
+
 log_must cleanup_projectquota
 log_must del_user $PUSER
 log_must del_group $PGROUP

@@ -32,7 +32,7 @@
 . $STF_SUITE/tests/functional/projectquota/projectquota_common.kshlib
 
 if is_freebsd; then
-	log_unsupported "projectquota unsupporetd on FreeBSD"
+	log_unsupported "projectquota unsupported on FreeBSD"
 fi
 
 verify_runnable "both"
