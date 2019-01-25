@@ -1170,8 +1170,8 @@ SYSCTL_QUAD(_vfs_zfs, OID_AUTO, zil_slog_bulk, CTLFLAG_RWTUN,
     &zil_slog_bulk, 0, "Maximal SLOG commit size with sync priority");
 
 /* XXX make proc to validate */
-extern int zfs_commit_timeout_pct;
-SYSCTL_INT(_vfs_zfs, OID_AUTO, commit_timeout_pct, CTLFLAG_RWTUN,
+extern uint64_t zfs_commit_timeout_pct;
+SYSCTL_QUAD(_vfs_zfs, OID_AUTO, commit_timeout_pct, CTLFLAG_RWTUN,
     &zfs_commit_timeout_pct, 0, "ZIL block open timeout percentage");
 
 #ifdef notyet
