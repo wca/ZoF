@@ -63,11 +63,7 @@ do
 done
 
 log_must mkdir -p /export/home/$ZFS_USER
-if is_freebsd; then
-	log_must pw useradd -n $ZFS_USER -c "ZFS Privileges Test User" -d /export/home/$ZFS_USER
-else
-	log_must useradd -c "ZFS Privileges Test User" -k /export/home/$ZFS_USER $ZFS_USER
-fi
+log_must useradd -c "ZFS Privileges Test User" -d /export/home/$ZFS_USER $ZFS_USER
 
 echo $ZFS_USER > $TEST_BASE_DIR/zfs-privs-test-user.txt
 echo $USES_NIS > $TEST_BASE_DIR/zfs-privs-test-nis.txt
