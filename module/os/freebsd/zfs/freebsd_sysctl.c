@@ -589,6 +589,27 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, condense_pct, CTLFLAG_RWTUN,
     "Condense on-disk spacemap when it is more than this many percents"
     " of in-memory counterpart");
 
+extern uint64_t zfs_condense_indirect_commit_entry_delay_ms;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, condense_indirect_commit_entry_delay_ms,
+    CTLFLAG_RWTUN, &zfs_condense_indirect_commit_entry_delay_ms, 0,
+    "Used by tests to ensure certain actions happen in the middle of a"
+    " condense. A maximum value of 1 should be sufficient.");
+
+extern uint64_t zfs_condense_min_mapping_bytes;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, condense_min_mapping_bytes,
+    CTLFLAG_RWTUN, &zfs_condense_min_mapping_bytes, 0,
+    "Don't bother condensing if the mapping uses less than this amount of memory");
+
+extern int zfs_remove_max_segment;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, remove_max_segment, CTLFLAG_RWTUN,
+    &zfs_remove_max_segment, 0, "Largest contiguous segment ZFS will attempt to"
+    " allocate when removing a device");
+
+extern int zfs_removal_suspend_progress;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, removal_suspend_progress, CTLFLAG_RWTUN,
+    &zfs_removal_suspend_progress, 0, "Ensures certain actions can happen while"
+    " in the middle of a removal");
+
 /*
  * The zfs_mg_noalloc_threshold defines which metaslab groups should
  * be eligible for allocation. The value is defined as a percentage of
@@ -831,6 +852,11 @@ extern int spa_asize_inflation;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, spa_asize_inflation, CTLFLAG_RWTUN,
     &spa_asize_inflation, 0, "Worst case inflation factor for single sector writes");
 
+extern uint64_t zfs_spa_discard_memory_limit;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, spa_discard_memory_limit, CTLFLAG_RWTUN,
+    &zfs_spa_discard_memory_limit, 0, "Limit for memory used in prefetching the"
+    " checkpoint space map done on each vdev while discarding the checkpoint");
+
 /* spacemap.c */
 extern int space_map_ibs;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, space_map_ibs, CTLFLAG_RWTUN,
@@ -1071,6 +1097,11 @@ extern int zfs_vdev_def_queue_depth;
 SYSCTL_INT(_vfs_zfs_vdev, OID_AUTO, def_queue_depth, CTLFLAG_RWTUN,
     &zfs_vdev_def_queue_depth, 0,
     "Default queue depth for each allocator");
+
+/*extern uint64_t zfs_multihost_history;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, multihost_history, CTLFLAG_RWTUN,
+    &zfs_multihost_history, 0,
+    "Historical staticists for the last N multihost updates");*/
 
 static int
 sysctl_zfs_async_write_active_min_dirty_percent(SYSCTL_HANDLER_ARGS)
