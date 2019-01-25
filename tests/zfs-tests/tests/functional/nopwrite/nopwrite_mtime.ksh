@@ -80,9 +80,6 @@ else
 	mtime=$(ls -E% all $TESTDIR/clone/file | awk '/mtime/ {print $4}')
 fi
 
-log_note $o_ctime
-log_note $ctime
-
 [[ $o_atime = $atime ]] || log_fail "atime changed: $o_atime $atime"
 [[ $o_ctime = $ctime ]] && log_fail "ctime unchanged: $o_ctime $ctime"
 [[ $o_mtime = $mtime ]] && log_fail "mtime unchanged: $o_mtime $mtime"
