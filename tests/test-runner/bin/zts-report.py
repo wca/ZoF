@@ -226,7 +226,7 @@ if platform.system() == "FreeBSD":
         'io/libaio': ['SKIP', na_reason_freebsd],
         'mmap/mmap_libaio_001_pos': ['SKIP', na_reason_freebsd],
         'projectquota/setup': ['SKIP', na_reason_freebsd],
-        'upgrade/upgrade_projectquota_001_pos': ['SKIP', project_id_reason],
+        'upgrade/upgrade_projectquota_001_pos': ['SKIP', na_reason_freebsd],
         'userquota/groupspace_002_pos': ['SKIP', na_reason_freebsd],
         'userquota/groupspace_003_pos': ['SKIP', na_reason_freebsd],
         'userquota/userspace_003_pos': ['SKIP', na_reason_freebsd],

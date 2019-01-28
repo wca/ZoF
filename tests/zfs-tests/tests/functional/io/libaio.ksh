@@ -23,6 +23,7 @@
 #
 # Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
 #
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/io/io.cfg
 
