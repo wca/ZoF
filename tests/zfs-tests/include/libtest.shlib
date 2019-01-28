@@ -3316,7 +3316,11 @@ function get_objnum
 	typeset objnum
 
 	[[ -e $pathname ]] || log_fail "No such file or directory: $pathname"
-	objnum=$(stat -c %i $pathname)
+	if [ is_freebsd ];then
+		objnum=$(stat -f "%i" $pathname)
+	else
+		objnum=$(stat -c %i $pathname)
+	fi
 	echo $objnum
 }
 
