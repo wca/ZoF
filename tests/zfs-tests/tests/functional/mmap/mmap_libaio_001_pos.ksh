@@ -39,6 +39,10 @@
 
 verify_runnable "global"
 
+if [ is_freebsd ];then
+	log_unsupported "mmap_libaio not supported on FreeBSD"
+fi
+
 log_assert "verify mmap'd pages work with libaio"
 
 # mmap_libaio is built when the libaio-devel package is installed.
