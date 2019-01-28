@@ -23,7 +23,6 @@
 #
 # Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
 #
-
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/io/io.cfg
 
@@ -38,6 +37,10 @@
 #
 
 verify_runnable "global"
+
+if [ is_freebsd ];then
+	log_unsupported "libaio not supported on FreeBSD"
+fi
 
 function cleanup
 {
