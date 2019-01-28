@@ -33,6 +33,10 @@
 
 verify_runnable "both"
 
+if [ is_freebsd ];then
+	log_unsupported "Skipping due to known issue and hanging."
+fi
+
 log_assert "Verify resumability of full ZFS send/receive with the -D " \
     "(dedup) flag"
 
