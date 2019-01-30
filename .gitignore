@@ -62,3 +62,4 @@ cscope.*
 *.so.debug
 *.so.full
 *.tmp
+*.log
