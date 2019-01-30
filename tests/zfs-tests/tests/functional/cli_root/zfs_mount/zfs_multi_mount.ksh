@@ -1,7 +1,6 @@
 #!/bin/ksh -p
 #
-# CDDL HEADER START
-#
+# CDDL HEADER START #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
 # You may only use this file in accordance with the terms of version
@@ -59,7 +58,12 @@ log_must mkfile 128k $FILENAME
 log_must exec 9<> $FILENAME # open file
 
 # 3. Lazy umount
-log_must umount -l $MNTPFS
+if [ is_freebsd ];then
+	#FreeBSD does not support lazy unmount
+	log_must umount $MNTPFS
+else
+	log_must umount -l $MNTPFS
+fi
 if [ -f $FILENAME ]; then
 	log_fail "Lazy unmount failed"
 fi

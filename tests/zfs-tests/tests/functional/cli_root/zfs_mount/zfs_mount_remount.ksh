@@ -77,7 +77,11 @@ function checkmount # dataset option
 	typeset dataset="$1"
 	typeset option="$2"
 
-	options="$(awk -v ds="$dataset" '$1 == ds { print $4 }' /proc/mounts)"
+	if [ is_freebsd ];then
+		options="$(awk -v ds="$dataset" '$1 == ds { print $4 }' /etc/fstab)"
+	else
+		options="$(awk -v ds="$dataset" '$1 == ds { print $4 }' /proc/mounts)"
+	fi
 	if [[ "$options" == '' ]]; then
 		log_fail "Dataset $dataset is not mounted"
 	elif [[ ! -z "${options##*$option*}" ]]; then
