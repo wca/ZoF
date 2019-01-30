@@ -114,10 +114,10 @@ function verify_readonly # $1 dataset, $2 on|off
 			;;
 		volume)
 			if [ is_freebsd ];then
-				$expect eval "echo 'y' | newfs \
+				$expect eval "echo 'y' | /sbin/newfs \
 				    ${ZVOL_DEVDIR}/$dataset > /dev/null 2>&1"
 			else
-				$expect eval "echo 'y' | /sbin/newfs \
+				$expect eval "echo 'y' | newfs \
 				    ${ZVOL_DEVDIR}/$dataset > /dev/null 2>&1"
 			fi
 			;;
