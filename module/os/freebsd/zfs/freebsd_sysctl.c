@@ -562,7 +562,7 @@ SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, free_max_blocks, CTLFLAG_RWTUN,
     &zfs_async_block_max_blocks, 0, "Maximum number of blocks to free in one TXG");
 
 extern uint64_t zfs_scan_vdev_limit;
-SYSCTL_UQUAD(_vfz_zfs, OID_AUTO, zfs_scan_vdev_limit, CTLFLAG_RWTUN,
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, zfs_scan_vdev_limit, CTLFLAG_RWTUN,
     &zfs_scan_vdev_limit, 0, "Maximum number of parallelly executed bytes per leaf vdev");
 
 /* metaslab.c */
