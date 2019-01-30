@@ -334,7 +334,11 @@ function set_spa_load_verify_data
 
 function set_zfs_max_missing_tvds
 {
-	set_tunable32 "zfs_max_missing_tvds" "$1"
+	if [ is_freebsd ];then
+		set_tunable32 "vfs.zfs.zfs_max_missing_tvds" "$1"
+	else
+		set_tunable32 "zfs_max_missing_tvds" "$1"
+	fi
 }
 
 #

@@ -552,6 +552,10 @@ extern int zfs_scan_checkpoint_intval; /* in seconds */
 SYSCTL_UINT(_vfs_zfs, OID_AUTO, zfs_scan_checkpoint_interval, CTLFLAG_RWTUN,
     &zfs_scan_checkpoint_intval, 0, "Scan progress on-disk checkpointing interval");
 
+extern int zfs_scan_suspend_progress;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, zfs_scan_suspend_progress, CTLFLAG_RWTUN,
+    &zfs_scan_suspend_progress, 0, "Set to provent scans from progressing");
+
 /* max number of blocks to free in a single TXG */
 extern uint64_t zfs_async_block_max_blocks;
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, free_max_blocks, CTLFLAG_RWTUN,
