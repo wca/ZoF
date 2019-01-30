@@ -211,7 +211,7 @@ if platform.system() == "FreeBSD":
         'arc/setup': ['SKIP', na_reason_freebsd],
         'atime/atime_003_pos': ['SKIP', na_reason_freebsd],
         'cli_root/zfs/zfs_002_pos': ['SKIP', na_reason_freebsd],
-        'cli_root/zfs/zfs_003_pos': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs/zfs_003_neg': ['SKIP', na_reason_freebsd],
         'compression/compress_004_pos': ['SKIP', na_reason_freebsd],
         'deadman/deadman_sync': ['SKIP', na_reason_freebsd],
         'deadman/deadman_zio': ['SKIP', na_reason_freebsd],
