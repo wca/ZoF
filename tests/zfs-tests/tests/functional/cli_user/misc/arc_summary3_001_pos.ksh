@@ -49,7 +49,11 @@ log_assert "arc_summary3.py generates output and doesn't return an error code"
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-        log_must eval "arc_summary3.py ${args[i]} > /dev/null"
+	if [ is_freebsd ];then
+		log_must eval "python3 /usr/local/bin/arc_summary3.py ${args[i]} > /dev/null"
+	else
+		log_must eval "arc_summary3.py ${args[i]} > /dev/null"
+	fi
         ((i = i + 1))
 done
 
