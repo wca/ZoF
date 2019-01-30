@@ -96,8 +96,10 @@ props=(
 	reservation	32M		reservation	none
 	mountpoint	/history.$$	mountpoint	legacy
 	mountpoint	none		sharenfs	on
-	sharenfs	off	 	compression	on
-	compression	off 		compression	lzjb
+	sharenfs	off
+	compression	on		compression	off
+	compression	lzjb		aclmode		discard
+	aclmode		groupmask	aclmode		passthrough
 	atime		on		atime		off
 	devices		on		devices		off
 	exec		on		exec		off
