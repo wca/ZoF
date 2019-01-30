@@ -235,6 +235,7 @@ if platform.system() == "FreeBSD":
         'cli_root/zpool_reopen/zpool_reopen_006_neg': ['SKIP', na_reason_freebsd],
         'cli_root/zpool_reopen/zpool_reopen_007_pos': ['SKIP', na_reason_freebsd],
         'cli_root/zpool_reopen/cleanup': ['SKIP', na_reason_freebsd],
+        'cli_root/zpool_split/zpool_split_wholedisk': ['SKIP', na_reason_freebsd],
         'compression/compress_004_pos': ['SKIP', na_reason_freebsd],
         'deadman/deadman_sync': ['SKIP', na_reason_freebsd],
         'deadman/deadman_zio': ['SKIP', na_reason_freebsd],
