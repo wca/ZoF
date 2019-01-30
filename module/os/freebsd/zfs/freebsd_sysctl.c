@@ -784,6 +784,11 @@ SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, max_missing_tvds_scan, CTLFLAG_RWTUN,
     &zfs_max_missing_tvds_scan, 0,
     "allow importing pools with missing top-level vdevs during scan");
 
+/* zfs_namecheck.c */
+extern int zfs_max_dataset_nesting;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, zfs_max_dataset_nesting, CTLFLAG_RWTUN,
+	&zfs_max_dataset_nesting, 0,
+	"Limit to the amount of nesting a path can have. Defaults to 50.");
 
 /* spa_misc.c */
 extern boolean_t zfs_recover;
