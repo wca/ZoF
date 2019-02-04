@@ -210,6 +210,7 @@ if platform.system() == "FreeBSD":
         'acl/posix/setup': ['SKIP', na_reason_freebsd],
         'arc/setup': ['SKIP', na_reason_freebsd],
         'atime/atime_003_pos': ['SKIP', na_reason_freebsd],
+        'cli_user/misc/dbufstat_001_pos': ['SKIP', na_reason_freebsd],
         'cli_root/zfs/zfs_002_pos': ['SKIP', na_reason_freebsd],
         'cli_root/zfs/zfs_003_neg': ['SKIP', na_reason_freebsd],
         'cli_root/zfs_sysfs/setup': ['SKIP', na_reason_freebsd],
