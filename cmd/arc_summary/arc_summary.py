@@ -51,6 +51,8 @@ import errno
 
 from subprocess import Popen, PIPE
 from decimal import Decimal as D
+if sys.platform.startswith('freebsd'):
+    import sysctl
 
 show_tunable_descriptions = False
 alternate_tunable_layout = False
@@ -77,12 +79,18 @@ def get_Kstat():
     def load_proc_kstats(fn, namespace):
         """Collect information on a specific subsystem of the ARC"""
 
-        kstats = [line.strip() for line in open(fn)]
-        del kstats[0:2]
-        for kstat in kstats:
-            kstat = kstat.strip()
-            name, _, value = kstat.split()
-            Kstat[namespace + name] = D(value)
+        if sys.platform.startswith('freebsd'):
+            kstats = sysctl.filter(namespace)
+            for kstat in kstats:
+                name, value = kstat.name, kstat.value
+                Kstat[name] = D(value)
+        else:
+            kstats = [line.strip() for line in open(fn)]
+            del kstats[0:2]
+            for kstat in kstats:
+                kstat = kstat.strip()
+                name, _, value = kstat.split()
+                Kstat[namespace + name] = D(value)
 
     Kstat = {}
     load_proc_kstats('/proc/spl/kstat/zfs/arcstats',
@@ -919,13 +927,16 @@ def _tunable_summary(Kstat):
     global show_tunable_descriptions
     global alternate_tunable_layout
 
-    names = os.listdir("/sys/module/zfs/parameters/")
+    if sys.platform.startswith('freebsd'):
+        ctls = sysctl.filter('vfs.zfs')
+    else:
+        names = os.listdir("/sys/module/zfs/parameters/")
 
-    values = {}
-    for name in names:
-        with open("/sys/module/zfs/parameters/" + name) as f:
-            value = f.read()
-        values[name] = value.strip()
+        values = {}
+        for name in names:
+            with open("/sys/module/zfs/parameters/" + name) as f:
+                value = f.read()
+            values[name] = value.strip()
 
     descriptions = {}
 
@@ -964,22 +975,31 @@ def _tunable_summary(Kstat):
             sys.stderr.write("Tunable descriptions will be disabled.\n")
 
     sys.stdout.write("ZFS Tunables:\n")
-    names.sort()
+    if not sys.platform.startswith('freebsd'):
+        names.sort()
 
     if alternate_tunable_layout:
         fmt = "\t%s=%s\n"
     else:
         fmt = "\t%-50s%s\n"
 
-    for name in names:
+    if sys.platform.startswith('freebsd'):
+        for ctl in ctls:
 
-        if not name:
-            continue
+            if show_tunable_descriptions and ctl.name in descriptions:
+                sys.stdout.write("\t# %s\n" % descriptions[ctl.name])
 
-        if show_tunable_descriptions and name in descriptions:
-            sys.stdout.write("\t# %s\n" % descriptions[name])
+            sys.stdout.write(fmt % (ctl.name, ctl.value))
+    else:
+        for name in names:
 
-        sys.stdout.write(fmt % (name, values[name]))
+            if not name:
+                continue
+
+            if show_tunable_descriptions and name in descriptions:
+                sys.stdout.write("\t# %s\n" % descriptions[name])
+
+            sys.stdout.write(fmt % (name, values[name]))
 
 
 unSub = [
