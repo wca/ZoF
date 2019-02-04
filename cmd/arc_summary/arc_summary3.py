@@ -43,6 +43,7 @@ import subprocess
 import sys
 import time
 
+#Requires py36-sysctl on FreeBSD
 if sys.platform.startswith('freebsd'):
     import sysctl
 
@@ -269,6 +270,7 @@ def get_kstats():
             kstats = sysctl.filter('kstat.zfs.misc.'+section+'.')
             lines = []
             for kstat in kstats:
+                #Removes kstat.zfs.misc.+section+'.' from the name
                 lines.append(kstat.name[15+len(section)+1:] + ' ' + str(kstat.value))
             result[section] = lines
         else:
@@ -296,6 +298,7 @@ def get_spl_tunables(PATH):
         else:
             ctls = sysctl.filter('vfs.zfs.')
         for ctl in ctls:
+            #Removes 'vfs.zfs.' from the name
             result[ctl.name[8:]] = ctl.value 
     else:
         parameters = os.listdir(PATH)

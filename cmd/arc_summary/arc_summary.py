@@ -51,6 +51,8 @@ import errno
 
 from subprocess import Popen, PIPE
 from decimal import Decimal as D
+
+#Requires py27-sysctl on FreeBSD
 if sys.platform.startswith('freebsd'):
     import sysctl
 
