@@ -28,7 +28,9 @@
 
 #
 # DESCRIPTION:
-# # Check whether zfs upgrade for project quota works or not.
+# 
+
+# Check whether zfs upgrade for project quota works or not.
 # The project quota is per dataset based feature, this test
 # will create multiple datasets and try different upgrade methods.
 #

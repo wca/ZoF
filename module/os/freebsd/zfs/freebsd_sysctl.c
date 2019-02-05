@@ -777,6 +777,16 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, spa_load_print_vdev_tree, CTLFLAG_RWTUN,
     &spa_load_print_vdev_tree, 0,
     "print out vdev tree during pool import");
 
+extern int spa_load_verify_metadata;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, spa_load_verify_metadata, CTLFLAG_RWTUN,
+    &spa_load_verify_metadata, 0,
+    "Whether to traverse blocks during an \"extereme rewind\"");
+
+extern int spa_load_verify_data;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, spa_load_verify_data, CTLFLAG_RWTUN,
+    &spa_load_verify_data, 0,
+    "Whether to traverse data blocks during an \"extereme rewind\"");
+
 extern uint64_t zfs_max_missing_tvds;
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, max_missing_tvds, CTLFLAG_RWTUN,
     &zfs_max_missing_tvds, 0,
@@ -791,6 +801,7 @@ extern uint64_t zfs_max_missing_tvds_scan;
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, max_missing_tvds_scan, CTLFLAG_RWTUN,
     &zfs_max_missing_tvds_scan, 0,
     "allow importing pools with missing top-level vdevs during scan");
+
 
 /* zfs_namecheck.c */
 extern int zfs_max_dataset_nesting;
@@ -969,6 +980,11 @@ extern int vdev_standard_sm_blksz;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, standard_sm_blksz, CTLFLAG_RDTUN,
     &vdev_standard_sm_blksz, 0,
     "Block size for standard space map.  Power of 2 and greater than 4096.");
+
+extern int vdev_validate_skip;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, validate_skip, CTLFLAG_RDTUN,
+    &vdev_validate_skip, 0,
+    "Enable to bypass vdev_validate().");
 
 
 /* vdev_cache.c */
