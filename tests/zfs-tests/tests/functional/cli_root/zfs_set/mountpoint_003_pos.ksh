@@ -96,7 +96,7 @@ log_must zfs set mountpoint=legacy $testfs
 
 typeset i=0
 while ((i < ${#args[@]})); do
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		log_must mount -t zfs -o ${args[$i]} $testfs $tmpmnt
 		
 		msg=$(mount | grep "$tmpmnt ")
