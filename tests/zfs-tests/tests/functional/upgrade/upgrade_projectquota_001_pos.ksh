@@ -28,8 +28,7 @@
 
 #
 # DESCRIPTION:
-#
-# Check whether zfs upgrade for project quota works or not.
+# # Check whether zfs upgrade for project quota works or not.
 # The project quota is per dataset based feature, this test
 # will create multiple datasets and try different upgrade methods.
 #
@@ -41,6 +40,10 @@
 #
 
 verify_runnable "global"
+
+if is_freebsd; then
+	log_unsupported "lsattr not supported on FreeBSD"
+fi
 
 if ! lsattr -pd > /dev/null 2>&1; then
 	log_unsupported "Current lsattr does not support set/show project ID"
