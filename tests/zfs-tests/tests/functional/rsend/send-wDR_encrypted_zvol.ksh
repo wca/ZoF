@@ -65,7 +65,8 @@ log_must zfs create -o dedup=on -o encryption=on -o keyformat=passphrase \
 log_must block_device_wait
 
 if [ is_freebsd ];then
-	log_must eval "echo 'y' | /sbin/newfs -T ext4 $zdev"
+	#ext4 not supported on FreeBSD
+	log_must eval "echo 'y' | /sbin/newfs $zdev"
 else
 	log_must eval "echo 'y' | newfs -t ext4 -v $zdev"
 fi
