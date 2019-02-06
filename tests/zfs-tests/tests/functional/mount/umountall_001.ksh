@@ -45,6 +45,8 @@ zfs_list="/ /lib /sbin /tmp /usr /var /var/adm /var/run"
 # Append our ZFS filesystems to the list, not worrying about duplicates.
 if is_linux; then
 	typeset mounts=$(mount | awk '{if ($5 == "zfs") print $3}')
+elif is_freebsd; then
+	typeset mounts=$(mount -p | awk '{if ($3 == "zfs") print $2}')
 else
 	typeset mounts=$(mount -p | awk '{if ($4 == "zfs") print $3}')
 fi
@@ -53,13 +55,16 @@ for fs in $mounts; do
 	zfs_list="$zfs_list $fs"
 done
 
-if is_linux; then
+if is_linux ;then
 	mounts=$(umount --fake -av -t zfs 2>&1 | \
 	    grep "successfully umounted" | awk '{print $1}')
 	# Fallback to /proc/mounts for umount(8) (util-linux-ng 2.17.2)
 	if [[ -z $mounts ]]; then
 		mounts=$(awk '/zfs/ { print $2 }' /proc/mounts)
 	fi
+elif is_freebsd ;then
+	#Umountall and umount --fake not supported on FreeBSD
+	mounts=$(umount -av -t zfs | awk '{print $4}')
 else
 	mounts=$(umountall -n -F zfs 2>&1 | awk '{print $2}')
 fi
