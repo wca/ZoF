@@ -76,6 +76,13 @@ if is_linux; then
 	if [[ $(linux_version) -lt $(linux_version "4.4") ]]; then
 		args+=("mand" "nomand")
 	fi
+elif is_freebsd; then
+	set -A args \
+	"nodev"		"dev"	\
+	"noexec"	"exec"	\
+	"ro"		"rw"	\
+	"nosuid"	"suid"	\
+	"atime"		"noatime"
 else
 	set -A args \
 	"devices"	"/devices/"	"nodevices"	"/nodevices/"	\
