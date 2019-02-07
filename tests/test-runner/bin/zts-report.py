@@ -213,6 +213,7 @@ if platform.system() == "FreeBSD":
         'cli_user/misc/dbufstat_001_pos': ['SKIP', na_reason_freebsd],
         'cli_root/zfs/zfs_002_pos': ['SKIP', na_reason_freebsd],
         'cli_root/zfs/zfs_003_neg': ['SKIP', na_reason_freebsd],
+        'cli_root/zfs_mount/zfs_mount_remount': ['SKIP', na_reason_freebsd],
         'cli_root/zfs_sysfs/setup': ['SKIP', na_reason_freebsd],
         'cli_root/zfs_sysfs/zfeature_set_unsupported': ['SKIP', na_reason_freebsd],
         'cli_root/zfs_sysfs/zfs_get_unsupported': ['SKIP', na_reason_freebsd],
