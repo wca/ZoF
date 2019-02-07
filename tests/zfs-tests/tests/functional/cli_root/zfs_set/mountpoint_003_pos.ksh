@@ -77,8 +77,9 @@ if is_linux; then
 		args+=("mand" "nomand")
 	fi
 elif is_freebsd; then
+	#'xattr' and 'devices' are not supported on FreeBSD
+	#Perhaps more options need to be added.
 	set -A args \
-	"nodev"		"dev"	\
 	"noexec"	"exec"	\
 	"ro"		"rw"	\
 	"nosuid"	"suid"	\
@@ -107,7 +108,7 @@ while ((i < ${#args[@]})); do
 		log_must mount -t zfs -o ${args[$i]} $testfs $tmpmnt
 		
 		msg=$(mount | grep "$tmpmnt ")
-		
+
 		echo $msg | grep "${args[((i))]}" > /dev/null 2>&1
 		if (($? != 0)) ; then
 			echo $msg | grep "${args[((i-1))]}" > /dev/null 2>&1
