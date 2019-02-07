@@ -42,6 +42,10 @@
 # 7. Verify we can't remount its filesystem read-write
 #
 
+if is_freebsd; then
+	log_unsupported "Remount not supported on FreeBSD"
+fi
+
 verify_runnable "both"
 
 function cleanup
