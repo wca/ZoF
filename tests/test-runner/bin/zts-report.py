@@ -251,6 +251,7 @@ if platform.system() == "FreeBSD":
         'features/large_dnode_008': ['SKIP', na_reason_freebsd],
         'io/libaio': ['SKIP', na_reason_freebsd],
         'mmap/mmap_libaio_001_pos': ['SKIP', na_reason_freebsd],
+        'nopwrite/nopwrite_sync': ['SKIP', na_reason_freebsd],
         'projectquota/setup': ['SKIP', na_reason_freebsd],
         'upgrade/upgrade_projectquota_001_pos': ['SKIP', na_reason_freebsd],
         'userquota/groupspace_002_pos': ['SKIP', na_reason_freebsd],
