@@ -30,7 +30,7 @@
 
 if [ is_freebsd ];then
 	log_unsupported "ACL tests not fully implemented on FreeBSD"
-else
+fi
 
 cleanup_user_group
 
