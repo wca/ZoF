@@ -1,4 +1,6 @@
 
+.include <bsd.sys.mk>
+
 SRCDIR= ${.CURDIR}
 INCDIR=${.CURDIR:H}/include
 
@@ -22,11 +24,17 @@ CFLAGS+= -I${INCDIR}/os/freebsd/zfs
 CFLAGS+= -include ${INCDIR}/os/freebsd/spl/sys/ccompile.h
 
 CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1
-CFLAGS+= -DZFS_DEBUG -DHAVE_UIO_ZEROCOPY -DHAVE_KSID -DOPENSOLARIS_WITNESS
+CFLAGS+= -DHAVE_UIO_ZEROCOPY -DHAVE_KSID
 CFLAGS+= -D_SYS_VMEM_H_ -D_MACHINE_ENDIAN_H_ -DKDTRACE_HOOKS
 
+.if ${WITH_DEBUG} == "true"
+CFLAGS+= -DINVARIANTS -DWITNESS -g -O0 -DZFS_DEBUG -DOPENSOLARIS_WITNESS
+.endif
 
-CFLAGS+= -DINVARIANTS -DWITNESS -g -O0
+.if ${WITH_GCOV} == "true"
+CFLAGS+=	 -fprofile-arcs -ftest-coverage
+.endif
+
 
 DEBUG_FLAGS=-g
 
@@ -249,6 +257,7 @@ SRCS+=	aggsum.c \
 .include <bsd.kmod.mk>
 
 
+CFLAGS.gcc+= -Wno-pointer-to-int-cast
 
 CFLAGS.lapi.c= -Wno-cast-qual
 CFLAGS.lcompat.c= -Wno-cast-qual -Wno-missing-prototypes
