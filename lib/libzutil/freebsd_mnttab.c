@@ -121,10 +121,10 @@ statfs2mnttab(struct statfs *sfs, struct mnttab *mp)
 	else
 		OPTADD(MNTOPT_EXEC);
 #undef	OPTADD
-	mp->mnt_special = sfs->f_mntfromname;
-	mp->mnt_mountp = sfs->f_mntonname;
-	mp->mnt_fstype = sfs->f_fstypename;
-	mp->mnt_mntopts = mntopts;
+	mp->mnt_special = strdup(sfs->f_mntfromname);
+	mp->mnt_mountp = strdup(sfs->f_mntonname);
+	mp->mnt_fstype = strdup(sfs->f_fstypename);
+	mp->mnt_mntopts = strdup(mntopts);
 }
 
 static struct statfs *gsfs = NULL;
