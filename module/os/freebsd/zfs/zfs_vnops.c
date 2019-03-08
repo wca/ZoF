@@ -277,6 +277,14 @@ zfs_holey(vnode_t *vp, u_long cmd, offset_t *off)
 	if (error == ESRCH)
 		return (SET_ERROR(ENXIO));
 
+	/* file was dirty, so fall back to using generic logic */
+	if (error == EBUSY) {
+		if (hole)
+			*off = file_sz;
+
+		return (0);
+	}
+
 	/*
 	 * We could find a hole that begins after the logical end-of-file,
 	 * because dmu_offset_next() only works on whole blocks.  If the
