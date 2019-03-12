@@ -224,6 +224,7 @@
 #define KMALLOC_MAX_SIZE MAXPHYS
 #define VOP_SEEK(...) (0)
 #endif
+volatile int geom_inhibited;
 
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
@@ -4534,6 +4535,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 	if (input_fp == NULL)
 		return (SET_ERROR(EBADF));
 
+	geom_inhibited = 1;
 	error = dmu_recv_begin(tofs, tosnap, begin_record, force,
 	    resumable, localprops, hidden_args, origin, &drc);
 	if (error != 0)
@@ -4717,17 +4719,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		error = 1;
 	}
 #endif
-
-#if defined(__FreeBSD__) && defined(_KERNEL)
-	if (error == 0) {
-		spa_t *spa;
-
-		if (spa_open(tofs, &spa, FTAG) == 0) {
-			zvol_create_minors(spa, tofs, B_TRUE);
-			spa_close(spa, FTAG);
-		}
-	}
-#endif
+	geom_inhibited = 0;
 
 	/*
 	 * On error, restore the original props.
@@ -4822,6 +4814,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		nvlist_free(inheritprops);
 	}
 out:
+	geom_inhibited = 0;
 	releasef(input_fd);
 	nvlist_free(origrecvd);
 	nvlist_free(origprops);

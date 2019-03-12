@@ -101,6 +101,7 @@
 
 struct proc *zfsproc;
 extern uint_t zfs_geom_probe_vdev_key;
+extern volatile int geom_inhibited;
 
 /*
  * This lock protects the zfsdev_state structure from being modified
@@ -1806,6 +1807,9 @@ zvol_create_minors_impl(const char *name)
 
 	if (dataset_name_hidden(name))
 		return (0);
+
+	while (geom_inhibited)
+		pause("recv wait", hz/2);
 
 	if ((error = dmu_objset_hold(name, FTAG, &os)) != 0) {
 		printf("ZFS WARNING: Unable to put hold on %s (error=%d).\n",
