@@ -56,7 +56,11 @@ static __inline uint64_t
 atomic_cas_64(volatile uint64_t *target, uint64_t cmp, uint64_t newval)
 {
 
+#ifdef __i386__
+	atomic_fcmpset_64(target, &cmp, newval);
+#else
 	atomic_fcmpset_long(target, &cmp, newval);
+#endif
 	return (cmp);
 }
 
