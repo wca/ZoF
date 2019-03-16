@@ -23,7 +23,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER], [
 
 	ZFS_AC_TEST_FRAMEWORK
 
-	AC_CHECK_FUNCS([mlockall strlcat strlcpy])
+	AC_CHECK_FUNCS([issetugid mlockall strlcat strlcpy])
 ])
 
 dnl #
