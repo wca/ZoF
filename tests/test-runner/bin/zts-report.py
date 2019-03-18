@@ -246,6 +246,8 @@ if platform.system() == "FreeBSD":
         'events/events_002_pos': ['SKIP', na_reason_freebsd],
         'events/zed_rc_filter': ['SKIP', na_reason_freebsd],
         'events/cleanup': ['SKIP', na_reason_freebsd],
+        'fault/auto_offline_001_pos': ['SKIP', na_reason_freebsd],
+        'fault/auto_spare_shared': ['SKIP', na_reason_freebsd],
         'features/large_dnode_002': ['SKIP', na_reason_freebsd],
         'features/large_dnode_006': ['SKIP', na_reason_freebsd],
         'features/large_dnode_008': ['SKIP', na_reason_freebsd],
