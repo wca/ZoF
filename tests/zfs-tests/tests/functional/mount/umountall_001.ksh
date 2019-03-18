@@ -63,8 +63,8 @@ if is_linux; then
 		mounts=$(awk '/zfs/ { print $2 }' /proc/mounts)
 	fi
 elif is_freebsd; then
-	#Umountall and umount --fake not supported on FreeBSD
-	mounts=$(umount -av -t zfs | awk '{print $4}')
+	#Umountall and umount not supported on FreeBSD
+	mounts=$(mount -t zfs | sort -r | awk '{print $3}')
 else
 	mounts=$(umountall -n -F zfs 2>&1 | awk '{print $2}')
 fi
