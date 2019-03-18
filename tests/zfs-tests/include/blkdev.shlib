@@ -61,6 +61,9 @@ function block_device_wait
 	if is_linux; then
 		udevadm trigger
 		udevadm settle
+	elif is_freebsd; then
+		sleep 3
+		gpart list
 	fi
 }
 
