@@ -35,6 +35,10 @@
 
 verify_runnable "both"
 
+if [ is_freebsd ] ; then
+	log_unsupported "Multi mount not supported on FreeBSD"
+fi
+
 function cleanup
 {
 	ismounted $MNTPFS && log_must umount $MNTPFS
