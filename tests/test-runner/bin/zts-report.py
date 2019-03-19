@@ -250,6 +250,7 @@ if platform.system() == "FreeBSD":
         'fault/auto_offline_001_pos': ['SKIP', na_reason_freebsd],
         'fault/auto_spare_shared': ['SKIP', na_reason_freebsd],
         'fault/auto_spare_ashift': ['SKIP', na_reason_freebsd],
+        'fault/scrub_after_resilver': ['SKIP', na_reason_freebsd],
         'features/large_dnode_002': ['SKIP', na_reason_freebsd],
         'features/large_dnode_006': ['SKIP', na_reason_freebsd],
         'features/large_dnode_008': ['SKIP', na_reason_freebsd],
