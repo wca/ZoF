@@ -33,7 +33,11 @@ log_assert "Testing that injected decompression errors are handled correctly"
 
 function cleanup
 {
-	log_must set_tunable64 zfs_compressed_arc_enabled 1
+	if is_freebsd; then
+		log_must set_tunable64 vfs.zfs.zfs_compressed_arc_enabled 1
+	else
+		log_must set_tunable64 zfs_compressed_arc_enabled 1
+	fi
 	log_must zinject -c all
 	default_cleanup_noexit
 }
@@ -41,7 +45,11 @@ function cleanup
 log_onexit cleanup
 
 default_mirror_setup_noexit $DISK1 $DISK2
-log_must set_tunable64 zfs_compressed_arc_enabled 0
+if is_freebsd; then
+	log_must set_tunable64 vfs.zfs.zfs_compressed_arc_enabled 0
+else
+	log_must set_tunable64 zfs_compressed_arc_enabled 0
+fi
 log_must zfs create -o compression=on $TESTPOOL/fs
 mntpt=$(get_prop mountpoint $TESTPOOL/fs)
 write_compressible $mntpt 32m 1 0 "testfile"

@@ -85,6 +85,7 @@ extern int l2arc_norw;			/* no reads during writes */
  */
 extern int		arc_min_prefetch_ms;
 extern int		arc_min_prescient_prefetch_ms;
+extern int		zfs_compressed_arc_enabled;
 
 /* arc.c */
 SYSCTL_DECL(_vfs_zfs);
@@ -105,6 +106,8 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, l2arc_feed_again, CTLFLAG_RW,
     &l2arc_feed_again, 0, "turbo warmup");
 SYSCTL_INT(_vfs_zfs, OID_AUTO, l2arc_norw, CTLFLAG_RW,
     &l2arc_norw, 0, "no reads during writes");
+SYSCTL_INT(_vfs_zfs, OID_AUTO, zfs_compressed_arc_enabled, CTLFLAG_RW,
+    &zfs_compressed_arc_enabled, 1, "compressed arc buffers");
 
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, anon_size, CTLFLAG_RD,
     &ARC_anon.arcs_size.rc_count, 0, "size of anonymous state");
