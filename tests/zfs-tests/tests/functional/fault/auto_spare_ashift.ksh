@@ -49,6 +49,10 @@ function cleanup
 	rm -f $SAFE_DEVICE $FAIL_DEVICE
 }
 
+if is_freebsd; then
+	log_unsupported "scsi debug module unsupported"
+fi
+
 log_assert "ZED should replace a device using the configured ashift property"
 log_onexit cleanup
 
