@@ -52,7 +52,12 @@ else
 fi
 log_must zfs create -o compression=on $TESTPOOL/fs
 mntpt=$(get_prop mountpoint $TESTPOOL/fs)
-write_compressible $mntpt 32m 1 0 "testfile"
+if is_freebsd; then
+	#Block size of 0 not supported on FreeBSD. 1024k is default
+	write_compressible $mntpt 32m 1 1024k "testfile"
+else
+	write_compressible $mntpt 32m 1 0 "testfile"
+fi
 log_must sync
 log_must zfs umount $TESTPOOL/fs
 log_must zfs mount $TESTPOOL/fs
