@@ -278,7 +278,7 @@ enum zio_wait_type {
 #define	ENOTACTIVE	ENOANO
 #elif __FreeBSD__
 	/* XXX change us */
-#define	ECKSUM	EILSEQ
+#define	ECKSUM	EBADMSG
 #define	EFRAGS	EFTYPE
 
 /* Similar for ENOACTIVE */
