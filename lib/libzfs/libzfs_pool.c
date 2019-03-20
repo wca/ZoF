@@ -3036,6 +3036,7 @@ zpool_vdev_detach(zpool_handle_t *zhp, const char *path)
 {
 	zfs_cmd_t zc = {"\0"};
 	char msg[1024];
+	char buf[1024];
 	nvlist_t *tgt;
 	boolean_t avail_spare, l2cache;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
@@ -3045,9 +3046,12 @@ zpool_vdev_detach(zpool_handle_t *zhp, const char *path)
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	if ((tgt = zpool_find_vdev(zhp, path, &avail_spare, &l2cache,
-	    NULL)) == NULL)
-		return (zfs_error(hdl, EZFS_NODEVICE, msg));
-
+		 NULL)) == NULL) {
+		snprintf(buf, sizeof(buf), "/dev/%s", path);
+		if ((tgt = zpool_find_vdev(zhp, buf, &avail_spare, &l2cache,
+		    NULL)) == NULL)
+			return (zfs_error(hdl, EZFS_NODEVICE, msg));
+	}
 	if (avail_spare)
 		return (zfs_error(hdl, EZFS_ISSPARE, msg));
 
