@@ -6946,9 +6946,15 @@ unshare_unmount(int op, int argc, char **argv)
 				break;
 
 			case OP_MOUNT:
+#ifdef __FreeBSD__
+				if (zfs_unmount(node->un_zhp,
+				    NULL, flags) != 0)
+					ret = 1;
+#else
 				if (zfs_unmount(node->un_zhp,
 				    node->un_zhp->zfs_name, flags) != 0)
 					ret = 1;
+#endif
 				break;
 			}
 
