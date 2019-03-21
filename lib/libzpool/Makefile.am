@@ -15,6 +15,11 @@ AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
 
+if BUILD_LINUX
+# To pick up files like qat.h
+AM_CFLAGS += -I$(top_srcdir)/module/os/linux/zfs
+endif
+
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include

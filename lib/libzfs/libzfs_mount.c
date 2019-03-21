@@ -1119,10 +1119,10 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 	char shareopts[ZFS_MAXPROPLEN];
 	char sourcestr[ZFS_MAXPROPLEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	sa_share_t share __unused;
+	sa_share_t share __attribute__((unused));
 	zfs_share_proto_t *curr_proto;
 	zprop_source_t sourcetype;
-	int err, ret __unused;
+	int err, ret __attribute__((unused));
 
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
