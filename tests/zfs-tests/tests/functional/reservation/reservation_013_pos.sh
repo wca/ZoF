@@ -91,6 +91,9 @@ log_must zfs set reservation=$resv_set $TESTPOOL/$TESTFS1
 log_must zfs set reservation=$resv_set $TESTPOOL/$TESTFS1/$TESTFS2
 log_must zfs set reservation=$resv_set $TESTPOOL/$TESTVOL2
 
+if is_freebsd; then
+	sleep 3
+fi
 log_must zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 
