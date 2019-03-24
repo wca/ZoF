@@ -33,11 +33,20 @@ log_assert "arc_summary.py generates output and doesn't return an error code"
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-        log_must eval "arc_summary.py ${args[i]} > /dev/null"
+	if [ is_freebsd ];then
+		log_must eval "python /usr/local/bin/arc_summary.py ${args[i]} > /dev/null"
+	else
+		log_must eval "arc_summary.py ${args[i]} > /dev/null"
+	fi
         ((i = i + 1))
 done
 
-log_must eval "arc_summary.py | head > /dev/null"
-log_must eval "arc_summary.py | head -1 > /dev/null"
+if [ is_freebsd ];then
+	log_must eval "python /usr/local/bin/arc_summary.py | head > /dev/null"
+	log_must eval "python /usr/local/bin/arc_summary.py | head -1 > /dev/null"
+else
+	log_must eval "arc_summary.py | head > /dev/null"
+	log_must eval "arc_summary.py | head -1 > /dev/null"
+fi
 
 log_pass "arc_summary.py generates output and doesn't return an error code"

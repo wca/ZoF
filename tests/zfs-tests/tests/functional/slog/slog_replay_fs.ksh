@@ -79,8 +79,13 @@ log_must zfs create $TESTPOOL/$TESTFS
 # after freezing the pool unless a ZIL header already exists. Create a file
 # synchronously to force ZFS to write one out.
 #
-log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
-    conv=fdatasync,fsync bs=1 count=1
+if [ is_freebsd ];then
+	#fdatasync and fsync not supported on FreeBSD
+	log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync bs=1 count=1
+else
+	log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
+	    conv=fdatasync,fsync bs=1 count=1
+fi
 
 #
 # 2. Freeze TESTFS
@@ -114,7 +119,11 @@ log_must rmdir /$TESTPOOL/$TESTFS/dir_to_delete
 # Create a simple validation payload
 log_must mkdir -p $TESTDIR
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload bs=1k count=8
-log_must eval "sha256sum -b /$TESTPOOL/$TESTFS/payload >$TESTDIR/checksum"
+if [ is_freebsd ];then
+	log_must eval "/sbin/sha256 -b /$TESTPOOL/$TESTFS/payload >$TESTDIR/checksum"
+else
+	log_must eval "sha256sum -b /$TESTPOOL/$TESTFS/payload >$TESTDIR/checksum"
+fi
 
 # TX_WRITE (small file with ordering)
 log_must mkfile 1k /$TESTPOOL/$TESTFS/small_file
@@ -201,6 +210,10 @@ log_note "Verify working set diff:"
 log_must diff -r /$TESTPOOL/$TESTFS $TESTDIR/copy
 
 log_note "Verify file checksum:"
-log_must sha256sum -c $TESTDIR/checksum
+if [ is_freebsd ];then
+	log_must /sbin/sha256 -c $TESTDIR/checksum
+else
+	log_must sha256sum -c $TESTDIR/checksum
+fi
 
 log_pass "Replay of intent log succeeds."

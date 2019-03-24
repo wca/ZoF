@@ -31,6 +31,15 @@
 . $STF_SUITE/tests/functional/acl/acl.cfg
 . $STF_SUITE/include/libtest.shlib
 
+# FreeBSD doesn't support ZFS extended attributes.  It also doesn't support the
+# # same ACL mechanisms Solaris does for testing.
+if [[ $os_name != "FreeBSD" ]]; then
+	export ZFS_XATTR="true"
+	export ZFS_ACL="true"
+else
+	log_note "On FreeBSD most xattr and ACL tests are disabled"
+fi
+
 #
 # Get the given file/directory access mode
 #

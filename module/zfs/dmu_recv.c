@@ -843,7 +843,12 @@ struct receive_objnode {
 
 struct receive_arg  {
 	objset_t *os;
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	kthread_t *td;
+	struct file *fp;
+#else
 	vnode_t *vp; /* The vnode to read the stream from */
+#endif
 	uint64_t voff; /* The current offset in the stream */
 	uint64_t bytes_read;
 	/*
@@ -901,6 +906,29 @@ free_guid_map_onexit(void *arg)
 	kmem_free(ca, sizeof (avl_tree_t));
 }
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
+static int
+restore_bytes(struct receive_arg *ra, void *buf, int len, off_t off, ssize_t *resid)
+{
+	struct uio auio;
+	struct iovec aiov;
+	int error;
+
+	aiov.iov_base = buf;
+	aiov.iov_len = len;
+	auio.uio_iov = &aiov;
+	auio.uio_iovcnt = 1;
+	auio.uio_resid = len;
+	auio.uio_segflg = UIO_SYSSPACE;
+	auio.uio_rw = UIO_READ;
+	auio.uio_offset = off;
+	auio.uio_td = ra->td;
+	error = fo_read(ra->fp, &auio, ra->td->td_ucred, FOF_OFFSET, ra->td);
+	*resid = auio.uio_resid;
+	return (error);
+}
+#endif
+
 static int
 receive_read(struct receive_arg *ra, int len, void *buf)
 {
@@ -916,11 +944,15 @@ receive_read(struct receive_arg *ra, int len, void *buf)
 	while (done < len) {
 		ssize_t resid;
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
+		ra->err = restore_bytes(ra, ((char *)buf + done),
+		    len - done, ra->voff, &resid);
+#else
 		ra->err = vn_rdwr(UIO_READ, ra->vp,
 		    (char *)buf + done, len - done,
 		    ra->voff, UIO_SYSSPACE, FAPPEND,
 		    RLIM64_INFINITY, CRED(), &resid);
-
+#endif
 		if (resid == len - done) {
 			/*
 			 * Note: ECKSUM indicates that the receive
@@ -2331,9 +2363,15 @@ resume_check(struct receive_arg *ra, nvlist_t *begin_nvl)
  *
  * NB: callers *must* call dmu_recv_end() if this succeeds.
  */
+#if defined(__FreeBSD__) && defined(_KERNEL)
+int
+dmu_recv_stream(dmu_recv_cookie_t *drc, struct file *fp, offset_t *voffp,
+    int cleanup_fd, uint64_t *action_handlep)
+#else
 int
 dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
     int cleanup_fd, uint64_t *action_handlep)
+#endif
 {
 	int err = 0;
 	struct receive_arg *ra;
@@ -2349,7 +2387,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 	ra->byteswap = drc->drc_byteswap;
 	ra->raw = drc->drc_raw;
 	ra->cksum = drc->drc_cksum;
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	ra->td = curthread;
+	ra->fp = fp;
+#else
 	ra->vp = vp;
+#endif
 	ra->voff = *voffp;
 
 	if (dsl_dataset_is_zapified(drc->drc_ds)) {
@@ -2761,7 +2804,9 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		drc->drc_newsnapobj =
 		    dsl_dataset_phys(drc->drc_ds)->ds_prev_snap_obj;
 	}
+
 	zvol_create_minors(dp->dp_spa, drc->drc_tofs, B_TRUE);
+
 
 	/*
 	 * Release the hold from dmu_recv_begin.  This must be done before

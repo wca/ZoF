@@ -26,4 +26,8 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if is_freebsd; then
+	log_unsupported "dbuf stat tests not implemented on FreeBSD"
+fi
+
 default_cleanup

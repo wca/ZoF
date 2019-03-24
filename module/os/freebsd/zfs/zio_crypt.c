@@ -24,24 +24,11 @@
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <sys/zil.h>
-#ifdef __FreeBSD__
-# ifdef _KERNEL
-#  include <crypto/sha2/sha256.h>
-#  include <crypto/sha2/sha512.h>
-# else
-#  include <sha2.h>
-# endif /* _KERNEL */
-#else
-# include <sys/sha2.h>
-#endif /* __FreeBSD__ */
+#include <sys/sha2.h>
 #include <sys/hkdf.h>
 
 #ifdef __FreeBSD__
 # undef FCRYPTO_DEBUG
-# define SHA2Update(c, d, l)	SHA512_Update(c, d, l)
-# define SHA2Init(t, c)	SHA512_Init(c)
-# define SHA2Final(b, c)	SHA512_Final(b, c)
-typedef SHA512_CTX SHA2_CTX;
 #endif
 
 /*
@@ -228,14 +215,13 @@ zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
 	{SUN_CKM_AES_GCM,	ZC_TYPE_GCM,	32,	"aes-256-gcm"}
 };
 
-void
-zio_crypt_key_destroy(zio_crypt_key_t *key)
+static void
+zio_crypt_key_destroy_early(zio_crypt_key_t *key)
 {
 	rw_destroy(&key->zk_salt_lock);
 
 	/* free crypto templates */
 #ifdef __FreeBSD__
-	freebsd_crypt_freesession(&key->zk_session);
 	bzero(&key->zk_session, sizeof(key->zk_session));
 #else
 	crypto_destroy_ctx_template(key->zk_current_tmpl);
@@ -243,6 +229,14 @@ zio_crypt_key_destroy(zio_crypt_key_t *key)
 #endif
 	/* zero out sensitive data */
 	bzero(key, sizeof (zio_crypt_key_t));
+}
+
+void
+zio_crypt_key_destroy(zio_crypt_key_t *key)
+{
+
+	freebsd_crypt_freesession(&key->zk_session);
+	zio_crypt_key_destroy_early(key);
 }
 
 int
@@ -335,7 +329,7 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 	return (0);
 
 error:
-	zio_crypt_key_destroy(key);
+	zio_crypt_key_destroy_early(key);
 	return (ret);
 }
 
@@ -850,7 +844,7 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	return (0);
 
 error:
-	zio_crypt_key_destroy(key);
+	zio_crypt_key_destroy_early(key);
 	return (ret);
 }
 

@@ -128,6 +128,16 @@ load_module() {
 	return 0
 }
 
+load_modules_freebsd() {
+	kldload /boot/modules/zfs.ko || return 1
+
+	if [ "$VERBOSE" = "yes" ]; then
+		echo "Successfully loaded ZFS module stack"
+	fi
+
+	return 0
+}
+
 load_modules() {
 	mkdir -p /etc/zfs
 
@@ -163,6 +173,19 @@ unload_module() {
 	fi
 
 	rmmod "$NAME" || echo "Failed to unload $NAME"
+
+	return 0
+}
+
+unload_modules_freebsd() {
+	for KMOD in zfs.ko
+	do
+		kldunload $KMOD || echo "Failed to unload $KMOD"
+	done
+
+	if [ "$VERBOSE" = "yes" ]; then
+		echo "Successfully unloaded ZFS module stack"
+	fi
 
 	return 0
 }
@@ -224,17 +247,36 @@ if [ "$(id -u)" != 0 ]; then
 	exit 1
 fi
 
+UNAME=$(uname -s)
+
 if [ "$UNLOAD" = "yes" ]; then
-	kill_zed
-	umount -t zfs -a
-	stack_check
-	unload_modules
+	case $UNAME in
+		FreeBSD)
+		   kill_zed
+	           umount -t zfs -a
+	           unload_modules_freebsd
+		   ;;
+		*) 
+		   kill_zed
+	           umount -t zfs -a
+	           stack_check
+	           unload_modules
+		   ;;
+
+	esac
 else
-	stack_clear
-	check_modules
-	load_modules "$@"
-	udevadm trigger
-	udevadm settle
+	case $UNAME in
+		FreeBSD) 
+		   load_modules_freebsd
+		   ;;
+		*) 
+		   stack_clear
+		   check_modules
+		   load_modules "$@"
+		   udevadm trigger
+		   udevadm settle
+	 	   ;;
+	esac
 fi
 
 exit 0

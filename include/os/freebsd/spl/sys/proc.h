@@ -76,7 +76,6 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	ASSERT(stk == NULL);
 	ASSERT(len == 0);
 	ASSERT(state == TS_RUN);
-	ASSERT(pp == &p0);
 
 	error = kproc_kthread_add(proc, arg, &zfsproc, &td, RFSTOPPED,
 	    stksize / PAGE_SIZE, "zfskern", "solthread %p", proc);

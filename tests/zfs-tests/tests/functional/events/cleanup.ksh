@@ -26,6 +26,10 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if [ is_freebsd ]; then
+	log_unsupported "Events not supported on FreeBSD"
+fi
+
 zed_cleanup all-debug.sh all-syslog.sh
 
 default_cleanup

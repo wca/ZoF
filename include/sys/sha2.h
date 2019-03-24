@@ -70,10 +70,11 @@ extern "C" {
  * Callers must never attempt to read or write any of the fields
  * in this structure directly.
  */
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && defined(_KERNEL)
 #include <crypto/sha2/sha256.h>
 #include <crypto/sha2/sha384.h>
 #include <crypto/sha2/sha512.h>
+#include <crypto/sha2/sha512t.h>
 typedef struct 	{
 	uint32_t algotype;		/* Algorithm Type */
 	union {
@@ -142,8 +143,11 @@ SHA2Init(uint64_t mech, SHA2_CTX *c)
 		case SHA512:
 			SHA512_Init(&c->SHA512_ctx);
 			break;
+		case SHA512_256:
+			SHA512_256_Init(&c->SHA512_ctx);
+			break;
 		default:
-			panic("unknown mechanism");
+			panic("unknown mechanism %lu", mech);
 	}
 	c->algotype = (uint32_t)mech;
 }
@@ -161,8 +165,11 @@ SHA2Update(SHA2_CTX *c, const void *p, size_t s)
 		case SHA512:
 			SHA512_Update(&c->SHA512_ctx, p, s);
 			break;
+		case SHA512_256:
+			SHA512_256_Update(&c->SHA512_ctx, p, s);
+			break;
 		default:
-			panic("unknown mechanism");
+			panic("unknown mechanism %d", c->algotype);
 	}
 }
 
@@ -179,6 +186,11 @@ SHA2Final(void *p, SHA2_CTX *c)
 		case SHA512:
 			SHA512_Final(p, &c->SHA512_ctx);
 			break;
+		case SHA512_256:
+			SHA512_256_Final(p, &c->SHA512_ctx);
+			break;
+		default:
+			panic("unknown mechanism %d", c->algotype);
 	}
 }
 

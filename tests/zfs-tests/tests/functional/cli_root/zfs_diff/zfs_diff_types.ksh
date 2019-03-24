@@ -70,8 +70,14 @@ DATASET="$TESTPOOL/$TESTFS/fs"
 TESTSNAP1="$DATASET@snap1"
 TESTSNAP2="$DATASET@snap2"
 FILEDIFF="$TESTDIR/zfs-diff.txt"
-MAJOR=$(stat -c %t /dev/null)
-MINOR=$(stat -c %T /dev/null)
+if [ is_freebsd ];then
+	COMBINED=$(stat -f "%Z" /dev/null)
+	MAJOR=$(cut -d ',' -f1)
+	MINOR=$(cut -d ',' -f2)
+else
+	MAJOR=$(stat -c %t /dev/null)
+	MINOR=$(stat -c %T /dev/null)
+fi
 
 # 1. Prepare a dataset
 log_must zfs create $DATASET

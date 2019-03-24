@@ -43,6 +43,10 @@ import subprocess
 import sys
 import time
 
+#Requires py36-sysctl on FreeBSD
+if sys.platform.startswith('freebsd'):
+    import sysctl
+
 DECRIPTION = 'Print ARC and other statistics for ZFS on Linux'
 INDENT = ' '*8
 LINE_LENGTH = 72
@@ -89,7 +93,10 @@ def cleanup_line(single_line):
     middle '4'. For example "arc_no_grow    4    0" returns the tuple
     ("arc_no_grow", "0").
     """
-    name, _, value = single_line.split()
+    if sys.platform.startswith('freebsd'):
+        name, value = single_line.split()
+    else:
+        name, _, value = single_line.split()
 
     return name, value
 
@@ -238,7 +245,10 @@ def format_raw_line(name, value):
     if ARGS.alt:
         result = '{0}{1}={2}'.format(INDENT, name, value)
     else:
-        spc = LINE_LENGTH-(len(INDENT)+len(value))
+        if sys.platform.startswith('freebsd'):
+            spc = LINE_LENGTH-(len(INDENT)+len(str(value)))
+        else:
+            spc = LINE_LENGTH-(len(INDENT)+len(value))
         result = '{0}{1:<{spc}}{2}'.format(INDENT, name, value, spc=spc)
 
     return result
@@ -256,11 +266,19 @@ def get_kstats():
 
     for section in secs:
 
-        with open(PROC_PATH+section, 'r') as proc_location:
-            lines = [line for line in proc_location]
+        if sys.platform.startswith('freebsd'):
+            kstats = sysctl.filter('kstat.zfs.misc.'+section+'.')
+            lines = []
+            for kstat in kstats:
+                #Removes kstat.zfs.misc.+section+'.' from the name
+                lines.append(kstat.name[15+len(section)+1:] + ' ' + str(kstat.value))
+            result[section] = lines
+        else:
+            with open(PROC_PATH+section, 'r') as proc_location:
+                lines = [line for line in proc_location]
 
-        del lines[0:2]  # Get rid of header
-        result[section] = lines
+            del lines[0:2]  # Get rid of header
+            result[section] = lines
 
     return result
 
@@ -272,13 +290,24 @@ def get_spl_tunables(PATH):
     """
 
     result = {}
-    parameters = os.listdir(PATH)
+    if sys.platform.startswith('freebsd'):
+        if PATH == "VDEV":
+            ctls = sysctl.filter('vfs.zfs.vdev')
+        elif PATH == "SPL": #No SPL support in FreeBSD
+            pass
+        else:
+            ctls = sysctl.filter('vfs.zfs.')
+        for ctl in ctls:
+            #Removes 'vfs.zfs.' from the name
+            result[ctl.name[8:]] = ctl.value 
+    else:
+        parameters = os.listdir(PATH)
 
-    for name in parameters:
+        for name in parameters:
 
-        with open(PATH+name, 'r') as para_file:
-            value = para_file.read()
-            result[name] = value.strip()
+            with open(PATH+name, 'r') as para_file:
+                value = para_file.read()
+                result[name] = value.strip()
 
     return result
 
@@ -711,23 +740,27 @@ def section_spl(*_):
     and/or decriptions. This does not use kstats.
     """
 
-    spls = get_spl_tunables(SPL_PATH)
-    keylist = sorted(spls.keys())
-    print('Solaris Porting Layer (SPL):')
-
-    if ARGS.desc:
-        descriptions = get_descriptions('spl')
-
-    for key in keylist:
-        value = spls[key]
+    if sys.platform.startswith('freebsd'): #No SPL support in FreeBSD
+        #spls = get_spl_tunables("SPL")
+        pass
+    else:
+        spls = get_spl_tunables(SPL_PATH)
+        keylist = sorted(spls.keys())
+        print('Solaris Porting Layer (SPL):')
 
         if ARGS.desc:
-            try:
-                print(INDENT+'#', descriptions[key])
-            except KeyError:
-                print(INDENT+'# (No decription found)')  # paranoid
+            descriptions = get_descriptions('spl')
 
-        print(format_raw_line(key, value))
+        for key in keylist:
+            value = spls[key]
+
+            if ARGS.desc:
+                try:
+                    print(INDENT+'#', descriptions[key])
+                except KeyError:
+                    print(INDENT+'# (No decription found)')  # paranoid
+
+            print(format_raw_line(key, value))
 
     print()
 
@@ -737,7 +770,10 @@ def section_tunables(*_):
     decriptions. This does not use kstasts.
     """
 
-    tunables = get_spl_tunables(TUNABLES_PATH)
+    if sys.platform.startswith('freebsd'):
+        tunables = get_spl_tunables("ALL")
+    else:
+        tunables = get_spl_tunables(TUNABLES_PATH)
     keylist = sorted(tunables.keys())
     print('Tunables:')
 
@@ -765,11 +801,13 @@ def section_vdev(kstats_dict):
     # harmful. When this is the case, we just skip the whole entry. See
     # https://github.com/zfsonlinux/zfs/blob/master/module/zfs/vdev_cache.c
     # for details
-    tunables = get_spl_tunables(TUNABLES_PATH)
-
-    if tunables['zfs_vdev_cache_size'] == '0':
-        print('VDEV cache disabled, skipping section\n')
-        return
+    if sys.platform.startswith('freebsd'):
+        tunables = get_spl_tunables("VDEV")
+        if tunables['vdev.cache.size'] == '0':
+            print('VDEV cache disabled, skipping section\n')
+            return
+    else:
+        tunables = get_spl_tunables(TUNABLES_PATH)
 
     vdev_stats = isolate_section('vdev_cache_stats', kstats_dict)
 

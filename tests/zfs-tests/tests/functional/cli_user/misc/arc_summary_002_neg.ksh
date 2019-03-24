@@ -32,7 +32,11 @@ typeset args=("-x" "-r" "-5" "-p 7" "--err" "-@")
 log_assert "arc_summary.py generates an error code with invalid options"
 
 for arg in "${args[@]}"; do
-        log_mustnot eval "arc_summary.py $arg > /dev/null"
+	if [ is_freebsd ];then
+		log_mustnot eval "python /usr/local/bin/arc_summary.py $arg > /dev/null"
+	else
+		log_mustnot eval "arc_summary.py $arg > /dev/null"
+	fi
 done
 
 log_pass "arc_summary.py generates an error code with invalid options"

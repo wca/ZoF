@@ -451,6 +451,15 @@ zpool_feature_init(void)
 	    "com.datto:resilver_defer", "resilver_defer",
 	    "Support for defering new resilvers when one is already running.",
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	/*
+	 * FreeBSD never actually plumbed the platform specific pieces
+	 * required for this, but the feature was marked enabled.
+	 * We skimp and just mark it enabled.
+	 */
+	zfeature_register(SPA_FEATURE_MULTI_VDEV_CRASH_DUMP,
+        "com.joyent:multi_vdev_crash_dump", "multi_vdev_crash_dump",
+        "Crash dumps to multiple vdev pools.", B_FALSE, B_FALSE, NULL);
 }
 
 #if defined(_KERNEL)

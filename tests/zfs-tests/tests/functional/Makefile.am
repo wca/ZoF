@@ -25,6 +25,7 @@ SUBDIRS = \
 	features \
 	grow \
 	history \
+	hkdf \
 	inheritance \
 	inuse \
 	io \
@@ -76,6 +77,5 @@ SUBDIRS = \
 
 if BUILD_LINUX
 SUBDIRS+= \
-	hkdf \
 	tmpfile
 endif

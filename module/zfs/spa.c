@@ -5453,10 +5453,9 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 	spa_history_log_version(spa, "import", NULL);
 
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_IMPORT);
+	mutex_exit(&spa_namespace_lock);
 
 	zvol_create_minors(spa, pool, B_TRUE);
-
-	mutex_exit(&spa_namespace_lock);
 
 	return (0);
 }

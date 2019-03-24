@@ -58,13 +58,21 @@ function cleanup
 	log_must rm -f $DISKS
 
 	# reset zfs_remove_max_segment to 1M
-	set_tunable32 zfs_remove_max_segment 1048576
+	if [ is_freebsd ];then
+		set_tunable32 vfs.zfs.remove_max_segment 1048576
+	else
+		set_tunable32 zfs_remove_max_segment 1048576
+	fi
 }
 
 log_onexit cleanup
 
 # set zfs_remove_max_segment to 32k
-log_must set_tunable32 zfs_remove_max_segment 32768
+if [ is_freebsd ];then
+	log_must set_tunable32 vfs.zfs.remove_max_segment 32768
+else
+	log_must set_tunable32 zfs_remove_max_segment 32768
+fi
 
 log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE0 bs=128k count=1
 FILE_CONTENTS=$(<$TESTDIR/$TESTFILE0)

@@ -85,6 +85,7 @@ extern int l2arc_norw;			/* no reads during writes */
  */
 extern int		arc_min_prefetch_ms;
 extern int		arc_min_prescient_prefetch_ms;
+extern int		zfs_compressed_arc_enabled;
 
 /* arc.c */
 SYSCTL_DECL(_vfs_zfs);
@@ -105,6 +106,8 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, l2arc_feed_again, CTLFLAG_RW,
     &l2arc_feed_again, 0, "turbo warmup");
 SYSCTL_INT(_vfs_zfs, OID_AUTO, l2arc_norw, CTLFLAG_RW,
     &l2arc_norw, 0, "no reads during writes");
+SYSCTL_INT(_vfs_zfs, OID_AUTO, zfs_compressed_arc_enabled, CTLFLAG_RW,
+    &zfs_compressed_arc_enabled, 1, "compressed arc buffers");
 
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, anon_size, CTLFLAG_RD,
     &ARC_anon.arcs_size.rc_count, 0, "size of anonymous state");
@@ -159,7 +162,157 @@ SYSCTL_UINT(_vfs_zfs, OID_AUTO, arc_min_prefetch_ms, CTLFLAG_RW,
 SYSCTL_UINT(_vfs_zfs, OID_AUTO, arc_min_prescient_prefetch_ms, CTLFLAG_RW,
     &arc_min_prescient_prefetch_ms, 0, "Min life of prescient prefetched block in ms");
 
+extern unsigned long zfs_arc_max;
+extern unsigned long zfs_arc_min;
+extern unsigned long zfs_arc_meta_limit;
+extern unsigned long zfs_arc_meta_min;
+extern int			arc_no_grow_shift;
+extern int		arc_shrink_shift;
+static uint64_t arc_abs_min = 16 << 20;
 
+extern arc_stats_t arc_stats;
+#define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
+#define	arc_p		ARCSTAT(arcstat_p)	/* target size of MRU */
+#define	arc_c		ARCSTAT(arcstat_c)	/* target size of cache */
+#define	arc_c_min	ARCSTAT(arcstat_c_min)	/* min target cache size */
+#define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
+#define	arc_no_grow	ARCSTAT(arcstat_no_grow) /* do not grow cache size */
+#define	arc_tempreserve	ARCSTAT(arcstat_tempreserve)
+#define	arc_loaned_bytes	ARCSTAT(arcstat_loaned_bytes)
+#define	arc_meta_limit	ARCSTAT(arcstat_meta_limit) /* max size for metadata */
+#define	arc_dnode_limit	ARCSTAT(arcstat_dnode_limit) /* max size for dnodes */
+#define	arc_meta_min	ARCSTAT(arcstat_meta_min) /* min size for metadata */
+#define	arc_meta_max	ARCSTAT(arcstat_meta_max) /* max size of metadata */
+#define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
+#define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
+
+#ifdef notyet
+static int
+sysctl_vfs_zfs_arc_meta_limit(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_arc_meta_limit;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+        if (val <= 0 || val > arc_c_max)
+		return (EINVAL);
+
+	arc_meta_limit = val;
+	return (0);
+}
+#endif
+
+static int
+sysctl_vfs_zfs_arc_no_grow_shift(SYSCTL_HANDLER_ARGS)
+{
+	uint32_t val;
+	int err;
+
+	val = arc_no_grow_shift;
+	err = sysctl_handle_32(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+        if (val >= arc_shrink_shift)
+		return (EINVAL);
+
+	arc_no_grow_shift = val;
+	return (0);
+}
+
+static int
+sysctl_vfs_zfs_arc_max(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_arc_max;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	if (zfs_arc_max == 0) {
+		/* Loader tunable so blindly set */
+		zfs_arc_max = val;
+		return (0);
+	}
+
+	if (val < arc_abs_min || val > kmem_size())
+		return (EINVAL);
+	if (val < arc_c_min)
+		return (EINVAL);
+	if (zfs_arc_meta_limit > 0 && val < zfs_arc_meta_limit)
+		return (EINVAL);
+
+	arc_c_max = val;
+
+	arc_c = arc_c_max;
+        arc_p = (arc_c >> 1);
+
+	if (zfs_arc_meta_limit == 0) {
+		/* limit meta-data to 1/4 of the arc capacity */
+		arc_meta_limit = arc_c_max / 4;
+	}
+
+	/* if kmem_flags are set, lets try to use less memory */
+	if (kmem_debugging())
+		arc_c = arc_c / 2;
+
+	zfs_arc_max = arc_c;
+
+	return (0);
+}
+
+static int
+sysctl_vfs_zfs_arc_min(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_arc_min;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	if (zfs_arc_min == 0) {
+		/* Loader tunable so blindly set */
+		zfs_arc_min = val;
+		return (0);
+	}
+
+	if (val < arc_abs_min || val > arc_c_max)
+		return (EINVAL);
+
+	arc_c_min = val;
+
+	if (zfs_arc_meta_min == 0)
+                arc_meta_min = arc_c_min / 2;
+
+	if (arc_c < arc_c_min)
+                arc_c = arc_c_min;
+
+	zfs_arc_min = arc_c_min;
+
+	return (0);
+}
+
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_max, CTLTYPE_U64 | CTLFLAG_RWTUN,
+    0, sizeof(uint64_t), sysctl_vfs_zfs_arc_max, "QU", "Maximum ARC size");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_min, CTLTYPE_U64 | CTLFLAG_RWTUN,
+    0, sizeof(uint64_t), sysctl_vfs_zfs_arc_min, "QU", "Minimum ARC size");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_no_grow_shift, CTLTYPE_U32 | CTLFLAG_RWTUN,
+    0, sizeof(uint32_t), sysctl_vfs_zfs_arc_no_grow_shift, "U",
+    "log2(fraction of ARC which must be free to allow growing)");
+#ifdef notyet
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_meta_limit,
+    CTLTYPE_U64 | CTLFLAG_MPSAFE | CTLFLAG_RW, 0, sizeof(uint64_t),
+    sysctl_vfs_zfs_arc_meta_limit, "QU",
+    "ARC metadata limit");
+#endif
 /* dbuf.c */
 
 extern uint64_t dbuf_cache_max_bytes;
@@ -402,10 +555,18 @@ extern int zfs_scan_checkpoint_intval; /* in seconds */
 SYSCTL_UINT(_vfs_zfs, OID_AUTO, zfs_scan_checkpoint_interval, CTLFLAG_RWTUN,
     &zfs_scan_checkpoint_intval, 0, "Scan progress on-disk checkpointing interval");
 
+extern int zfs_scan_suspend_progress;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, zfs_scan_suspend_progress, CTLFLAG_RWTUN,
+    &zfs_scan_suspend_progress, 0, "Set to provent scans from progressing");
+
 /* max number of blocks to free in a single TXG */
 extern uint64_t zfs_async_block_max_blocks;
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, free_max_blocks, CTLFLAG_RWTUN,
     &zfs_async_block_max_blocks, 0, "Maximum number of blocks to free in one TXG");
+
+extern uint64_t zfs_scan_vdev_limit;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, zfs_scan_vdev_limit, CTLFLAG_RWTUN,
+    &zfs_scan_vdev_limit, 0, "Maximum number of parallelly executed bytes per leaf vdev");
 
 /* metaslab.c */
 
@@ -438,6 +599,27 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, condense_pct, CTLFLAG_RWTUN,
     &zfs_condense_pct, 0,
     "Condense on-disk spacemap when it is more than this many percents"
     " of in-memory counterpart");
+
+extern uint64_t zfs_condense_indirect_commit_entry_delay_ms;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, condense_indirect_commit_entry_delay_ms,
+    CTLFLAG_RWTUN, &zfs_condense_indirect_commit_entry_delay_ms, 0,
+    "Used by tests to ensure certain actions happen in the middle of a"
+    " condense. A maximum value of 1 should be sufficient.");
+
+extern uint64_t zfs_condense_min_mapping_bytes;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, condense_min_mapping_bytes,
+    CTLFLAG_RWTUN, &zfs_condense_min_mapping_bytes, 0,
+    "Don't bother condensing if the mapping uses less than this amount of memory");
+
+extern int zfs_remove_max_segment;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, remove_max_segment, CTLFLAG_RWTUN,
+    &zfs_remove_max_segment, 0, "Largest contiguous segment ZFS will attempt to"
+    " allocate when removing a device");
+
+extern int zfs_removal_suspend_progress;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, removal_suspend_progress, CTLFLAG_RWTUN,
+    &zfs_removal_suspend_progress, 0, "Ensures certain actions can happen while"
+    " in the middle of a removal");
 
 /*
  * The zfs_mg_noalloc_threshold defines which metaslab groups should
@@ -598,6 +780,16 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, spa_load_print_vdev_tree, CTLFLAG_RWTUN,
     &spa_load_print_vdev_tree, 0,
     "print out vdev tree during pool import");
 
+extern int spa_load_verify_metadata;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, spa_load_verify_metadata, CTLFLAG_RWTUN,
+    &spa_load_verify_metadata, 0,
+    "Whether to traverse blocks during an \"extereme rewind\"");
+
+extern int spa_load_verify_data;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, spa_load_verify_data, CTLFLAG_RWTUN,
+    &spa_load_verify_data, 0,
+    "Whether to traverse data blocks during an \"extereme rewind\"");
+
 extern uint64_t zfs_max_missing_tvds;
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, max_missing_tvds, CTLFLAG_RWTUN,
     &zfs_max_missing_tvds, 0,
@@ -613,6 +805,12 @@ SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, max_missing_tvds_scan, CTLFLAG_RWTUN,
     &zfs_max_missing_tvds_scan, 0,
     "allow importing pools with missing top-level vdevs during scan");
 
+
+/* zfs_namecheck.c */
+extern int zfs_max_dataset_nesting;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, zfs_max_dataset_nesting, CTLFLAG_RWTUN,
+	&zfs_max_dataset_nesting, 0,
+	"Limit to the amount of nesting a path can have. Defaults to 50.");
 
 /* spa_misc.c */
 extern boolean_t zfs_recover;
@@ -648,14 +846,30 @@ SYSCTL_PROC(_vfs_zfs, OID_AUTO, debugflags,
     sysctl_vfs_zfs_debug_flags, "IU", "Debug flags for ZFS testing.");
 
 extern uint64_t zfs_deadman_synctime_ms;
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_synctime_ms, CTLFLAG_RDTUN,
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_synctime_ms, CTLFLAG_RWTUN,
     &zfs_deadman_synctime_ms, 0,
     "Stalled ZFS I/O expiration time in milliseconds");
 
 extern uint64_t zfs_deadman_checktime_ms;
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_checktime_ms, CTLFLAG_RDTUN,
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_checktime_ms, CTLFLAG_RWTUN,
     &zfs_deadman_checktime_ms, 0,
     "Period of checks for stalled ZFS I/O in milliseconds");
+
+extern uint64_t zfs_deadman_ziotime_ms;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, deadman_ziotime_ms, CTLFLAG_RWTUN,
+    &zfs_deadman_ziotime_ms, 0,
+    "Time until an individual I/O is considered to be \"hung\" in milliseconds");
+
+static int 
+zfs_deadman_failmode(SYSCTL_HANDLER_ARGS)
+{
+	char buf[16];
+	return sysctl_handle_string(oidp, buf, sizeof(buf), req);
+}
+
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, deadman_failmode, CTLTYPE_STRING|CTLFLAG_RWTUN,
+    0, 0, &zfs_deadman_failmode, "A",
+    "Behavior when a \"hung\" I/O value is detected as wait, continue, or panic");
 
 extern int zfs_deadman_enabled;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, deadman_enabled, CTLFLAG_RDTUN,
@@ -664,6 +878,11 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, deadman_enabled, CTLFLAG_RDTUN,
 extern int spa_asize_inflation;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, spa_asize_inflation, CTLFLAG_RWTUN,
     &spa_asize_inflation, 0, "Worst case inflation factor for single sector writes");
+
+extern uint64_t zfs_spa_discard_memory_limit;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, spa_discard_memory_limit, CTLFLAG_RWTUN,
+    &zfs_spa_discard_memory_limit, 0, "Limit for memory used in prefetching the"
+    " checkpoint space map done on each vdev while discarding the checkpoint");
 
 /* spacemap.c */
 extern int space_map_ibs;
@@ -764,6 +983,11 @@ extern int vdev_standard_sm_blksz;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, standard_sm_blksz, CTLFLAG_RDTUN,
     &vdev_standard_sm_blksz, 0,
     "Block size for standard space map.  Power of 2 and greater than 4096.");
+
+extern int vdev_validate_skip;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, validate_skip, CTLFLAG_RDTUN,
+    &vdev_validate_skip, 0,
+    "Enable to bypass vdev_validate().");
 
 
 /* vdev_cache.c */
@@ -906,6 +1130,11 @@ SYSCTL_INT(_vfs_zfs_vdev, OID_AUTO, def_queue_depth, CTLFLAG_RWTUN,
     &zfs_vdev_def_queue_depth, 0,
     "Default queue depth for each allocator");
 
+/*extern uint64_t zfs_multihost_history;
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, multihost_history, CTLFLAG_RWTUN,
+    &zfs_multihost_history, 0,
+    "Historical staticists for the last N multihost updates");*/
+
 static int
 sysctl_zfs_async_write_active_min_dirty_percent(SYSCTL_HANDLER_ARGS)
 {
@@ -973,8 +1202,8 @@ SYSCTL_QUAD(_vfs_zfs, OID_AUTO, zil_slog_bulk, CTLFLAG_RWTUN,
     &zil_slog_bulk, 0, "Maximal SLOG commit size with sync priority");
 
 /* XXX make proc to validate */
-extern int zfs_commit_timeout_pct;
-SYSCTL_INT(_vfs_zfs, OID_AUTO, commit_timeout_pct, CTLFLAG_RWTUN,
+extern uint64_t zfs_commit_timeout_pct;
+SYSCTL_QUAD(_vfs_zfs, OID_AUTO, commit_timeout_pct, CTLFLAG_RWTUN,
     &zfs_commit_timeout_pct, 0, "ZIL block open timeout percentage");
 
 #ifdef notyet

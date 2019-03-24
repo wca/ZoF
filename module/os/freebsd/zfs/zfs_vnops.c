@@ -277,6 +277,14 @@ zfs_holey(vnode_t *vp, u_long cmd, offset_t *off)
 	if (error == ESRCH)
 		return (SET_ERROR(ENXIO));
 
+	/* file was dirty, so fall back to using generic logic */
+	if (error == EBUSY) {
+		if (hole)
+			*off = file_sz;
+
+		return (0);
+	}
+
 	/*
 	 * We could find a hole that begins after the logical end-of-file,
 	 * because dmu_offset_next() only works on whole blocks.  If the
@@ -2431,8 +2439,11 @@ zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, int *eofp, int *ncookies,
 			odp->d_ino = objnum;
 			odp->d_reclen = reclen;
 			odp->d_namlen = strlen(zap.za_name);
+			/* NOTE: d_off is the offset for the *next* entry. */
+			next = &odp->d_off;
 			(void) strlcpy(odp->d_name, zap.za_name, odp->d_namlen + 1);
 			odp->d_type = type;
+			dirent_terminate(odp);
 			odp = (dirent64_t *)((intptr_t)odp + reclen);
 		}
 		outcount += reclen;
@@ -2455,6 +2466,9 @@ zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, int *eofp, int *ncookies,
 			offset += 1;
 		}
 
+		/* Fill the offset right after advancing the cursor. */
+		if (next != NULL)
+			*next = offset;
 		if (cooks != NULL) {
 			*cooks++ = offset;
 			ncooks--;
@@ -4443,6 +4457,28 @@ zfs_freebsd_getpages(ap)
 	    ap->a_rahead));
 }
 
+/*
+ * Mark this file's access time for update for vfs_mark_atime().  This
+ * is called from execve() and mmap().
+ */
+static int
+zfs_freebsd_markatime(ap)
+	struct vop_markatime_args /* {
+		struct vnode *a_vp;
+	} */ *ap;
+{
+	struct vnode *vp = ap->a_vp;
+	znode_t		*zp = VTOZ(vp);
+	struct timespec ts;
+
+	vfs_timestamp(&ts);
+	zp->z_atime[0] = ts.tv_sec;
+	zp->z_atime[1] = ts.tv_nsec;
+	return (0);
+}
+
+
+
 static int
 zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
     int *rtvals)
@@ -5835,6 +5871,7 @@ struct vop_vector zfs_vnodeops = {
 	.vop_rmdir =		zfs_freebsd_rmdir,
 	.vop_ioctl =		zfs_freebsd_ioctl,
 	.vop_link =		zfs_freebsd_link,
+	.vop_markatime =	zfs_freebsd_markatime,
 	.vop_symlink =		zfs_freebsd_symlink,
 	.vop_readlink =		zfs_freebsd_readlink,
 	.vop_read =		zfs_freebsd_read,

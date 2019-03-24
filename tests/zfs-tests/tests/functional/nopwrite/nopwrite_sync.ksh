@@ -28,6 +28,10 @@
 # 3. Use dd with the sync flag to test the sync write path.
 #
 
+if is_freebsd; then
+	log_unsupported "Flags for dd not supported on FreeBSD"
+fi
+
 verify_runnable "global"
 origin="$TESTPOOL/$TESTFS"
 log_onexit cleanup

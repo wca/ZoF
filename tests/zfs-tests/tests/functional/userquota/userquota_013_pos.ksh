@@ -52,6 +52,10 @@ function cleanup
 	cleanup_quota
 }
 
+if is_freebsd; then
+	log_unsupported "objquota not supported on FreeBSD"
+fi
+
 log_onexit cleanup
 
 log_assert "If creating object exceeds {user|group}objquota count, it will fail"

@@ -53,6 +53,10 @@ import copy
 from decimal import Decimal
 from signal import signal, SIGINT, SIGWINCH, SIG_DFL
 
+#Requires py27-sysctl on FreeBSD
+if sys.platform.startswith('freebsd'):
+    import sysctl
+
 cols = {
     # HDR:        [Size, Scale, Description]
     "time":       [8, -1, "Time"],
@@ -150,20 +154,37 @@ def usage():
 def kstat_update():
     global kstat
 
-    k = [line.strip() for line in open('/proc/spl/kstat/zfs/arcstats')]
+    if sys.platform.startswith('freebsd'):
+        k = sysctl.filter('kstat.zfs.misc.arcstats')
 
-    if not k:
-        sys.exit(1)
+        if not k:
+            sys.exit(1)
 
-    del k[0:2]
-    kstat = {}
+        kstat = {}
 
-    for s in k:
-        if not s:
-            continue
+        for s in k:
+            if not s:
+                continue
 
-        name, unused, value = s.split()
-        kstat[name] = Decimal(value)
+            name, value = s.name, s.value
+            #Trims 'kstat.zfs.misc.arcstats' from the name
+            kstat[name[24:]] = Decimal(value)
+
+    else:
+        k = [line.strip() for line in open('/proc/spl/kstat/zfs/arcstats')]
+
+        if not k:
+            sys.exit(1)
+
+        del k[0:2]
+        kstat = {}
+
+        for s in k:
+            if not s:
+                continue
+
+            name, unused, value = s.split()
+            kstat[name] = Decimal(value)
 
 
 def snap_stats():

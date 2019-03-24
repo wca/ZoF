@@ -31,6 +31,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
+#include <sys/fm/util.h>
 #include <sys/sunddi.h>
 #include <sys/policy.h>
 #include <sys/zone.h>
@@ -86,7 +87,8 @@ static int zfs__fini(void);
 static void zfs_shutdown(void *, int);
 
 static eventhandler_tag zfs_shutdown_event_tag;
-extern void *zfsdev_state;
+extern zfsdev_state_t *zfsdev_state_list;
+extern kmutex_t zfsdev_state_lock;
 
 #define ZFS_MIN_KSTACK_PAGES 4
 
@@ -123,74 +125,74 @@ zfsdev_ioctl(struct cdev *dev, u_long zcmd, caddr_t arg, int flag,
 			   len, vecnum, sizeof(zfs_cmd_t));
 		return (EINVAL);
 	}
-	if (bootverbose)
-		printf("%s vecnum: %d\n", __func__, vecnum);
 	rc = zfsdev_ioctl_common(vecnum, (unsigned long) zp->zfs_cmd);
 	return (-rc);
 }
 
 static void
-zfs_ctldev_destroy(zfs_onexit_t *zo, minor_t minor)
-{
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-
-	zfs_onexit_destroy(zo);
-	ddi_soft_state_free(zfsdev_state, minor);
-}
-
-static void
 zfsdev_close(void *data)
 {
-	zfs_onexit_t *zo;
+	zfsdev_state_t *zs;
 	minor_t minor = (minor_t)(uintptr_t)data;
 
 	if (minor == 0)
 		return;
 
-	mutex_enter(&spa_namespace_lock);
-	zo = zfsdev_get_soft_state(minor, ZSST_CTLDEV);
-	if (zo == NULL) {
-		mutex_exit(&spa_namespace_lock);
+	mutex_enter(&zfsdev_state_lock);
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+		if (zs->zs_minor == minor)
+			break;
+	}
+	if (zs == NULL) {
+		mutex_exit(&zfsdev_state_lock);
 		return;
 	}
-	zfs_ctldev_destroy(zo, minor);
-	mutex_exit(&spa_namespace_lock);
+	zs->zs_minor = -1;
+	zfs_onexit_destroy(zs->zs_onexit);
+	zfs_zevent_destroy(zs->zs_zevent);
+	mutex_exit(&zfsdev_state_lock);
 }
 
 static int
 zfs_ctldev_init(struct cdev *devp)
 {
+	boolean_t newzs = B_FALSE;
 	minor_t minor;
-	zfs_soft_state_t *zs;
+	zfsdev_state_t *zs, *zsprev = NULL;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 
 	minor = zfsdev_minor_alloc();
 	if (minor == 0)
 		return (SET_ERROR(ENXIO));
 
-	if (ddi_soft_state_zalloc(zfsdev_state, minor) != DDI_SUCCESS)
-		return (SET_ERROR(EAGAIN));
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+		if (zs->zs_minor == -1)
+			break;
+		zsprev = zs;
+	}
+
+	if (!zs) {
+		zs = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
+		newzs = B_TRUE;
+	}
 
 	devfs_set_cdevpriv((void *)(uintptr_t)minor, zfsdev_close);
+	zs->zs_cdev = devp;
+	devp->si_drv1 = zs;
 
-	zs = ddi_get_soft_state(zfsdev_state, minor);
-	zs->zss_type = ZSST_CTLDEV;
-	zfs_onexit_init((zfs_onexit_t **)&zs->zss_data);
+	zfs_onexit_init((zfs_onexit_t **)&zs->zs_onexit);
+	zfs_zevent_init((zfs_zevent_t **)&zs->zs_zevent);
 
+	if (newzs) {
+		zs->zs_minor = minor;
+		wmb();
+		zsprev->zs_next = zs;
+	} else {
+		wmb();
+		zs->zs_minor = minor;
+	}
 	return (0);
-}
-
-void *
-zfsdev_get_soft_state(minor_t minor, enum zfs_soft_state_type which)
-{
-	zfs_soft_state_t *zp;
-
-	zp = ddi_get_soft_state(zfsdev_state, minor);
-	if (zp == NULL || zp->zss_type != which)
-		return (NULL);
-
-	return (zp->zss_data);
 }
 
 static int
@@ -200,14 +202,13 @@ zfsdev_open(struct cdev *devp, int flag, int mode, struct thread *td)
 
 	/* This is the control device. Allocate a new minor if requested. */
 	if (flag & FEXCL) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter(&zfsdev_state_lock);
 		error = zfs_ctldev_init(devp);
-		mutex_exit(&spa_namespace_lock);
+		mutex_exit(&zfsdev_state_lock);
 	}
 
 	return (error);
 }
-
 
 static struct cdevsw zfs_cdevsw = {
 	.d_version =	D_VERSION,
@@ -226,6 +227,7 @@ zfs_allow_log_destroy(void *arg)
 static void
 zfsdev_init(void)
 {
+	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	zfsdev = make_dev(&zfs_cdevsw, 0x0, UID_ROOT, GID_OPERATOR, 0666,
 	    ZFS_DRIVER);
 }
@@ -235,6 +237,7 @@ zfsdev_fini(void)
 {
 	if (zfsdev != NULL)
 		destroy_dev(zfsdev);
+	mutex_destroy(&zfsdev_state_lock);
 }
 
 int
@@ -267,6 +270,9 @@ zfs__init(void)
 
 	zfsdev_init();
 	zcommon_init();
+
+	zfsdev_state_list = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
+	zfsdev_state_list->zs_minor = -1;
 
 	return (0);
 }

@@ -18,6 +18,10 @@
 # $1: number of lines to output (default: 200)
 typeset lines=${1:-200}
 
+if [ "$(uname -s)" = "FreeBSD" ]; then
+	return 0
+fi
+
 echo "================================================================="
 echo " Tailing last $lines lines of zfs_dbgmsg log"
 echo "================================================================="

@@ -35,6 +35,10 @@
 
 verify_runnable "both"
 
+if [ is_freebsd ];then
+	log_unsupported "Skipping due to known issue and hanging."
+fi
+
 log_assert "Verify resumability of a full and incremental ZFS send/receive " \
     "in the presence of a corrupted stream"
 log_onexit resume_cleanup $sendfs $streamfs

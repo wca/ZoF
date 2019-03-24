@@ -75,7 +75,7 @@ libzfs_la_LIBADD += \
 endif
 
 if BUILD_FREEBSD
-libzfs_la_LIBADD += -lutil
+libzfs_la_LIBADD += -lutil -lgeom
 endif
 
 libzfs_la_LIBADD += -lm $(LIBSSL)

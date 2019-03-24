@@ -571,22 +571,18 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 
 	ASSERT_VOP_ELOCKED(ZTOV(dzp), __func__);
 	ASSERT_VOP_ELOCKED(ZTOV(zp), __func__);
-#ifdef __FreeBSD__
 	if (zp_is_dir) {
 		if (dzp->z_links >= ZFS_LINK_MAX)
 			return (SET_ERROR(EMLINK));
 	}
-#endif
 	if (!(flag & ZRENAMING)) {
 		if (zp->z_unlinked) {	/* no new links to unlinked zp */
 			ASSERT(!(flag & (ZNEW | ZEXISTS)));
 			return (SET_ERROR(ENOENT));
 		}
-#ifdef __FreeBSD__
 		if (zp->z_links >= ZFS_LINK_MAX - zp_is_dir) {
 			return (SET_ERROR(EMLINK));
 		}
-#endif
 		zp->z_links++;
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zfsvfs), NULL,
 		    &zp->z_links, sizeof (zp->z_links));
@@ -594,6 +590,22 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 	} else {
 		ASSERT(zp->z_unlinked == 0);
 	}
+	value = zfs_dirent(zp, zp->z_mode);
+	error = zap_add(zp->z_zfsvfs->z_os, dzp->z_id, name,
+	    8, 1, &value, tx);
+
+	/*
+	 * zap_add could fail to add the entry if it exceeds the capacity of the
+	 * leaf-block and zap_leaf_split() failed to help.
+	 * The caller of this routine is responsible for failing the transaction
+	 * which will rollback the SA updates done above.
+	 */
+	if (error != 0) {
+		if (!(flag & ZRENAMING) && !(flag & ZNEW))
+			zp->z_links--;
+		return (error);
+	}
+
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zfsvfs), NULL,
 	    &dzp->z_id, sizeof (dzp->z_id));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs), NULL,
@@ -624,12 +636,6 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime);
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
-
-	value = zfs_dirent(zp, zp->z_mode);
-	error = zap_add(zp->z_zfsvfs->z_os, dzp->z_id, name,
-	    8, 1, &value, tx);
-	VERIFY0(error);
-
 	return (0);
 }
 

@@ -27,15 +27,25 @@ fi
 
 function reset
 {
-	log_must set_tunable64 zfs_condense_indirect_commit_entry_delay_ms 0
-	log_must set_tunable64 zfs_condense_min_mapping_bytes 131072
+	if [ is_freebsd ];then
+		log_must set_tunable64 vfs.zfs.condense_indirect_commit_entry_delay_ms 0
+		log_must set_tunable64 vfs.zfs.condense_min_mapping_bytes 131072
+	else
+		log_must set_tunable64 zfs_condense_indirect_commit_entry_delay_ms 0
+		log_must set_tunable64 zfs_condense_min_mapping_bytes 131072
+	fi
 	default_cleanup_noexit
 }
 
 default_setup_noexit "$DISKS" "true"
 log_onexit reset
-log_must set_tunable64 zfs_condense_indirect_commit_entry_delay_ms 1000
-log_must set_tunable64 zfs_condense_min_mapping_bytes 1
+if [ is_freebsd ];then
+	log_must set_tunable64 vfs.zfs.condense_indirect_commit_entry_delay_ms 1000
+	log_must set_tunable64 vfs.zfs.condense_min_mapping_bytes 1
+else
+	log_must set_tunable64 zfs_condense_indirect_commit_entry_delay_ms 1000
+	log_must set_tunable64 zfs_condense_min_mapping_bytes 1
+fi
 
 log_must zfs set recordsize=512 $TESTPOOL/$TESTFS
 

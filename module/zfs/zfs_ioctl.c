@@ -224,13 +224,13 @@
 #define KMALLOC_MAX_SIZE MAXPHYS
 #define VOP_SEEK(...) (0)
 #endif
+volatile int geom_inhibited;
 
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
  * for zc->zc_nvlist_src_size, since we will need to allocate that much memory.
  */
 #define	MAX_NVLIST_SRC_SIZE	KMALLOC_MAX_SIZE
-
 kmutex_t zfsdev_state_lock;
 zfsdev_state_t *zfsdev_state_list;
 
@@ -1476,6 +1476,17 @@ getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
 
 	error = getzfsvfs_impl(os, zfvp);
 	dmu_objset_rele(os, FTAG);
+#ifdef __FreeBSD__
+	if (error)
+		return (error);
+
+	error = vfs_busy((*zfvp)->z_vfs, 0);
+	vfs_rel((*zfvp)->z_vfs);
+	if (error != 0) {
+		*zfvp = NULL;
+		error = SET_ERROR(ESRCH);
+	}
+#endif
 	return (error);
 }
 
@@ -3365,6 +3376,16 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 		}
 	}
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	if (error == 0 && type == DMU_OST_ZVOL) {
+		spa_t *spa;
+
+		if (spa_open(fsname, &spa, FTAG) == 0) {
+			zvol_create_minors(spa, fsname, B_TRUE);
+			spa_close(spa, FTAG);
+		}
+	}
+#endif
 	return (error);
 }
 
@@ -3413,6 +3434,16 @@ zfs_ioc_clone(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		if (error != 0)
 			(void) dsl_destroy_head(fsname);
 	}
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	if (error == 0) {
+		spa_t *spa;
+
+		if (spa_open(fsname, &spa, FTAG) == 0) {
+			zvol_create_minors(spa, fsname, B_TRUE);
+			spa_close(spa, FTAG);
+		}
+	}
+#endif
 	return (error);
 }
 
@@ -3607,6 +3638,45 @@ static const zfs_ioc_key_t zfs_keys_destroy_snaps[] = {
 	{"defer", 	DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 };
 
+#ifdef __FreeBSD__
+/* ARGSUSED */
+static int
+zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	int poollen;
+	nvlist_t *snaps;
+	nvpair_t *pair;
+	boolean_t defer;
+	spa_t *spa;
+
+	if (nvlist_lookup_nvlist(innvl, "snaps", &snaps) != 0)
+		return (SET_ERROR(EINVAL));
+	defer = nvlist_exists(innvl, "defer");
+
+	poollen = strlen(poolname);
+	for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
+	    pair = nvlist_next_nvpair(snaps, pair)) {
+		const char *name = nvpair_name(pair);
+
+		/*
+		 * The snap must be in the specified pool to prevent the
+		 * invalid removal of zvol minors below.
+		 */
+		if (strncmp(name, poolname, poollen) != 0 ||
+		    (name[poollen] != '/' && name[poollen] != '@'))
+			return (SET_ERROR(EXDEV));
+
+		zfs_unmount_snap(nvpair_name(pair));
+		if (spa_open(name, &spa, FTAG) == 0) {
+			zvol_remove_minors(spa, name, B_TRUE);
+			spa_close(spa, FTAG);
+		}
+	}
+
+	return (dsl_destroy_snapshots_nvl(snaps, defer, outnvl));
+}
+#else
+
 /* ARGSUSED */
 static int
 zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
@@ -3625,6 +3695,7 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	return (dsl_destroy_snapshots_nvl(snaps, defer, outnvl));
 }
+#endif
 
 /*
  * Create bookmarks.  Bookmark names are of the form <fs>#<bmark>.
@@ -4224,7 +4295,10 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			    intval & ZIO_CHECKSUM_MASK);
 			if (feature == SPA_FEATURE_NONE)
 				break;
-
+#ifdef __FreeBSD__
+			if (feature == SPA_FEATURE_EDONR)
+				return (SET_ERROR(ENOTSUP));
+#endif
 			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 				return (err);
 
@@ -4461,6 +4535,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 	if (input_fp == NULL)
 		return (SET_ERROR(EBADF));
 
+	atomic_inc_32(&geom_inhibited);
 	error = dmu_recv_begin(tofs, tosnap, begin_record, force,
 	    resumable, localprops, hidden_args, origin, &drc);
 	if (error != 0)
@@ -4566,8 +4641,13 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 	}
 
 	off = input_fp->f_offset;
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	error = dmu_recv_stream(&drc, input_fp, &off, cleanup_fd,
+	    action_handle);
+#else
 	error = dmu_recv_stream(&drc, input_fp->f_vnode, &off, cleanup_fd,
 	    action_handle);
+#endif
 
 	if (error == 0) {
 		zfsvfs_t *zfsvfs = NULL;
@@ -4733,6 +4813,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		nvlist_free(inheritprops);
 	}
 out:
+	atomic_dec_32(&geom_inhibited);
 	releasef(input_fd);
 	nvlist_free(origrecvd);
 	nvlist_free(origprops);
@@ -5030,6 +5111,21 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);
 	} else {
+#ifdef __FreeBSD__
+		file_t *fp;
+
+		fget_write(curthread, zc->zc_cookie, &cap_write_rights, &fp);
+
+		if (fp == NULL)
+			return (SET_ERROR(EBADF));
+		off = fp->f_offset;
+		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
+		    zc->zc_fromobj, embedok, large_block_ok, compressok, rawok,
+		    zc->zc_cookie, fp, &off);
+
+		if (off >= 0 && off <= MAXOFFSET_T)
+			fp->f_offset = off;
+#else
 		file_t *fp = getf(zc->zc_cookie);
 		if (fp == NULL)
 			return (SET_ERROR(EBADF));
@@ -5041,6 +5137,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 
 		if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
 			fp->f_offset = off;
+#endif
 		releasef(zc->zc_cookie);
 	}
 	return (error);
@@ -5659,13 +5756,13 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 	if (nvlist_lookup_int32(args, "cleanup_fd", &cleanup_fd) == 0) {
 		error = zfs_onexit_fd_hold(cleanup_fd, &minor);
 		if (error != 0)
-			return (error);
+			return (SET_ERROR(error));
 	}
 
 	error = dsl_dataset_user_hold(holds, minor, errlist);
 	if (minor != 0)
 		zfs_onexit_fd_rele(cleanup_fd);
-	return (error);
+	return (SET_ERROR(error));
 }
 
 /*
@@ -5923,6 +6020,46 @@ static const zfs_ioc_key_t zfs_keys_send_new[] = {
 };
 
 /* ARGSUSED */
+#ifdef __FreeBSD__
+/* ARGSUSED */
+static int
+zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	file_t *fp;
+	int error;
+	offset_t off;
+	char *fromname = NULL;
+	int fd;
+	boolean_t largeblockok;
+	boolean_t embedok;
+	boolean_t compressok;
+	boolean_t rawok;
+	uint64_t resumeobj = 0;
+	uint64_t resumeoff = 0;
+
+	fd = fnvlist_lookup_int32(innvl, "fd");
+	(void) nvlist_lookup_string(innvl, "fromsnap", &fromname);
+
+	largeblockok = nvlist_exists(innvl, "largeblockok");
+	embedok = nvlist_exists(innvl, "embedok");
+	compressok = nvlist_exists(innvl, "compressok");
+	rawok = nvlist_exists(innvl, "rawok");
+
+	(void) nvlist_lookup_uint64(innvl, "resume_object", &resumeobj);
+	(void) nvlist_lookup_uint64(innvl, "resume_offset", &resumeoff);
+
+	fget_write(curthread, fd, &cap_write_rights, &fp);
+	if (fp == NULL)
+		return (SET_ERROR(EBADF));
+	off = fp->f_offset;
+	error = dmu_send(snapname, fromname, embedok, largeblockok, compressok, rawok,
+	    fd, resumeobj, resumeoff, fp, &off);
+	fp->f_offset = off;
+
+	releasef(fd);
+	return (error);
+}
+#else
 static int
 zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 {
@@ -5963,6 +6100,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	releasef(fd);
 	return (error);
 }
+#endif
 
 /*
  * Determine approximately how large a zfs send stream will be -- the number

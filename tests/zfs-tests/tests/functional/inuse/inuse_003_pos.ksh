@@ -50,8 +50,8 @@
 
 verify_runnable "global"
 
-if is_linux; then
-	log_unsupported "Test case isn't applicable to Linux"
+if is_linux || is_freebsd; then
+	log_unsupported "Test case isn't applicable to Linux/FreeBSD"
 fi
 
 function cleanup
@@ -109,8 +109,12 @@ for num in 0 1 2; do
 done
 
 log_note "Make a ufs filesystem on source $rawdisk1"
-echo "y" | newfs -v $rawdisk1 > /dev/null 2>&1
-(($? != 0)) && log_untested "Unable to create ufs filesystem on $rawdisk1"
+if is_freebsd; then
+	log_must /sbin/newfs $rawdisk1
+else
+	echo "y" | newfs -v $rawdisk1 > /dev/null 2>&1
+	(($? != 0)) && log_untested "Unable to create ufs filesystem on $rawdisk1"
+fi
 
 log_must mkdir -p $UFSMP
 
