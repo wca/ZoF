@@ -25,13 +25,30 @@ export ZFS_MODULE_CFLAGS ZFS_MODULE_CPPFLAGS
 
 SUBDIR_TARGETS = icp lua
 
-modules:
+all: modules
+distclean maintainer-clean: clean
+install: modules_install
+uninstall: modules_uninstall
+check:
+
+modules-Linux:
 	list='$(SUBDIR_TARGETS)'; for targetdir in $$list; do \
 		$(MAKE) -C $$targetdir; \
 	done
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNEL_MAKE@ CONFIG_ZFS=m $@
 
-clean:
+# Only pass down gmake -j flag, if used.
+modules-FreeBSD:
+	flags="$$(echo $$MAKEFLAGS | tr ' ' '\n'|grep '^-j')"; \
+	env MAKEFLAGS="" SYSDIR=@LINUX@ \
+		make $${flags} -f Makefile.bsd
+
+modules-unknown:
+	@true
+
+modules: modules-@ac_system@
+
+clean-Linux:
 	@# Only cleanup the kernel build directories when CONFIG_KERNEL
 	@# is defined.  This indicates that kernel modules should be built.
 @CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNEL_MAKE@ $@
@@ -40,6 +57,13 @@ clean:
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 
 	find . -name '*.ur-safe' -type f -print | xargs $(RM)
+
+clean-FreeBSD:
+	flags="$$(echo $$MAKEFLAGS | tr ' ' '\n'|grep '^-j')"; \
+	env MAKEFLAGS="" SYSDIR=@LINUX@ \
+		make $${flags} -f Makefile.bsd clean
+
+clean: clean-@ac_system@
 
 modules_install:
 	@# Install the kernel modules
@@ -69,9 +93,3 @@ distdir:
 		(cd @top_srcdir@/module && find $$subdir -name '*.c' -o -name '*.h' -o -name '*.S' |\
 		xargs cp --parents -t $$distdir); \
 	done
-
-distclean maintainer-clean: clean
-install: modules_install
-uninstall: modules_uninstall
-all: modules
-check:

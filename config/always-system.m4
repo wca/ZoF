@@ -19,6 +19,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_SYSTEM], [
 			;;
 	esac
 	AC_MSG_RESULT([$ac_system])
+	AC_SUBST([ac_system])
 
 	AM_CONDITIONAL([BUILD_LINUX], [test "x$ac_system" = "xLinux"])
 	AM_CONDITIONAL([BUILD_FREEBSD], [test "x$ac_system" = "xFreeBSD"])
