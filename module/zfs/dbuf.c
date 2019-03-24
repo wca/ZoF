@@ -1287,12 +1287,12 @@ dbuf_handle_partial_hole(dmu_buf_impl_t *db, dnode_t *dn)
 {
 	blkptr_t *bps = db->db.db_data;
 	int n_bps = dn->dn_indblkshift / sizeof(blkptr_t);
-	uint8_t indbs = 1 << dn->dn_indblkshift;
 
 	for (int i = 0; i < n_bps; i++) {
 		blkptr_t *bp = &bps[i];
 
-		ASSERT3U(BP_GET_LSIZE(db->db_blkptr), ==, indbs);
+		ASSERT3U(BP_GET_LSIZE(db->db_blkptr), ==,
+		    1 << dn->dn_indblkshift);
 		BP_SET_LSIZE(bp, BP_GET_LEVEL(db->db_blkptr) == 1 ?
 		    dn->dn_datablksz : BP_GET_LSIZE(db->db_blkptr));
 		BP_SET_TYPE(bp, BP_GET_TYPE(db->db_blkptr));
@@ -1788,8 +1788,6 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 {
 	dmu_buf_impl_t *db_search;
 	dmu_buf_impl_t *db, *db_next;
-	dbuf_dirty_record_t *dr;
-	uint64_t txg = tx->tx_txg;
 	avl_index_t where;
 
 	if (end_blkid > dn->dn_maxblkid &&
@@ -1825,7 +1823,6 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 		}
 		DBUF_VERIFY(db);
 		if (dbuf_free_range_already_freed(db) ||
-		    dbuf_free_range_filler_will_free(db) ||
 		    dbuf_clear_successful(db))
 			continue; /* db_mtx already exited */
 
@@ -2074,18 +2071,15 @@ dbuf_dirty_record_update_leaf(dbuf_dirty_state_t *dds)
 static void
 dbuf_dirty_record_register_as_leaf(dbuf_dirty_state_t *dds)
 {
-	dbuf_dirty_record_t *dr = dds->txg_dr;
-	dmu_buf_impl_t *db = dds->db;
-
 	dbuf_dirty_record_update_leaf(dds);
-	dprintf_dbuf(db, "%s: dr_data=%p\n", __func__, dr->dt.dl.dr_data);
+	dprintf_dbuf(dds->db, "%s: dr_data=%p\n", __func__,
+	    dds->txg_dr->dt.dl.dr_data);
 	dbuf_dirty_record_register(dds);
 }
 
 static void
 dbuf_dirty_record_create_nofill(dbuf_dirty_state_t *dds)
 {
-	dbuf_dirty_record_t *dr;
 
 	(void) dbuf_dirty_record_create(dds);
 	dbuf_dirty_record_register_as_leaf(dds);
@@ -2130,7 +2124,6 @@ static void
 dbuf_dirty_enter(dbuf_dirty_state_t *dds, dmu_buf_impl_t *db, dmu_tx_t *tx,
     enum dbuf_states target_state)
 {
-	dbuf_dirty_record_t *dr;
 	uint32_t rflags = DB_RF_MUST_SUCCEED;
 
 	ASSERT3U(tx->tx_txg, !=, 0);
@@ -2214,8 +2207,6 @@ static void
 dbuf_dirty_exit(dbuf_dirty_state_t *dds)
 {
 	dmu_buf_impl_t *db = dds->db;
-	void *front = (db->db_blkid == DMU_BONUS_BLKID) ? db->db.db_data :
-	    db->db_buf;
 
 	ASSERT(db->db_level != 0 || dds->txg_dr->dt.dl.dr_data == front);
 	ASSERT(dds->txg_dr->dr_txg == dds->tx->tx_txg);
@@ -2787,45 +2778,6 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	return (B_FALSE);
 }
 
-static void
-dmu_buf_will_dirty_impl(dmu_buf_t *db_fake, int flags, dmu_tx_t *tx)
-{
-	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
-
-	ASSERT(tx->tx_txg != 0);
-	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
-
-	/*
-	 * Quick check for dirtyness.  For already dirty blocks, this
-	 * reduces runtime of this function by >90%, and overall performance
-	 * by 50% for some workloads (e.g. file deletion with indirect blocks
-	 * cached).
-	 */
-	mutex_enter(&db->db_mtx);
-	dbuf_dirty_record_t *dr = NULL;
-	if (db->db_state == DB_CACHED)
-		dr = dbuf_find_dirty_eq(db, tx->tx_txg);
-	/*
-	 * It's possible that it is already dirty but not cached,
-	 * because there are some calls to dbuf_dirty() that don't
-	 * go through dmu_buf_will_dirty().
-	 */
-	if (dr) {
-		/* This dbuf is already dirty and cached. */
-		dbuf_redirty(dr);
-		mutex_exit(&db->db_mtx);
-		return;
-	}
-	mutex_exit(&db->db_mtx);
-
-	DB_DNODE_ENTER(db);
-	if (RW_WRITE_HELD(&DB_DNODE(db)->dn_struct_rwlock))
-		flags |= DB_RF_HAVESTRUCT;
-	DB_DNODE_EXIT(db);
-	(void) dbuf_read(db, NULL, flags);
-	(void) dbuf_dirty(db, tx);
-}
-
 void
 dmu_buf_will_dirty(dmu_buf_t *db_fake, dmu_tx_t *tx)
 {
@@ -2865,9 +2817,6 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	dbuf_dirty_record_t *dr;
-	boolean_t do_read;
-	uint32_t rflags = DB_RF_MUST_SUCCEED | DB_RF_NOPREFETCH |
-	    DB_RF_NO_DECRYPT;
 
 	/*
 	 * dr_has_raw_params is only processed for blocks of dnodes
@@ -2876,14 +2825,7 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 	ASSERT3U(db->db.db_object, ==, DMU_META_DNODE_OBJECT);
 	ASSERT3U(db->db_level, ==, 0);
 	ASSERT(db->db_objset->os_raw_receive);
-
-	if (do_read) {
-		DB_DNODE_ENTER(db);
-		if (RW_WRITE_HELD(&DB_DNODE(db)->dn_struct_rwlock))
-			rflags |= DB_RF_HAVESTRUCT;
-		(void) dbuf_read(db, NULL, rflags);
-		DB_DNODE_EXIT(db);
-	}
+	ASSERT3U(db->db_state, ==, DB_CACHED);
 
 	dr = dbuf_dirty_mdn_object(db, tx);
 
