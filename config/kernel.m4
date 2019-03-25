@@ -223,7 +223,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 	AC_MSG_CHECKING([kernel source directory])
 	AS_IF([test -z "$kernelsrc"], [
-		AS_IF([BUILD_FREEBSD], [
+		AS_IF([test "$BUILD_FREEBSD"], [
 			sourcelink="/usr/src/sys"
 		], [test -e "/lib/modules/$(uname -r)/source"], [
 			headersdir="/lib/modules/$(uname -r)/source"
@@ -260,7 +260,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 	AC_MSG_CHECKING([kernel build directory])
 	AS_IF([test -z "$kernelbuild"], [
-		AS_IF([BUILD_FREEBSD], [
+		AS_IF([test "$BUILD_FREEBSD"], [
 			kernelbuild="/usr/obj/${kernelsrc}"
 		], [test x$withlinux != xyes -a -e "/lib/modules/$(uname -r)/build"], [
 			kernelbuild=`readlink -f /lib/modules/$(uname -r)/build`

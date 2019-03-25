@@ -65,6 +65,8 @@ ZFS_AC_DEBUG_KMEM_TRACKING
 AM_COND_IF([BUILD_LINUX], [AC_CONFIG_FILES([
 	udev/Makefile
 	udev/rules.d/Makefile
+	include/spl/Makefile
+	include/spl/sys/Makefile
 	include/linux/Makefile
 	etc/systemd/Makefile
 	etc/systemd/system/Makefile

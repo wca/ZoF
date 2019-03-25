@@ -3,6 +3,8 @@ include $(top_srcdir)/config/Rules.am
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 
+AM_CFLAGS += -DLIBZUTIL_PRIVATE
+
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include
@@ -19,8 +21,6 @@ if BUILD_FREEBSD
 USER_C += \
 	freebsd_mnttab.c \
 	freebsd_zutil_import.c
-
-AM_CFLAGS += -DLIBZUTIL_PRIVATE
 endif
 
 nodist_libzutil_la_SOURCES = $(USER_C)
