@@ -883,6 +883,9 @@ zfs_prop_align_right(zfs_prop_t prop)
 #endif
 
 #if defined(_KERNEL)
+int zcommon_init(void);
+void zcommon_fini(void);
+
 int __init
 zcommon_init(void)
 {
