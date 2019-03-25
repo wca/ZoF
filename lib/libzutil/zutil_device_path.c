@@ -307,7 +307,7 @@ zfs_dev_is_dm(const char *dev_name)
 int
 zfs_dev_is_whole_disk(const char *dev_name)
 {
-	struct dk_gpt *label __unused;
+	struct dk_gpt *label __attribute__((unused));
 	int fd;
 
 	if ((fd = open(dev_name, O_RDONLY | O_DIRECT)) < 0)
