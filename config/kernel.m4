@@ -283,6 +283,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		])
 		kernverinc=$kernelsrc
 		kernvervar=__FreeBSD_version
+		kernverdelim="="
 	], [
 		AC_MSG_CHECKING([kernel source version on Linux])
 		utsrelease1=$kernelbuild/include/linux/version.h
@@ -296,13 +297,14 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 			kernverfile=generated/utsrelease.h
 		])
 		kernvervar=UTS_RELEASE
+		kernverdelim="\""
 		kernverinc=$kernelbuild/include
 	])
 	AS_IF([test -n "$kernverfile"], [
 		kernsrcver=`(echo "#include <$kernverfile>";
 			     echo "kernsrcver=$kernvervar") |
 			     ${CPP} -I $kernverinc - |
-			     grep "^kernsrcver=" | cut -d \" -f 2`
+			     grep "^kernsrcver=" | cut -d ${kernverdelim} -f 2`
 		AS_IF([test -z "$kernsrcver"], [
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([*** Cannot determine kernel version.])

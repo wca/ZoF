@@ -16,6 +16,8 @@ libzfs_HEADERS = $(COMMON_H) $(USER_H)
 endif
 
 if CONFIG_KERNEL
+if BUILD_LINUX
 kerneldir = @prefix@/src/zfs-$(VERSION)/include/sys/lua
 kernel_HEADERS = $(COMMON_H) $(KERNEL_H)
+endif
 endif

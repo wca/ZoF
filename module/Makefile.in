@@ -63,9 +63,12 @@ clean-FreeBSD:
 	env MAKEFLAGS="" SYSDIR=@LINUX@ \
 		make $${flags} -f Makefile.bsd clean
 
+clean-unknown:
+	@true
+
 clean: clean-@ac_system@
 
-modules_install:
+modules_install-Linux:
 	@# Install the kernel modules
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` $@ \
 		INSTALL_MOD_PATH=$(DESTDIR)$(INSTALL_MOD_PATH) \
@@ -80,6 +83,21 @@ modules_install:
 	if [ -f $$sysmap ]; then \
 		depmod -ae -F $$sysmap @LINUX_VERSION@; \
 	fi
+
+# Only pass down gmake -j flag, if used.
+modules_install-FreeBSD:
+	mkdir -p \
+		${DESTDIR}/boot/modules \
+		${DESTDIR}/usr/lib/debug/boot/modules
+	flags="$$(echo $$MAKEFLAGS | tr ' ' '\n'|grep '^-j')"; \
+	[ `id -u` -ne 0 ] && flags="$$flags MK_INSTALL_AS_USER=yes"; \
+	env MAKEFLAGS="" SYSDIR=@LINUX@ \
+		make $${flags} -f Makefile.bsd install
+
+modules_install-unknown:
+	@true
+
+modules_install: modules_install-@ac_system@
 
 modules_uninstall:
 	@# Uninstall the kernel modules

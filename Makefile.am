@@ -18,10 +18,9 @@ endif
 if CONFIG_KERNEL
 SUBDIRS += module
 
+if BUILD_LINUX
 extradir = $(prefix)/src/zfs-$(VERSION)
 extra_HEADERS = zfs.release.in zfs_config.h.in
-
-if BUILD_LINUX
 kerneldir = $(prefix)/src/zfs-$(VERSION)/$(LINUX_VERSION)
 nodist_kernel_HEADERS = zfs.release zfs_config.h module/$(LINUX_SYMBOLS)
 endif
@@ -65,6 +64,7 @@ dist-hook: gitrev
 # compatibility links will be removed in the next major release.
 if CONFIG_KERNEL
 install-data-hook:
+if BUILD_LINUX
 	rm -rf $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
 	mkdir $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
 	cd $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
@@ -75,6 +75,9 @@ install-data-hook:
 	cd $(DESTDIR)$(prefix)/src/zfs-$(VERSION)/$(LINUX_VERSION) && \
 	ln -fs zfs_config.h spl_config.h && \
 	ln -fs zfs.release spl.release
+else
+	@true
+endif
 endif
 
 codecheck: cstyle shellcheck flake8 mancheck testscheck
