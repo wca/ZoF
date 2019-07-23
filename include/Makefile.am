@@ -2,7 +2,7 @@ SUBDIRS = sys
 SUBDIRS+= os
 
 if BUILD_LINUX
-SUBDIRS+= linux 
+SUBDIRS+= linux
 SUBDIRS+= spl
 endif
 

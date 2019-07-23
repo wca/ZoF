@@ -113,9 +113,9 @@ def get_Kstat():
     of the same name.
     """
 
-    return { **load_kstats('arcstats'),
-             **load_kstats('zfstchstats'),
-             **load_kstats('vdev_cache_stats') }
+    return {**load_kstats('arcstats'),
+            **load_kstats('zfstchstats'),
+            **load_kstats('vdev_cache_stats')}
 
 
 def fBytes(b=0):

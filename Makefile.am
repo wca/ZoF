@@ -103,9 +103,8 @@ commitcheck:
 	fi
 
 cstyle:
-	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
-		! -name '*.mod.c' ! -name '*_if.h'  ! -path "*/os/freebsd/*" \
-                -type f \
+	@find ${top_srcdir} -type f -name '*.[hc]' ! -name 'zfs_config.*' \
+		! -name '*.mod.c' ! -name '*_if.h' ! -path "*/os/freebsd/*" \
 		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
 
 filter_executable = -exec test -x '{}' \; -print
