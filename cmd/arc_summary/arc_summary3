@@ -91,7 +91,7 @@ else:
         for name in os.listdir(basepath):
             path = '{basepath}/{name}'.format(basepath=basepath, name=name)
             with open(path) as f:
-                value = para_file.read()
+                value = f.read()
                 result[name] = value.strip()
         return result
 
