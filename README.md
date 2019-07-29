@@ -20,7 +20,7 @@ to bring FreeBSD support into the ZoL repo.
 
 [FreeBSD HEAD Snapshot Images](http://pkg.trueos.org/iso/freebsd-pkgbase/) are available from the [TrueOS Project](https://www.trueos.org).
 
-Legacy ZFS is disabled in the src build (While enabled for the boot-loader) and ZoF is included automatically via the ports system as sysutils/zol and sysutils/zol-kmod.
+Legacy ZFS is disabled in the src build (While enabled for the boot-loader) and ZoF is included automatically via the ports system as sysutils/openzfs and sysutils/openzfs-kmod.
 
 # Issues
 
