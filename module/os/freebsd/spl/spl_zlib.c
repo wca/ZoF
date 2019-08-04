@@ -76,7 +76,11 @@ zlib_inflateInit(z_stream *stream)
 static int
 zlib_inflate(z_stream *stream, int finish)
 {
+#if __FreeBSD_version > 1300037
+	return (zlib104_inflate(stream, finish));
+#else
 	return (_zlib104_inflate(stream, finish));
+#endif
 }
 
 static int
