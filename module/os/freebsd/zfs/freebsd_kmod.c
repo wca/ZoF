@@ -360,7 +360,6 @@ static moduledata_t zfs_mod = {
 };
 DECLARE_MODULE(zfsctrl, zfs_mod, SI_SUB_CLOCKS, SI_ORDER_ANY);
 MODULE_VERSION(zfsctrl, 1);
-MODULE_DEPEND(zfsctrl, opensolaris, 1, 1, 1);
 MODULE_DEPEND(zfsctrl, krpc, 1, 1, 1);
 MODULE_DEPEND(zfsctrl, acl_nfs4, 1, 1, 1);
 MODULE_DEPEND(zfsctrl, crypto, 1, 1, 1);
