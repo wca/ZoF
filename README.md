@@ -21,7 +21,7 @@ ZoF is available in the FreeBSD ports tree as sysutils/openzfs and
 sysutils/openzfs-kmod. It can be installed on FreeBSD stable/12 or later.
 
 The following dependencies are required to build ZoF from source:
-  * FreeBSD sources (in /usr/src or elsewhere specified by passing
+  * FreeBSD sources in /usr/src or elsewhere specified by passing
     `--with-freebsd=$path` to `./configure`
   * Packages for build:
     ```
