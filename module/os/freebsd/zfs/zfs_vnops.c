@@ -415,7 +415,11 @@ page_unbusy(vm_page_t pp)
 {
 
 	vm_page_sunbusy(pp);
+#if __FreeBSD_version >= 1300046
+	vm_object_pip_wakeup(pp->object);
+#else
 	vm_object_pip_subtract(pp->object, 1);
+#endif
 }
 
 static vm_page_t
@@ -495,6 +499,9 @@ update_pages(vnode_t *vp, int64_t start, int len, objset_t *os, uint64_t oid,
 	ASSERT(obj != NULL);
 
 	off = start & PAGEOFFSET;
+#if __FreeBSD_version >= 1300046
+	vm_object_pip_add(obj, 1);
+#endif
 	zfs_vmobject_wlock(obj);
 	for (start &= PAGEMASK; len > 0; start += PAGESIZE) {
 		vm_page_t pp;
@@ -514,7 +521,11 @@ update_pages(vnode_t *vp, int64_t start, int len, objset_t *os, uint64_t oid,
 		len -= nbytes;
 		off = 0;
 	}
+#if __FreeBSD_version >= 1300046
+	vm_object_pip_wakeup(obj);
+#else
 	vm_object_pip_wakeupn(obj, 0);
+#endif
 	zfs_vmobject_wunlock(obj);
 }
 
@@ -5797,10 +5808,18 @@ zfs_vptocnp(struct vop_vptocnp_args *ap)
 	ZFS_EXIT(zfsvfs);
 
 	covered_vp = vp->v_mount->mnt_vnodecovered;
+#if __FreeBSD_version >= 1300046
+	enum vgetstate vs = vget_prep(covered_vp);
+#else
 	vhold(covered_vp);
+#endif
 	ltype = VOP_ISLOCKED(vp);
 	VOP_UNLOCK(vp, 0);
+#if __FreeBSD_version >= 1300046
+	error = vget_finish(covered_vp, LK_SHARED, vs);
+#else
 	error = vget(covered_vp, LK_SHARED | LK_VNHELD, curthread);
+#endif
 	if (error == 0) {
 		error = VOP_VPTOCNP(covered_vp, ap->a_vpp, ap->a_cred,
 		    ap->a_buf, ap->a_buflen);
