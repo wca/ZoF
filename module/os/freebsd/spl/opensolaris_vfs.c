@@ -265,7 +265,9 @@ vn_rele_async(vnode_t *vp, taskq_t *taskq)
 {
 	VERIFY(vp->v_count > 0);
 	if (refcount_release_if_not_last(&vp->v_usecount)) {
+#if __FreeBSD_version < 1300045
 		vdrop(vp);
+#endif
 		return;
 	}
 	VERIFY(taskq_dispatch((taskq_t *)taskq,
