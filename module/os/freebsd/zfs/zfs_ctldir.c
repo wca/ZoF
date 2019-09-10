@@ -1164,7 +1164,7 @@ zfsctl_snapshot_vptocnp(struct vop_vptocnp_args *ap)
 	 * before we can lock the vnode again.
 	 */
 	locked = VOP_ISLOCKED(vp);
-#if __FreeBSD_version >= 1300046
+#if __FreeBSD_version >= 1300045
 	enum vgetstate vs = vget_prep(vp);
 #else
 	vhold(vp);
@@ -1180,7 +1180,7 @@ zfsctl_snapshot_vptocnp(struct vop_vptocnp_args *ap)
 		bcopy(node->sn_name, ap->a_buf + *ap->a_buflen, len);
 	}
 	vfs_unbusy(mp);
-#if __FreeBSD_version >= 1300046
+#if __FreeBSD_version >= 1300045
 	vget_finish(vp, locked | LK_RETRY, vs);
 #else
 	vget(vp, locked | LK_VNHELD | LK_RETRY, curthread);

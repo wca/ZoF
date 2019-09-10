@@ -241,7 +241,7 @@ void
 kmem_cache_reap_soon(kmem_cache_t *cache)
 {
 #ifndef KMEM_DEBUG
-#if __FreeBSD_version >= 1300046
+#if __FreeBSD_version >= 1300043
 	uma_zone_reclaim(cache->kc_zone, UMA_RECLAIM_DRAIN);
 #else
 	zone_drain(cache->kc_zone);
@@ -252,7 +252,7 @@ kmem_cache_reap_soon(kmem_cache_t *cache)
 void
 kmem_reap(void)
 {
-#if __FreeBSD_version >= 1300046
+#if __FreeBSD_version >= 1300043
 	uma_reclaim(UMA_RECLAIM_TRIM);
 #else
 	uma_reclaim();
