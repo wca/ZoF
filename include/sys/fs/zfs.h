@@ -246,6 +246,7 @@ typedef enum {
 	ZPOOL_PROP_CHECKPOINT,
 	ZPOOL_PROP_LOAD_GUID,
 	ZPOOL_PROP_AUTOTRIM,
+	ZPOOL_PROP_DEDUPLOAD,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -1278,6 +1279,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_REDACT,				/* 0x5a51 */
 	ZFS_IOC_GET_BOOKMARK_PROPS,		/* 0x5a52 */
 	ZFS_IOC_WAIT,				/* 0x5a53 */
+	ZFS_IOC_POOL_DDTLOAD,			/* 0x5a54 */
 
 	/*
 	 * Linux - 3/64 numbers reserved.
