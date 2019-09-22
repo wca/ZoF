@@ -55,75 +55,12 @@ ddt_zap_destroy(objset_t *os, uint64_t object, dmu_tx_t *tx)
 	return (zap_destroy(os, object, tx));
 }
 
-static int
-ddt_zap_load(objset_t *os, uint64_t object, ddt_entry_t *dde, uchar_t *cbuf)
-{
-	int error;
-	uint64_t one, csize;
-
-	error = zap_length_uint64(os, object, (const uint64_t *)&dde->dde_key,
-	    DDT_KEY_WORDS, &one, &csize);
-	if (error)
-		return (error);
-
-	ASSERT(one == 1);
-	ASSERT(csize <= (sizeof (dde->dde_phys) + 1));
-
-	error = zap_lookup_uint64(os, object, (uint64_t *)&dde->dde_key,
-	    DDT_KEY_WORDS, 1, csize, cbuf);
-	if (error)
-		return (error);
-
-	ddt_decompress(cbuf, dde->dde_phys, csize, sizeof (dde->dde_phys));
-	return (0);
-}
-
 static void
-ddt_zap_key_fill(ddt_key_t *ddk, zap_attribute_t *za)
+ddt_zap_loadall(objset_t *os, uint64_t object)
 {
 
-	ASSERT3U(za->za_integer_length, ==, sizeof (uint64_t));
-	ASSERT3U(za->za_num_integers, ==, DDT_KEY_WORDS);
-	memcpy(ddk, za, za->za_integer_length * za->za_num_integers);
-}
-
-static void
-ddt_zap_loadall(ddt_t *ddt, objset_t *os, uint64_t object,
-    enum ddt_type type, enum ddt_class class)
-{
-	zap_cursor_t zc;
-	int error;
-	ddt_entry_t dde_search;
-	ddt_entry_t *dde;
-	zap_attribute_t attr;
-	uchar_t *cbuf;
-
-	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
-
-	cbuf = kmem_alloc(sizeof (dde->dde_phys) + 1, KM_SLEEP);
-
-	for (zap_cursor_init(&zc, os, object);
-	    zap_cursor_retrieve(&zc, &attr) == 0;
-	    zap_cursor_advance(&zc)) {
-		memset(&dde_search, 0, sizeof (dde_search));
-		ddt_zap_key_fill(&dde_search.dde_key, &attr);
-		dde = ddt_entry_find(ddt, &dde_search, B_TRUE);
-		while (dde->dde_loading)
-			cv_wait(&dde->dde_cv, &ddt->ddt_lock);
-		if (dde->dde_loaded == B_TRUE)
-			continue;
-
-		dde->dde_loading = B_TRUE;
-
-		ddt_exit(ddt);
-		error = ddt_zap_load(os, object, dde, cbuf);
-		ddt_enter(ddt);
-
-		ddt_entry_loaded(ddt, error, dde, type, class);
-	}
-
-	zap_cursor_fini(&zc);
-	kmem_free(cbuf, sizeof (dde->dde_phys) + 1);
+	(void) zap_prefetch_object(os, object);
+	return;
 }
 
 static int
@@ -131,11 +68,26 @@ ddt_zap_lookup(objset_t *os, uint64_t object, ddt_entry_t *dde)
 {
 	uchar_t *cbuf;
 	int error;
+	uint64_t one, csize;
 
 	cbuf = kmem_alloc(sizeof (dde->dde_phys) + 1, KM_SLEEP);
-	error = ddt_zap_load(os, object, dde, cbuf);
-	kmem_free(cbuf, sizeof (dde->dde_phys) + 1);
+	error = zap_length_uint64(os, object, (const uint64_t *)&dde->dde_key,
+	    DDT_KEY_WORDS, &one, &csize);
+	if (error)
+		goto out;
 
+	ASSERT(one == 1);
+	ASSERT(csize <= (sizeof (dde->dde_phys) + 1));
+
+	error = zap_lookup_uint64(os, object, (uint64_t *)&dde->dde_key,
+	    DDT_KEY_WORDS, 1, csize, cbuf);
+	if (error)
+		goto out;
+
+	ddt_decompress(cbuf, dde->dde_phys, csize, sizeof (dde->dde_phys));
+
+out:
+	kmem_free(cbuf, sizeof (dde->dde_phys) + 1);
 	return (error);
 }
 

@@ -174,8 +174,8 @@ static void
 ddt_object_loadall(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 {
 	if (ddt_object_exists(ddt, type, class)) {
-		ddt_ops[type]->ddt_op_loadall(ddt, ddt->ddt_os,
-		    ddt->ddt_object[type][class], type, class);
+		ddt_ops[type]->ddt_op_loadall(ddt->ddt_os,
+		    ddt->ddt_object[type][class]);
 	}
 }
 
@@ -561,20 +561,6 @@ ddt_get_pool_dedup_ratio(spa_t *spa)
 	return (dds_total.dds_ref_dsize * 100 / dds_total.dds_dsize);
 }
 
-uint64_t
-ddt_get_pool_dedup_load(spa_t *spa)
-{
-	enum zio_checksum ck;
-	ddt_t *ddt = NULL;
-	uint64_t t_count = 0;
-
-	for (ck = 0; ck < ZIO_CHECKSUM_FUNCTIONS; ck++) {
-		ddt = spa->spa_ddt[ck];
-		t_count += avl_numnodes(&ddt->ddt_tree);
-	}
-	return (t_count);
-}
-
 size_t
 ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len)
 {
@@ -671,25 +657,6 @@ ddt_alloc(const ddt_key_t *ddk)
 	return (dde);
 }
 
-ddt_entry_t *
-ddt_entry_find(ddt_t *ddt, ddt_entry_t *dde_search, boolean_t add)
-{
-	ddt_entry_t *dde;
-	avl_index_t where;
-
-	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
-
-	dde = avl_find(&ddt->ddt_tree, dde_search, &where);
-	if (dde == NULL) {
-		if (!add)
-			return (NULL);
-		dde = ddt_alloc(&dde_search->dde_key);
-		avl_insert(&ddt->ddt_tree, dde, where);
-	}
-
-	return (dde);
-}
-
 static void
 ddt_free(ddt_entry_t *dde)
 {
@@ -721,38 +688,15 @@ ddt_loadall(ddt_t *ddt)
 	enum ddt_class class;
 
 	/*
-	 * Load all DDT entries for each type/class combination.  Note that
-	 * a call may drop the mutex for I/O or other reasons.  However, it
-	 * is assumed that any new combinations added will already be fully
-	 * loaded, so new DDT objects don't need to be handled by this call.
+	 * Load all DDT entries for each type/class combination.  This is
+	 * intended to perform a prefetch on all such blocks.  For the same
+	 * reason that ddt_prefetch isn't locked, this is also not locked.
 	 */
-	ddt_enter(ddt);
 	for (type  = 0; type < DDT_TYPES; type++) {
 		for (class = 0; class < DDT_CLASSES; class++) {
 			ddt_object_loadall(ddt, type, class);
 		}
 	}
-	ddt_exit(ddt);
-}
-
-void
-ddt_entry_loaded(ddt_t *ddt, int error, ddt_entry_t *dde,
-    enum ddt_type type, enum ddt_class class)
-{
-
-	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
-	ASSERT(dde->dde_loaded == B_FALSE);
-	ASSERT(dde->dde_loading == B_TRUE);
-
-	dde->dde_type = type;	/* will be DDT_TYPES if no entry found */
-	dde->dde_class = class;	/* will be DDT_CLASSES if no entry found */
-	dde->dde_loaded = B_TRUE;
-	dde->dde_loading = B_FALSE;
-
-	if (error == 0)
-		ddt_stat_update(ddt, dde, -1ULL);
-
-	cv_broadcast(&dde->dde_cv);
 }
 
 ddt_entry_t *
@@ -761,15 +705,20 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 	ddt_entry_t *dde, dde_search;
 	enum ddt_type type;
 	enum ddt_class class;
+	avl_index_t where;
 	int error;
 
 	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
 
 	ddt_key_fill(&dde_search.dde_key, bp);
 
-	dde = ddt_entry_find(ddt, &dde_search, add);
-	if (dde == NULL)
-		return (NULL);
+	dde = avl_find(&ddt->ddt_tree, &dde_search, &where);
+	if (dde == NULL) {
+		if (!add)
+			return (NULL);
+		dde = ddt_alloc(&dde_search.dde_key);
+		avl_insert(&ddt->ddt_tree, dde, where);
+	}
 
 	while (dde->dde_loading)
 		cv_wait(&dde->dde_cv, &ddt->ddt_lock);
@@ -796,7 +745,19 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 	}
 
 	ddt_enter(ddt);
-	ddt_entry_loaded(ddt, error, dde, type, class);
+
+	ASSERT(dde->dde_loaded == B_FALSE);
+	ASSERT(dde->dde_loading == B_TRUE);
+
+	dde->dde_type = type;	/* will be DDT_TYPES if no entry found */
+	dde->dde_class = class;	/* will be DDT_CLASSES if no entry found */
+	dde->dde_loaded = B_TRUE;
+	dde->dde_loading = B_FALSE;
+
+	if (error == 0)
+		ddt_stat_update(ddt, dde, -1ULL);
+
+	cv_broadcast(&dde->dde_cv);
 
 	return (dde);
 }
