@@ -327,9 +327,6 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		spa_prop_add_list(*nvp, ZPOOL_PROP_DEDUPRATIO, NULL,
 		    ddt_get_pool_dedup_ratio(spa), src);
 
-		spa_prop_add_list(*nvp, ZPOOL_PROP_DEDUPLOAD, NULL,
-		    ddt_get_pool_dedup_load(spa), src);
-
 		spa_prop_add_list(*nvp, ZPOOL_PROP_HEALTH, NULL,
 		    rvd->vdev_state, src);
 

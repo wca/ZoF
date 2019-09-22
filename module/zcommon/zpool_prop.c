@@ -100,8 +100,6 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_DEDUPRATIO, "dedupratio", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<1.00x or higher if deduped>",
 	    "DEDUP");
-	zprop_register_number(ZPOOL_PROP_DEDUPLOAD, "dedupload", 0,
-	    PROP_READONLY, ZFS_TYPE_POOL, "Number of DDT entries loaded", "DDTLOAD");
 
 	/* default number properties */
 	zprop_register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,
