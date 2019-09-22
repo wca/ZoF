@@ -130,6 +130,8 @@ int lzc_reopen(const char *, boolean_t);
 int lzc_pool_checkpoint(const char *);
 int lzc_pool_checkpoint_discard(const char *);
 
+int lzc_pool_ddtload(const char *);
+
 #ifdef	__cplusplus
 }
 #endif

@@ -167,6 +167,8 @@ typedef struct ddt_ops {
 	int (*ddt_op_create)(objset_t *os, uint64_t *object, dmu_tx_t *tx,
 	    boolean_t prehash);
 	int (*ddt_op_destroy)(objset_t *os, uint64_t object, dmu_tx_t *tx);
+	void (*ddt_op_loadall)(ddt_t *ddt, objset_t *os, uint64_t object,
+	    enum ddt_type, enum ddt_class);
 	int (*ddt_op_lookup)(objset_t *os, uint64_t object, ddt_entry_t *dde);
 	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
 	    ddt_entry_t *dde);
@@ -219,6 +221,7 @@ extern void ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total);
 
 extern uint64_t ddt_get_dedup_dspace(spa_t *spa);
 extern uint64_t ddt_get_pool_dedup_ratio(spa_t *spa);
+extern uint64_t ddt_get_pool_dedup_load(spa_t *spa);
 
 extern size_t ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len);
 extern void ddt_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len);
@@ -229,7 +232,11 @@ extern void ddt_exit(ddt_t *ddt);
 extern void ddt_init(void);
 extern void ddt_fini(void);
 extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add);
+extern void ddt_loadall(ddt_t *ddt);
+extern void ddt_entry_loaded(ddt_t *ddt, int error, ddt_entry_t *dde,
+    enum ddt_type type, enum ddt_class class);
 extern void ddt_prefetch(spa_t *spa, const blkptr_t *bp);
+ddt_entry_t *ddt_entry_find(ddt_t *ddt, ddt_entry_t *dde_search, boolean_t add);
 extern void ddt_remove(ddt_t *ddt, ddt_entry_t *dde);
 
 extern boolean_t ddt_class_contains(spa_t *spa, enum ddt_class max_class,
