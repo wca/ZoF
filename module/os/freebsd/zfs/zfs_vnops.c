@@ -575,7 +575,7 @@ mappedread_sf(vnode_t *vp, int nbytes, uio_t *uio)
 			vm_page_sunbusy(pp);
 			vm_page_lock(pp);
 			if (error) {
-				if (pp->wire_count == 0 && pp->valid == 0 &&
+				if (pp->ref_count == 0 && pp->valid == 0 &&
 				    !vm_page_busied(pp))
 					vm_page_free(pp);
 			} else {
